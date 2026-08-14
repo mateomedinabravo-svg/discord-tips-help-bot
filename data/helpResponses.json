@@ -1,0 +1,42 @@
+{
+  "_comment": "generalTriggers: palabras que activan al bot (tiene que aparecer al menos una). topics: cada uno tiene keywords propias; si el mensaje matchea alguna keyword de un topic, responde con esa. Si solo matchea un generalTrigger pero ningun topic, usa fallbackResponse.",
+  "generalTriggers": ["ayuda", "help", "sos", "duda", "auxilio"],
+  "fallbackResponse": "👋 ¡Hola! Puedo ayudarte con estos temas: reglas, roles, reportar un problema, comisiones, houses, canales. Escribí por ejemplo 'ayuda con reglas' para más info, o pasate por #ayuda si necesitás algo más puntual.",
+  "topics": [
+    {
+      "name": "reglas",
+      "keywords": ["regla", "reglas", "normas"],
+      "response": "📜 Las reglas del server están en #reglas. Revisalas antes de participar en el resto de los canales."
+    },
+    {
+      "name": "roles",
+      "keywords": ["rol", "roles", "rango", "autorol", "autoroles"],
+      "response": "🎭 Podés elegir tus roles en #autoroles."
+    },
+    {
+      "name": "reportar",
+      "keywords": ["reportar", "reporte", "bug", "problema", "denuncia"],
+      "response": "🛠️ Para reportar un problema o a un usuario, abrí un ticket en #tickets y contanos con detalle qué pasó. Si es algo urgente con un miembro del staff, usá #moderacion."
+    },
+    {
+      "name": "canales",
+      "keywords": ["canal", "canales", "donde escribo", "donde pregunto"],
+      "response": "📌 Fijate #informacion para una guía de para qué sirve cada canal, y la barra lateral está organizada por categorías (Acerca de, Recursos, Comisiones, Soporte, Artists' Houses, etc.)."
+    },
+    {
+      "name": "comisiones",
+      "keywords": ["comision", "comisiones", "encargo", "portafolio", "portfolio"],
+      "response": "🎨 Para comisiones: publicá o mirá portafolios en #portafolios, y pasá tu trabajo por #verifica-portafolio antes de ofrecer servicios pagos."
+    },
+    {
+      "name": "houses",
+      "keywords": ["house", "houses", "artist house", "seguir house"],
+      "response": "🏠 Si querés unirte a una Artists' House o armar la tuya, mirá #seguir-house o pedila en #solicita-house."
+    },
+    {
+      "name": "sugerencias",
+      "keywords": ["sugerencia", "sugerir", "propuesta", "idea para el server"],
+      "response": "💡 Las sugerencias van en #sugerencias, ahí el staff las revisa."
+    }
+  ]
+}

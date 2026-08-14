@@ -1,0 +1,14 @@
+{
+  "name": "discord-tips-bot",
+  "version": "1.0.0",
+  "description": "Bot de Discord: tips automaticos cada 20 min en el canal mas activo + respuestas de ayuda por palabra clave",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.15.3",
+    "dotenv": "^16.4.5"
+  }
+}
