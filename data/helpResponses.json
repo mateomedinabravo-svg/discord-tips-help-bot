@@ -1,6 +1,6 @@
 {
   "_comment": "generalTriggers: palabras que activan al bot (tiene que aparecer al menos una, tolera errores de tipeo). topics: cada uno tiene keywords (para match directo/tipeos) y examples (frases variadas para que el clasificador aprenda a reconocer el tema aunque no se use la palabra exacta). Si nada matchea bien, usa fallbackResponse.",
-  "generalTriggers": ["ayuda", "help", "sos", "duda", "auxilio", "porfa", "alguien"],
+  "generalTriggers": ["ayuda", "help", "duda", "auxilio"],
   "fallbackResponse": "👋 ¡Hola! Puedo ayudarte con estos temas: reglas, roles, reportar un problema, comisiones, houses, sugerencias, canales. Contame un poco más o pasate por #ayuda si necesitás algo más puntual.",
   "topics": [
     {

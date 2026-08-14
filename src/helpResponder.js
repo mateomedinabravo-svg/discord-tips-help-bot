@@ -1,6 +1,9 @@
 const natural = require('natural');
 
-const CLASSIFIER_CONFIDENCE_THRESHOLD = 0.4;
+// "share" del total de probabilidad que se lleva el tema mas probable del clasificador.
+// Con texto ambiguo, todos los temas quedan parejos (~1/cantidad de temas); un tema real
+// se destaca muy por encima de eso.
+const CLASSIFIER_CONFIDENCE_SHARE = 0.35;
 
 function normalize(text) {
   return text
@@ -34,7 +37,30 @@ function toleranceFor(wordLength) {
   return 2;
 }
 
-// busca "keyword" dentro de "text" tolerando errores de tipeo (distancia de Levenshtein)
+function tokenize(text) {
+  return text.match(/[a-z0-9]+/g) || [];
+}
+
+// compara una palabra completa del mensaje contra un keyword, tolerando tipeos.
+// nunca compara contra fragmentos sueltos de palabras mas largas (evita falsos
+// positivos como "moles" dentro de "molestando" pareciendose a "roles").
+function wordMatches(word, keyword, tolerance) {
+  if (word === keyword) return true;
+  if (tolerance === 0) return false;
+
+  if (word.length <= keyword.length) {
+    if (keyword.length - word.length > tolerance + 1) return false;
+    return levenshtein(word, keyword) <= tolerance;
+  }
+
+  // la palabra es mas larga: puede tener un sufijo pegado (ej. "ayudenme")
+  const maxSuffixSlack = tolerance + 2;
+  if (word.length - keyword.length > maxSuffixSlack) return false;
+  const prefix = word.slice(0, keyword.length);
+  return levenshtein(prefix, keyword) <= tolerance;
+}
+
+// busca "keyword" dentro de "text" tolerando errores de tipeo, respetando limites de palabra
 function fuzzyIncludes(text, keyword) {
   if (keyword.includes(' ')) {
     return text.includes(keyword);
@@ -44,15 +70,7 @@ function fuzzyIncludes(text, keyword) {
   const tolerance = toleranceFor(keyword.length);
   if (tolerance === 0) return false;
 
-  for (let windowLength = keyword.length - 1; windowLength <= keyword.length + 1; windowLength++) {
-    if (windowLength < 1) continue;
-    for (let i = 0; i + windowLength <= text.length; i++) {
-      const window = text.substr(i, windowLength);
-      if (levenshtein(window, keyword) <= tolerance) return true;
-    }
-  }
-
-  return false;
+  return tokenize(text).some((word) => wordMatches(word, keyword, tolerance));
 }
 
 // clasificador bayesiano local (sin costo, sin API externa): aprende a reconocer
@@ -77,8 +95,12 @@ function classifyTopic(classifier, topics, text) {
   const classifications = classifier.getClassifications(text);
   if (!classifications.length) return null;
 
+  const total = classifications.reduce((sum, c) => sum + c.value, 0);
+  if (total <= 0) return null;
+
   const best = classifications[0];
-  if (best.value < CLASSIFIER_CONFIDENCE_THRESHOLD) return null;
+  const share = best.value / total;
+  if (share < CLASSIFIER_CONFIDENCE_SHARE) return null;
 
   return topics.find((topic) => topic.name === best.label) || null;
 }

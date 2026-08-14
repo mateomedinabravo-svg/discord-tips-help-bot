@@ -6,6 +6,7 @@ const { Client, GatewayIntentBits, Partials, ChannelType } = require('discord.js
 const { ActivityTracker } = require('./activityTracker');
 const { buildResponder } = require('./helpResponder');
 const announceCommand = require('./announceCommand');
+const { isDirectedAtAnotherUser } = require('./messageDirection');
 
 const TOKEN = process.env.DISCORD_TOKEN;
 if (!TOKEN) {
@@ -55,6 +56,14 @@ client.on('messageCreate', async (message) => {
   if (WHITELIST.length === 0 || WHITELIST.includes(message.channel.id)) {
     tracker.registerMessage(message.channel.id);
   }
+
+  const directedElsewhere = isDirectedAtAnotherUser({
+    mentionsBot: message.mentions.has(client.user.id),
+    repliedUserId: message.mentions.repliedUser ? message.mentions.repliedUser.id : null,
+    mentionedUserIds: message.mentions.users.map((user) => user.id),
+    botId: client.user.id,
+  });
+  if (directedElsewhere) return;
 
   const response = findHelpResponse(message.content);
   if (response) {
