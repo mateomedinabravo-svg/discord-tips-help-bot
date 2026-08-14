@@ -5,6 +5,7 @@ const http = require('http');
 const { Client, GatewayIntentBits, Partials, ChannelType } = require('discord.js');
 const { ActivityTracker } = require('./activityTracker');
 const { buildResponder } = require('./helpResponder');
+const announceCommand = require('./announceCommand');
 
 const TOKEN = process.env.DISCORD_TOKEN;
 if (!TOKEN) {
@@ -33,8 +34,17 @@ const client = new Client({
   partials: [Partials.Channel],
 });
 
-client.once('ready', () => {
+client.once('ready', async () => {
   console.log(`Bot conectado como ${client.user.tag}`);
+
+  for (const guild of client.guilds.cache.values()) {
+    try {
+      await guild.commands.set([announceCommand.definition.toJSON()]);
+    } catch (err) {
+      console.error(`No se pudo registrar el comando /anuncio en ${guild.name}:`, err);
+    }
+  }
+
   setInterval(sendTipToMostActiveChannel, TIPS_INTERVAL_MS);
 });
 
@@ -50,6 +60,13 @@ client.on('messageCreate', async (message) => {
   if (response) {
     await message.reply(response);
   }
+});
+
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
+  if (interaction.commandName !== 'anuncio') return;
+
+  await announceCommand.handleAnnounceCommand(interaction);
 });
 
 async function sendTipToMostActiveChannel() {

@@ -1,41 +1,95 @@
 {
-  "_comment": "generalTriggers: palabras que activan al bot (tiene que aparecer al menos una). topics: cada uno tiene keywords propias; si el mensaje matchea alguna keyword de un topic, responde con esa. Si solo matchea un generalTrigger pero ningun topic, usa fallbackResponse.",
-  "generalTriggers": ["ayuda", "help", "sos", "duda", "auxilio"],
-  "fallbackResponse": "👋 ¡Hola! Puedo ayudarte con estos temas: reglas, roles, reportar un problema, comisiones, houses, canales. Escribí por ejemplo 'ayuda con reglas' para más info, o pasate por #ayuda si necesitás algo más puntual.",
+  "_comment": "generalTriggers: palabras que activan al bot (tiene que aparecer al menos una, tolera errores de tipeo). topics: cada uno tiene keywords (para match directo/tipeos) y examples (frases variadas para que el clasificador aprenda a reconocer el tema aunque no se use la palabra exacta). Si nada matchea bien, usa fallbackResponse.",
+  "generalTriggers": ["ayuda", "help", "sos", "duda", "auxilio", "porfa", "alguien"],
+  "fallbackResponse": "👋 ¡Hola! Puedo ayudarte con estos temas: reglas, roles, reportar un problema, comisiones, houses, sugerencias, canales. Contame un poco más o pasate por #ayuda si necesitás algo más puntual.",
   "topics": [
     {
       "name": "reglas",
       "keywords": ["regla", "reglas", "normas"],
+      "examples": [
+        "que se puede y que no se puede hacer aca",
+        "hay algo prohibido en este server",
+        "me pueden castigar por decir groserias aca",
+        "cuales son los limites de este lugar",
+        "que pasa si rompo una norma del grupo",
+        "donde leo como comportarme aca",
+        "necesito saber que esta permitido",
+        "me banearon y no se por que"
+      ],
       "response": "📜 Las reglas del server están en #reglas. Revisalas antes de participar en el resto de los canales."
     },
     {
       "name": "roles",
       "keywords": ["rol", "roles", "rango", "autorol", "autoroles"],
+      "examples": [
+        "como consigo un color en mi nombre",
+        "quiero cambiar mi etiqueta de miembro",
+        "como hago para que me den un rango",
+        "no tengo permisos para ver ciertos canales",
+        "quiero elegir mis intereses aca",
+        "como me pongo el tag de artista"
+      ],
       "response": "🎭 Podés elegir tus roles en #autoroles."
     },
     {
       "name": "reportar",
       "keywords": ["reportar", "reporte", "bug", "problema", "denuncia"],
+      "examples": [
+        "un usuario me esta molestando",
+        "encontre algo que no funciona bien aca",
+        "el bot esta fallando",
+        "alguien me esta faltando el respeto",
+        "quiero avisar de un mal comportamiento",
+        "hay un troll en el chat",
+        "esto esta roto, no anda"
+      ],
       "response": "🛠️ Para reportar un problema o a un usuario, abrí un ticket en #tickets y contanos con detalle qué pasó. Si es algo urgente con un miembro del staff, usá #moderacion."
     },
     {
       "name": "canales",
       "keywords": ["canal", "canales", "donde escribo", "donde pregunto"],
+      "examples": [
+        "no se en que parte del server escribir esto",
+        "cual es el lugar correcto para postear",
+        "donde se sube contenido nuevo",
+        "que hay en cada seccion del server",
+        "estoy perdido, no entiendo la organizacion aca"
+      ],
       "response": "📌 Fijate #informacion para una guía de para qué sirve cada canal, y la barra lateral está organizada por categorías (Acerca de, Recursos, Comisiones, Soporte, Artists' Houses, etc.)."
     },
     {
       "name": "comisiones",
       "keywords": ["comision", "comisiones", "encargo", "portafolio", "portfolio"],
+      "examples": [
+        "quiero que me dibujen algo pagando",
+        "hago dibujos y quiero ofrecer mis servicios",
+        "cuanto cobran por un trabajo personalizado",
+        "quiero mostrar mis trabajos anteriores",
+        "busco un artista para un encargo",
+        "como verifico que un artista es de confianza aca"
+      ],
       "response": "🎨 Para comisiones: publicá o mirá portafolios en #portafolios, y pasá tu trabajo por #verifica-portafolio antes de ofrecer servicios pagos."
     },
     {
       "name": "houses",
       "keywords": ["house", "houses", "artist house", "seguir house"],
+      "examples": [
+        "quiero armar un grupo de artistas",
+        "como me uno a un equipo dentro del server",
+        "existen clanes o equipos aca",
+        "quiero formar parte de una comunidad mas chica dentro del server"
+      ],
       "response": "🏠 Si querés unirte a una Artists' House o armar la tuya, mirá #seguir-house o pedila en #solicita-house."
     },
     {
       "name": "sugerencias",
       "keywords": ["sugerencia", "sugerir", "propuesta", "idea para el server"],
+      "examples": [
+        "tengo una idea para mejorar el server",
+        "estaria bueno que agreguen algo nuevo",
+        "quiero proponer un cambio",
+        "se podria agregar una funcion nueva"
+      ],
       "response": "💡 Las sugerencias van en #sugerencias, ahí el staff las revisa."
     }
   ]
