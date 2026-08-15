@@ -54,6 +54,25 @@ const definition = new SlashCommandBuilder()
       .setName('blackjack')
       .setDescription('Blackjack contra el bot')
       .addIntegerOption((opt) => opt.setName('cantidad').setDescription('Cuánto apostar').setRequired(true).setMinValue(1)),
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('dados')
+      .setDescription('Tirá un dado contra el bot, gana el más alto')
+      .addIntegerOption((opt) => opt.setName('cantidad').setDescription('Cuánto apostar').setRequired(true).setMinValue(1)),
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('ppt')
+      .setDescription('Piedra, papel o tijera contra el bot')
+      .addIntegerOption((opt) => opt.setName('cantidad').setDescription('Cuánto apostar').setRequired(true).setMinValue(1))
+      .addStringOption((opt) =>
+        opt
+          .setName('eleccion')
+          .setDescription('Tu jugada')
+          .setRequired(true)
+          .addChoices({ name: 'Piedra', value: 'piedra' }, { name: 'Papel', value: 'papel' }, { name: 'Tijera', value: 'tijera' }),
+      ),
   );
 
 function formatMoney(amount, config) {
@@ -97,6 +116,10 @@ async function handleCasinoCommand(interaction, config) {
       return handleRoulette(interaction, config);
     case 'blackjack':
       return handleBlackjackStart(interaction, config);
+    case 'dados':
+      return handleDice(interaction, config);
+    case 'ppt':
+      return handleRockPaperScissors(interaction, config);
     default:
       return null;
   }
@@ -184,6 +207,68 @@ async function handleRoulette(interaction, config) {
     type: winnings > 0 ? 'success' : 'error',
     title: '🎡 Ruleta',
     description: `Salió **${result} (${resultColor})**.\n${outcome}`,
+  });
+  await interaction.reply({ embeds: [embed] });
+}
+
+async function handleDice(interaction, config) {
+  const amount = interaction.options.getInteger('cantidad', true);
+  if (!(await validateBet(interaction, config, amount))) return;
+
+  const playerRoll = Math.floor(Math.random() * 6) + 1;
+  const botRoll = Math.floor(Math.random() * 6) + 1;
+
+  let winnings;
+  let outcome;
+  if (playerRoll > botRoll) {
+    winnings = amount;
+    outcome = `¡Ganaste **${formatMoney(winnings, config)}**!`;
+  } else if (playerRoll === botRoll) {
+    winnings = 0;
+    outcome = 'Empate, recuperás tu apuesta.';
+  } else {
+    winnings = -amount;
+    outcome = `Perdiste **${formatMoney(amount, config)}**.`;
+  }
+
+  await db.addBalance(interaction.guild.id, interaction.user.id, winnings);
+  const embed = buildEmbed({
+    type: winnings > 0 ? 'success' : winnings === 0 ? 'warning' : 'error',
+    title: '🎲 Dados',
+    description: `Tirada: **${playerRoll}** vs bot: **${botRoll}**\n${outcome}`,
+  });
+  await interaction.reply({ embeds: [embed] });
+}
+
+const RPS_BEATS = { piedra: 'tijera', papel: 'piedra', tijera: 'papel' };
+const RPS_EMOJI = { piedra: '🪨', papel: '📄', tijera: '✂️' };
+
+async function handleRockPaperScissors(interaction, config) {
+  const amount = interaction.options.getInteger('cantidad', true);
+  const choice = interaction.options.getString('eleccion', true);
+  if (!(await validateBet(interaction, config, amount))) return;
+
+  const options = Object.keys(RPS_BEATS);
+  const botChoice = options[Math.floor(Math.random() * options.length)];
+
+  let winnings;
+  let outcome;
+  if (choice === botChoice) {
+    winnings = 0;
+    outcome = 'Empate, recuperás tu apuesta.';
+  } else if (RPS_BEATS[choice] === botChoice) {
+    winnings = amount;
+    outcome = `¡Ganaste **${formatMoney(winnings, config)}**!`;
+  } else {
+    winnings = -amount;
+    outcome = `Perdiste **${formatMoney(amount, config)}**.`;
+  }
+
+  await db.addBalance(interaction.guild.id, interaction.user.id, winnings);
+  const embed = buildEmbed({
+    type: winnings > 0 ? 'success' : winnings === 0 ? 'warning' : 'error',
+    title: '✊ Piedra, papel o tijera',
+    description: `Vos: ${RPS_EMOJI[choice]} ${choice} — Bot: ${RPS_EMOJI[botChoice]} ${botChoice}\n${outcome}`,
   });
   await interaction.reply({ embeds: [embed] });
 }
