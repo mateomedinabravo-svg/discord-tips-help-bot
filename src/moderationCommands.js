@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const db = require('./db');
+const { resolveColor } = require('./embedStyle');
 
 const banDefinition = new SlashCommandBuilder()
   .setName('ban')
@@ -53,7 +54,7 @@ async function logModerationAction(client, config, { action, moderator, target, 
     if (!channel || !channel.isTextBased()) return;
 
     const embed = new EmbedBuilder()
-      .setColor(0xed4245)
+      .setColor(resolveColor(config, 'error'))
       .setTitle(`🛡️ ${action}`)
       .addFields(
         { name: 'Usuario', value: `<@${target.id}> (${target.tag || target.username})`, inline: true },
@@ -138,7 +139,7 @@ async function handleWarnCommand(interaction, config) {
   await logModerationAction(interaction.client, config, { action: 'Warn', moderator: interaction.user, target: user, reason });
 }
 
-async function handleWarningsCommand(interaction) {
+async function handleWarningsCommand(interaction, config) {
   const user = interaction.options.getUser('usuario', true);
   const warnings = await db.listWarnings(interaction.guild.id, user.id);
 
@@ -149,7 +150,7 @@ async function handleWarningsCommand(interaction) {
 
   const lines = warnings.map((w, i) => `**${i + 1}.** ${w.reason} — <t:${Math.floor(w.createdAt.getTime() / 1000)}:R>`);
   const embed = new EmbedBuilder()
-    .setColor(0xf0b232)
+    .setColor(resolveColor(config, 'warning'))
     .setTitle(`Advertencias de ${user.username}`)
     .setDescription(lines.join('\n'));
 

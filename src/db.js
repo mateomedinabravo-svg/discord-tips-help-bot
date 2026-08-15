@@ -158,6 +158,29 @@ function defaultConfig(guildId) {
       enabled: false,
       errorChannelId: null,
     },
+    branding: {
+      colors: {
+        brand: '#5865f2',
+        success: '#3ba55d',
+        error: '#ed4245',
+        warning: '#f0b232',
+        info: '#5865f2',
+      },
+      footerText: '',
+      footerIcon: '',
+      nickname: '',
+    },
+    suggestions: {
+      enabled: false,
+      channelId: null,
+      approvalRoleIds: [],
+      anonymous: false,
+    },
+    memberCounter: {
+      enabled: false,
+      channelId: null,
+      template: '📊 Miembros: {count}',
+    },
     updatedAt: new Date(),
   };
 }
@@ -208,6 +231,9 @@ async function getGuildConfig(guildId) {
   config.welcome = { ...defaults.welcome, ...(config.welcome || {}) };
   config.goodbye = { ...defaults.goodbye, ...(config.goodbye || {}) };
   config.debug = { ...defaults.debug, ...(config.debug || {}) };
+  config.branding = { ...defaults.branding, ...(config.branding || {}), colors: { ...defaults.branding.colors, ...(config.branding?.colors || {}) } };
+  config.suggestions = { ...defaults.suggestions, ...(config.suggestions || {}) };
+  config.memberCounter = { ...defaults.memberCounter, ...(config.memberCounter || {}) };
 
   return config;
 }
@@ -612,6 +638,62 @@ async function endGiveaway(messageId, winnerIds) {
   await database.collection('giveaways').updateOne({ messageId }, { $set: { ended: true, winnerIds } });
 }
 
+async function createPoll({ guildId, channelId, messageId, question, options, hostId }) {
+  const database = await connect();
+  await database.collection('polls').insertOne({
+    guildId,
+    channelId,
+    messageId,
+    question,
+    options,
+    hostId,
+    votes: {},
+    createdAt: new Date(),
+  });
+}
+
+async function getPoll(messageId) {
+  const database = await connect();
+  return database.collection('polls').findOne({ messageId });
+}
+
+async function setPollVote(messageId, userId, optionIndex) {
+  const database = await connect();
+  await database.collection('polls').updateOne({ messageId }, { $set: { [`votes.${userId}`]: optionIndex } });
+  return database.collection('polls').findOne({ messageId });
+}
+
+async function createSuggestion({ guildId, channelId, messageId, authorId, content }) {
+  const database = await connect();
+  await database.collection('suggestions').insertOne({
+    guildId,
+    channelId,
+    messageId,
+    authorId,
+    content,
+    status: 'pending',
+    votes: {},
+    createdAt: new Date(),
+  });
+}
+
+async function getSuggestion(messageId) {
+  const database = await connect();
+  return database.collection('suggestions').findOne({ messageId });
+}
+
+async function setSuggestionVote(messageId, userId, value) {
+  const database = await connect();
+  await database.collection('suggestions').updateOne({ messageId }, { $set: { [`votes.${userId}`]: value } });
+  return database.collection('suggestions').findOne({ messageId });
+}
+
+async function setSuggestionStatus(messageId, status, staffId) {
+  const database = await connect();
+  await database.collection('suggestions').updateOne({ messageId }, { $set: { status, staffId } });
+  return database.collection('suggestions').findOne({ messageId });
+}
+
 module.exports = {
   connect,
   getGuildConfig,
@@ -660,4 +742,11 @@ module.exports = {
   addGiveawayEntry,
   getExpiredGiveaways,
   endGiveaway,
+  createPoll,
+  getPoll,
+  setPollVote,
+  createSuggestion,
+  getSuggestion,
+  setSuggestionVote,
+  setSuggestionStatus,
 };

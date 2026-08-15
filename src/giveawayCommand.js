@@ -35,7 +35,7 @@ function parseDuration(input) {
   return amount * unitMs;
 }
 
-function buildGiveawayEmbed({ prize, winnerCount, endsAt, hostId, entryCount = 0, ended = false, winnerIds = [] }) {
+function buildGiveawayEmbed({ prize, winnerCount, endsAt, hostId, entryCount = 0, ended = false, winnerIds = [], config }) {
   if (ended) {
     return buildEmbed({
       type: winnerIds.length ? 'success' : 'warning',
@@ -44,11 +44,13 @@ function buildGiveawayEmbed({ prize, winnerCount, endsAt, hostId, entryCount = 0
         ? `Ganador(es): ${winnerIds.map((id) => `<@${id}>`).join(', ')}`
         : 'Nadie participó, no hubo ganador.',
       footer: 'Sorteo terminado',
+      config,
     });
   }
 
   return buildEmbed({
     type: 'brand',
+    config,
     title: `🎉 Sorteo: ${prize}`,
     description: `Apretá el botón para participar.\nGanadores: **${winnerCount}**\nTermina: <t:${Math.floor(endsAt.getTime() / 1000)}:R>\nOrganiza: <@${hostId}>\nParticipantes: **${entryCount}**`,
   });
@@ -72,12 +74,14 @@ async function finishGiveaway(client, giveaway) {
     const channel = await client.channels.fetch(giveaway.channelId);
     if (!channel || !channel.isTextBased()) return;
 
+    const config = await db.getGuildConfig(giveaway.guildId);
     const endedEmbed = buildGiveawayEmbed({
       prize: giveaway.prize,
       winnerCount: giveaway.winnerCount,
       hostId: giveaway.hostId,
       ended: true,
       winnerIds,
+      config,
     });
 
     try {
@@ -121,7 +125,8 @@ async function handleCreate(interaction) {
   }
 
   const endsAt = new Date(Date.now() + durationMs);
-  const embed = buildGiveawayEmbed({ prize, winnerCount, endsAt, hostId: interaction.user.id, entryCount: 0 });
+  const config = await db.getGuildConfig(interaction.guild.id);
+  const embed = buildGiveawayEmbed({ prize, winnerCount, endsAt, hostId: interaction.user.id, entryCount: 0, config });
   const pendingRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('giveaway-enter-pending').setLabel('🎉 Participar').setStyle(ButtonStyle.Primary),
   );
@@ -186,12 +191,14 @@ async function handleEnterButton(interaction) {
   await interaction.reply({ content: '✅ ¡Entraste al sorteo! Buena suerte.', ephemeral: true });
 
   try {
+    const config = await db.getGuildConfig(interaction.guild.id);
     const embed = buildGiveawayEmbed({
       prize: updated.prize,
       winnerCount: updated.winnerCount,
       endsAt: updated.endsAt,
       hostId: updated.hostId,
       entryCount: updated.entries.length,
+      config,
     });
     await interaction.message.edit({ embeds: [embed] });
   } catch (err) {

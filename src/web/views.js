@@ -53,6 +53,9 @@ function layout({ title, user, body, flash, guildName }) {
     background: #1e1f22; color: #dbdee1; font-size: 14px; font-family: inherit;
   }
   textarea { min-height: 110px; resize: vertical; }
+  input[type=color] { width: 60px; height: 38px; padding: 3px; border-radius: 6px; border: 1px solid #1e1f22; background: #1e1f22; cursor: pointer; }
+  .color-row { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+  .color-row label { margin: 0; min-width: 90px; }
   .checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
   .checkbox-row input { width: auto; }
   button { margin-top: 18px; background: #5865f2; color: #fff; border: none; padding: 10px 18px;
@@ -136,6 +139,7 @@ ${user ? `<header>
       <a href="/dashboard/comandos">Comandos</a>
       <a href="/dashboard/ia">IA</a>
       <a href="/dashboard/guia">Guía</a>
+      <a href="/dashboard/apariencia">Apariencia</a>
     </div>
   </div>
 </nav>` : ''}
@@ -1016,6 +1020,41 @@ function debugPage({ user, config, channels, guildName, flash, stats }) {
   return layout({ title: 'Estado / Debug', user, body, flash, guildName });
 }
 
+function appearancePage({ user, config, guildName, flash }) {
+  const colorLabels = { brand: 'Marca', success: 'Éxito', error: 'Error', warning: 'Advertencia', info: 'Info' };
+  const colorRows = Object.keys(colorLabels)
+    .map(
+      (key) => `<div class="color-row">
+        <label for="color-${key}">${colorLabels[key]}</label>
+        <input type="color" id="color-${key}" name="color_${key}" value="${escapeHtml(config.branding.colors[key])}">
+      </div>`,
+    )
+    .join('');
+
+  const body = `
+  <h1>Apariencia</h1>
+  <p class="muted">Personalizá cómo se ve el bot en este server: los colores de sus embeds, el pie de página y su apodo.</p>
+
+  <form class="card" method="post" action="/dashboard/apariencia">
+    <h2>Colores de los embeds</h2>
+    <p class="muted">Se usan en casi todos los mensajes con formato del bot (tickets, niveles, economía, moderación, etc).</p>
+    ${colorRows}
+
+    <h2 style="margin-top:24px;">Firma de los embeds</h2>
+    <label>Texto del footer (opcional)</label>
+    <input type="text" name="footerText" maxlength="100" placeholder="Ej: Powered by tu server" value="${escapeHtml(config.branding.footerText)}">
+    <label>URL del ícono del footer (opcional)</label>
+    <input type="text" name="footerIcon" maxlength="300" placeholder="https://..." value="${escapeHtml(config.branding.footerIcon)}">
+
+    <h2 style="margin-top:24px;">Apodo del bot</h2>
+    <label>Cómo se muestra el nombre del bot en este server (dejá vacío para usar el default)</label>
+    <input type="text" name="nickname" maxlength="32" value="${escapeHtml(config.branding.nickname)}">
+
+    <button type="submit">Guardar</button>
+  </form>`;
+  return layout({ title: 'Apariencia', user, body, flash, guildName });
+}
+
 module.exports = {
   layout,
   loginPage,
@@ -1043,4 +1082,5 @@ module.exports = {
   aiPage,
   serverGuidePage,
   debugPage,
+  appearancePage,
 };

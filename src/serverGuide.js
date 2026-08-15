@@ -40,7 +40,7 @@ async function publishGuide(guild, config) {
     }
   }
 
-  const embed = buildEmbed({ type: 'brand', title: guide.title, description: guide.description });
+  const embed = buildEmbed({ type: 'brand', title: guide.title, description: guide.description, config });
   const message = await channel.send({ embeds: [embed], components: buildSectionButtons(guide.sections) });
   return message.id;
 }
@@ -60,6 +60,7 @@ async function handleGuideButton(interaction, config) {
     type: 'brand',
     title: `${section.emoji || ''} ${section.label}`.trim(),
     description: section.content,
+    config,
   });
 
   await interaction.reply({ embeds: [embed], ephemeral: true });

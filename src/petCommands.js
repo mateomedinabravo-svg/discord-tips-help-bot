@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const db = require('./db');
+const { resolveColor } = require('./embedStyle');
 
 const SPECIES_EMOJI = { perro: '🐶', gato: '🐱', dragon: '🐲', conejo: '🐰', pajaro: '🐦' };
 
@@ -58,7 +59,7 @@ async function handlePetCommand(interaction, config) {
     case 'adoptar':
       return handleAdopt(interaction);
     case 'ver':
-      return handleView(interaction);
+      return handleView(interaction, config);
     case 'alimentar':
       return handleFeed(interaction, config);
     case 'jugar':
@@ -82,10 +83,10 @@ async function handleAdopt(interaction) {
   await interaction.reply(`${SPECIES_EMOJI[species] || '🐾'} ¡Adoptaste a **${name}**! Usá /mascota alimentar y /mascota jugar para cuidarla.`);
 }
 
-function buildPetEmbed(pet, ownerUsername) {
+function buildPetEmbed(pet, ownerUsername, config) {
   const levelInfo = db.petLevelInfoFromXp(pet.xp);
   return new EmbedBuilder()
-    .setColor(0x5865f2)
+    .setColor(resolveColor(config, 'brand'))
     .setTitle(`${SPECIES_EMOJI[pet.species] || '🐾'} ${pet.name}`)
     .setDescription(`Mascota de ${ownerUsername}`)
     .addFields(
@@ -95,7 +96,7 @@ function buildPetEmbed(pet, ownerUsername) {
     );
 }
 
-async function handleView(interaction) {
+async function handleView(interaction, config) {
   const target = interaction.options.getUser('usuario') || interaction.user;
   const pet = await db.getPet(interaction.guild.id, target.id);
 
@@ -104,7 +105,7 @@ async function handleView(interaction) {
     return;
   }
 
-  await interaction.reply({ embeds: [buildPetEmbed(pet, target.username)] });
+  await interaction.reply({ embeds: [buildPetEmbed(pet, target.username, config)] });
 }
 
 async function handleFeed(interaction, config) {

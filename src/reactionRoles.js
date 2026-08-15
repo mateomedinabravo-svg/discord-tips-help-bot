@@ -1,7 +1,8 @@
 const { EmbedBuilder } = require('discord.js');
 const db = require('./db');
+const { resolveColor } = require('./embedStyle');
 
-async function postReactionRoleMessage(guild, { channelId, title, description, pairs }) {
+async function postReactionRoleMessage(guild, { channelId, title, description, pairs, config }) {
   const channel = await guild.channels.fetch(channelId);
   if (!channel || !channel.isTextBased()) {
     throw new Error('Canal inválido');
@@ -9,7 +10,7 @@ async function postReactionRoleMessage(guild, { channelId, title, description, p
 
   const lines = pairs.map((pair) => `${pair.emoji} — <@&${pair.roleId}>${pair.label ? ` (${pair.label})` : ''}`);
   const embed = new EmbedBuilder()
-    .setColor(0x5865f2)
+    .setColor(resolveColor(config, 'brand'))
     .setTitle(title || 'Elegí tus roles')
     .setDescription(`${description ? `${description}\n\n` : ''}${lines.join('\n')}`);
 

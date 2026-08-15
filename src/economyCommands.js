@@ -90,6 +90,7 @@ async function handleBalance(interaction, config) {
     type: 'brand',
     author: { name: target.username, iconURL: target.displayAvatarURL() },
     description: `💰 Tiene **${formatMoney(account.balance, config)}**.`,
+    config,
   });
   await interaction.reply({ embeds: [embed] });
 }
@@ -111,6 +112,7 @@ async function handleDaily(interaction, config) {
     type: 'success',
     title: '🎁 Recompensa diaria',
     description: `Ganaste **+${formatMoney(amount, config)}**. Volvé mañana por más.`,
+    config,
   });
   await interaction.reply({ embeds: [embed] });
 }
@@ -136,6 +138,7 @@ async function handleWork(interaction, config) {
     type: 'success',
     title: '💼 A trabajar',
     description: `Ganaste **${formatMoney(amount, config)}**.`,
+    config,
   });
   await interaction.reply({ embeds: [embed] });
 }
@@ -162,6 +165,7 @@ async function handlePay(interaction, config) {
   const embed = buildEmbed({
     type: 'success',
     description: `✅ Le transferiste **${formatMoney(amount, config)}** a <@${target.id}>.`,
+    config,
   });
   await interaction.reply({ embeds: [embed] });
 }
@@ -180,6 +184,7 @@ async function handleShop(interaction, config) {
       .map((item) => `**${item.name}** — ${formatMoney(item.price, config)}${item.description ? `\n${item.description}` : ''}`)
       .join('\n\n'),
     footer: 'Comprá con /economia comprar',
+    config,
   });
 
   await interaction.reply({ embeds: [embed] });
@@ -205,6 +210,7 @@ async function handleBuy(interaction, config) {
   const embed = buildEmbed({
     type: 'success',
     description: `✅ Compraste **${item.name}** por ${formatMoney(item.price, config)}.`,
+    config,
   });
   await interaction.reply({ embeds: [embed] });
 }
@@ -219,7 +225,7 @@ async function handleInventory(interaction, config) {
   }
 
   const lines = account.inventory.map((item) => `**${item.name}** x${item.quantity}`);
-  const embed = buildEmbed({ type: 'brand', title: `🎒 Inventario de ${target.username}`, description: lines.join('\n') });
+  const embed = buildEmbed({ type: 'brand', title: `🎒 Inventario de ${target.username}`, description: lines.join('\n'), config });
   await interaction.reply({ embeds: [embed] });
 }
 
@@ -241,6 +247,7 @@ async function handleProfile(interaction, config) {
       { name: 'Nivel', value: `${levelInfo.level} (${levelInfo.xp} XP)`, inline: true },
       { name: 'Items', value: String(account.inventory.length), inline: true },
     ],
+    config,
   });
 
   if (pet) {

@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const db = require('./db');
+const { resolveColor } = require('./embedStyle');
 
 const nivelDefinition = new SlashCommandBuilder()
   .setName('nivel')
@@ -59,9 +60,10 @@ async function awardXp(message, config) {
 async function handleNivelCommand(interaction) {
   const targetUser = interaction.options.getUser('usuario') || interaction.user;
   const info = await db.getUserLevel(interaction.guild.id, targetUser.id);
+  const config = await db.getGuildConfig(interaction.guild.id);
 
   const embed = new EmbedBuilder()
-    .setColor(0x5865f2)
+    .setColor(resolveColor(config, 'brand'))
     .setAuthor({ name: targetUser.username, iconURL: targetUser.displayAvatarURL() })
     .setTitle(`Nivel ${info.level}`)
     .setDescription(`${progressBar(info.xpIntoLevel, info.xpForNextLevel)}\n${info.xpIntoLevel} / ${info.xpForNextLevel} XP`);
@@ -84,7 +86,8 @@ async function handleRankingCommand(interaction) {
     return `${prefix} <@${entry.userId}> — nivel ${info.level} (${entry.xp} XP)`;
   });
 
-  const embed = new EmbedBuilder().setColor(0x5865f2).setTitle('🏆 Ranking de experiencia').setDescription(lines.join('\n'));
+  const config = await db.getGuildConfig(interaction.guild.id);
+  const embed = new EmbedBuilder().setColor(resolveColor(config, 'brand')).setTitle('🏆 Ranking de experiencia').setDescription(lines.join('\n'));
 
   await interaction.reply({ embeds: [embed] });
 }

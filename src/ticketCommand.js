@@ -10,6 +10,7 @@ const {
   AttachmentBuilder,
 } = require('discord.js');
 const db = require('./db');
+const { resolveColor } = require('./embedStyle');
 
 const TICKETS_CATEGORY_NAME = 'Tickets';
 const CLOSE_BUTTON_ID = 'close-ticket';
@@ -79,7 +80,7 @@ async function publishPanel(guild, config) {
     }
   }
 
-  const embed = new EmbedBuilder().setColor(0x5865f2).setTitle(panel.title).setDescription(panel.description);
+  const embed = new EmbedBuilder().setColor(resolveColor(config, 'brand')).setTitle(panel.title).setDescription(panel.description);
   const row = categorySelectRow(config.ticketCategories);
 
   const message = await channel.send({ embeds: [embed], components: [row] });
@@ -151,7 +152,7 @@ async function createTicketChannel(interaction, config, categoryId) {
   );
 
   const embed = new EmbedBuilder()
-    .setColor(0x5865f2)
+    .setColor(resolveColor(config, 'brand'))
     .setTitle(`Ticket #${paddedNumber} — ${category.label}`)
     .setDescription(category.description || 'Un miembro del staff te va a responder pronto.');
 
@@ -233,7 +234,7 @@ async function handleCloseButton(interaction, config) {
           name: `ticket-${ticket ? String(ticket.number).padStart(4, '0') : interaction.channel.name}.txt`,
         });
         const embed = new EmbedBuilder()
-          .setColor(0x5865f2)
+          .setColor(resolveColor(config, 'brand'))
           .setTitle(`📄 Transcripción — ${interaction.channel.name}`)
           .addFields(
             { name: 'Usuario', value: ticket ? `<@${ticket.userId}>` : 'Desconocido', inline: true },

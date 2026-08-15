@@ -1,6 +1,7 @@
 const { EmbedBuilder } = require('discord.js');
+const { resolveColor } = require('./embedStyle');
 
-async function sendLog(client, config, { color, title, description, fields }) {
+async function sendLog(client, config, { type, title, description, fields }) {
   const logging = config?.logging;
   if (!logging || !logging.enabled || !logging.channelId) return;
 
@@ -8,7 +9,7 @@ async function sendLog(client, config, { color, title, description, fields }) {
     const channel = await client.channels.fetch(logging.channelId);
     if (!channel || !channel.isTextBased()) return;
 
-    const embed = new EmbedBuilder().setColor(color || 0x5865f2).setTimestamp();
+    const embed = new EmbedBuilder().setColor(resolveColor(config, type || 'brand')).setTimestamp();
     if (title) embed.setTitle(title);
     if (description) embed.setDescription(description);
     if (fields) embed.addFields(fields);
@@ -24,7 +25,7 @@ async function logMessageDelete(client, config, message) {
   if (message.author?.bot) return;
 
   await sendLog(client, config, {
-    color: 0xed4245,
+    type: 'error',
     title: '🗑️ Mensaje borrado',
     description: message.content || '*(sin contenido de texto)*',
     fields: [
@@ -40,7 +41,7 @@ async function logMessageUpdate(client, config, oldMessage, newMessage) {
   if (oldMessage.content === newMessage.content) return;
 
   await sendLog(client, config, {
-    color: 0xf0b232,
+    type: 'warning',
     title: '✏️ Mensaje editado',
     fields: [
       { name: 'Autor', value: `<@${newMessage.author.id}>`, inline: true },
@@ -54,7 +55,7 @@ async function logMessageUpdate(client, config, oldMessage, newMessage) {
 async function logMemberJoin(client, config, member) {
   if (!config?.logging?.logJoins) return;
   await sendLog(client, config, {
-    color: 0x57f287,
+    type: 'success',
     title: '📥 Miembro se unió',
     description: `<@${member.id}> (${member.user.username})`,
   });
@@ -63,7 +64,7 @@ async function logMemberJoin(client, config, member) {
 async function logMemberLeave(client, config, member) {
   if (!config?.logging?.logJoins) return;
   await sendLog(client, config, {
-    color: 0xed4245,
+    type: 'error',
     title: '📤 Miembro se fue',
     description: `<@${member.id}> (${member.user.username})`,
   });

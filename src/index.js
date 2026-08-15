@@ -69,11 +69,28 @@ function getTracker(guildId) {
   return trackerByGuild.get(guildId);
 }
 
+async function applyBotNickname(guildId, config) {
+  const nickname = config?.branding?.nickname;
+  if (!nickname) return;
+
+  try {
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) return;
+    const me = guild.members.me || (await guild.members.fetchMe());
+    if (me.nickname !== nickname) {
+      await me.setNickname(nickname);
+    }
+  } catch (err) {
+    console.error(`No se pudo cambiar el apodo del bot en el server ${guildId}:`, err);
+  }
+}
+
 async function refreshGuildConfig(guildId) {
   try {
     const config = await db.getGuildConfig(guildId);
     configByGuild.set(guildId, config);
     findHelpResponseByGuild.set(guildId, buildResponder(config.helpResponses));
+    await applyBotNickname(guildId, config);
   } catch (err) {
     console.error(`No se pudo refrescar la configuración del server ${guildId}:`, err);
   }
@@ -333,7 +350,7 @@ client.on('guildMemberAdd', async (member) => {
     if (channel && channel.isTextBased()) {
       const text = formatTemplate(welcome.message, member);
       if (welcome.useEmbed) {
-        const embed = buildEmbed({ type: 'success', title: '👋 ¡Nuevo miembro!', description: text, thumbnail: member.user.displayAvatarURL() });
+        const embed = buildEmbed({ type: 'success', title: '👋 ¡Nuevo miembro!', description: text, thumbnail: member.user.displayAvatarURL(), config });
         await channel.send({ embeds: [embed] });
       } else {
         await channel.send(text);
@@ -357,7 +374,7 @@ client.on('guildMemberRemove', async (member) => {
     if (channel && channel.isTextBased()) {
       const text = formatTemplate(goodbye.message, member);
       if (goodbye.useEmbed) {
-        const embed = buildEmbed({ type: 'warning', title: '👋 Se fue un miembro', description: text, thumbnail: member.user.displayAvatarURL() });
+        const embed = buildEmbed({ type: 'warning', title: '👋 Se fue un miembro', description: text, thumbnail: member.user.displayAvatarURL(), config });
         await channel.send({ embeds: [embed] });
       } else {
         await channel.send(text);
@@ -413,7 +430,7 @@ async function handleInteraction(interaction) {
         await moderationCommands.handleWarnCommand(interaction, config);
         break;
       case 'warnings':
-        await moderationCommands.handleWarningsCommand(interaction);
+        await moderationCommands.handleWarningsCommand(interaction, config);
         break;
       case 'casa':
         await housesCommand.handleCasaCommand(interaction, config);

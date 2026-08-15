@@ -21,6 +21,7 @@ const ticketCommand = require('../ticketCommand');
 const aiHelper = require('../aiHelper');
 const serverGuide = require('../serverGuide');
 const debugCommand = require('../debugCommand');
+const { resolveColor } = require('../embedStyle');
 const pkg = require('../../package.json');
 
 // View/Send/History/ManageMessages/ManageChannels/EmbedLinks/AddReactions/Kick/Ban/ManageRoles/ModerateMembers
@@ -385,7 +386,8 @@ function createApp({ client }) {
         .send(views.announcePage({ user: req.session.user, channels: getTextChannels(req), guildName: guildName(req), flash: 'Canal inválido.' }));
     }
 
-    const embed = new EmbedBuilder().setDescription(mensaje).setTimestamp();
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    const embed = new EmbedBuilder().setDescription(mensaje).setColor(resolveColor(config, 'brand')).setTimestamp();
     if (titulo) embed.setTitle(titulo);
     if (/^#?[0-9a-fA-F]{6}$/.test(color || '')) embed.setColor(parseInt(color.replace('#', ''), 16));
     if (imagen && /^https?:\/\//.test(imagen)) embed.setImage(imagen);
@@ -577,11 +579,13 @@ function createApp({ client }) {
 
     const guild = getGuild(req);
     try {
+      const config = await db.getGuildConfig(req.session.activeGuildId);
       await reactionRoles.postReactionRoleMessage(guild, {
         channelId: req.body.channelId,
         title: req.body.titulo,
         description: req.body.descripcion,
         pairs,
+        config,
       });
       res.redirect('/dashboard/roles-reaccion?saved=1');
     } catch (err) {
@@ -657,6 +661,58 @@ function createApp({ client }) {
       },
     });
     res.redirect('/dashboard/debug?saved=1');
+  });
+
+  app.get('/dashboard/apariencia', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    res.send(
+      views.appearancePage({
+        user: req.session.user,
+        config,
+        guildName: guildName(req),
+        flash: req.query.saved ? 'Guardado.' : null,
+      }),
+    );
+  });
+
+  app.post('/dashboard/apariencia', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    const hexPattern = /^#?[0-9a-fA-F]{6}$/;
+
+    const colors = { ...config.branding.colors };
+    for (const key of Object.keys(colors)) {
+      const value = req.body[`color_${key}`];
+      if (hexPattern.test(value || '')) {
+        colors[key] = value.startsWith('#') ? value : `#${value}`;
+      }
+    }
+
+    const nickname = (req.body.nickname || '').trim().slice(0, 32);
+
+    await db.updateGuildConfig(req.session.activeGuildId, {
+      branding: {
+        colors,
+        footerText: (req.body.footerText || '').trim(),
+        footerIcon: (req.body.footerIcon || '').trim(),
+        nickname,
+      },
+    });
+
+    const guild = getGuild(req);
+    if (guild) {
+      try {
+        const me = guild.members.me || (await guild.members.fetchMe());
+        if (nickname && me.nickname !== nickname) {
+          await me.setNickname(nickname);
+        } else if (!nickname && me.nickname) {
+          await me.setNickname(null);
+        }
+      } catch (err) {
+        console.error('No se pudo cambiar el apodo del bot desde el dashboard:', err);
+      }
+    }
+
+    res.redirect('/dashboard/apariencia?saved=1');
   });
 
   app.get('/dashboard/comandos', requireAuth, requireActiveGuild, async (req, res) => {

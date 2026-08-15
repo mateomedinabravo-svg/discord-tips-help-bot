@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const db = require('./db');
-const { buildEmbed } = require('./embedStyle');
+const { buildEmbed, resolveColor } = require('./embedStyle');
 
 const RED_NUMBERS = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
 const SLOT_SYMBOLS = [
@@ -139,6 +139,7 @@ async function handleCoinFlip(interaction, config) {
     type: won ? 'success' : 'error',
     title: `${emoji} Salió ${result}`,
     description: won ? `¡Ganaste **${formatMoney(amount, config)}**!` : `Perdiste **${formatMoney(amount, config)}**.`,
+    config,
   });
   await interaction.reply({ embeds: [embed] });
 }
@@ -176,6 +177,7 @@ async function handleSlots(interaction, config) {
     type: winnings > 0 ? 'success' : winnings === 0 ? 'warning' : 'error',
     title: '🎰 Tragamonedas',
     description: `**[ ${display} ]**\n${outcome}`,
+    config,
   });
   await interaction.reply({ embeds: [embed] });
 }
@@ -207,6 +209,7 @@ async function handleRoulette(interaction, config) {
     type: winnings > 0 ? 'success' : 'error',
     title: '🎡 Ruleta',
     description: `Salió **${result} (${resultColor})**.\n${outcome}`,
+    config,
   });
   await interaction.reply({ embeds: [embed] });
 }
@@ -236,6 +239,7 @@ async function handleDice(interaction, config) {
     type: winnings > 0 ? 'success' : winnings === 0 ? 'warning' : 'error',
     title: '🎲 Dados',
     description: `Tirada: **${playerRoll}** vs bot: **${botRoll}**\n${outcome}`,
+    config,
   });
   await interaction.reply({ embeds: [embed] });
 }
@@ -269,6 +273,7 @@ async function handleRockPaperScissors(interaction, config) {
     type: winnings > 0 ? 'success' : winnings === 0 ? 'warning' : 'error',
     title: '✊ Piedra, papel o tijera',
     description: `Vos: ${RPS_EMOJI[choice]} ${choice} — Bot: ${RPS_EMOJI[botChoice]} ${botChoice}\n${outcome}`,
+    config,
   });
   await interaction.reply({ embeds: [embed] });
 }
@@ -314,13 +319,13 @@ function formatHand(cards) {
   return cards.map((c) => `${c.rank}${c.suit}`).join(' ');
 }
 
-function buildBlackjackEmbed(game, { reveal = false } = {}) {
+function buildBlackjackEmbed(game, config, { reveal = false } = {}) {
   const playerTotal = handValue(game.playerCards);
   const dealerCards = reveal ? game.dealerCards : [game.dealerCards[0]];
   const dealerLabel = reveal ? `${formatHand(game.dealerCards)} (${handValue(game.dealerCards)})` : `${formatHand(dealerCards)} y una carta oculta`;
 
   return new EmbedBuilder()
-    .setColor(0x5865f2)
+    .setColor(resolveColor(config, 'brand'))
     .setTitle('🃏 Blackjack')
     .addFields(
       { name: 'Tu mano', value: `${formatHand(game.playerCards)} (${playerTotal})` },
@@ -354,12 +359,12 @@ async function handleBlackjackStart(interaction, config) {
   if (playerBlackjack) {
     const winnings = Math.floor(amount * 2.5);
     await db.addBalance(interaction.guild.id, interaction.user.id, winnings);
-    const embed = buildBlackjackEmbed(game, { reveal: true }).setFooter({ text: `¡Blackjack! Ganaste ${formatMoney(winnings, config)}.` });
+    const embed = buildBlackjackEmbed(game, config, { reveal: true }).setFooter({ text: `¡Blackjack! Ganaste ${formatMoney(winnings, config)}.` });
     await interaction.reply({ embeds: [embed] });
     return;
   }
 
-  await interaction.reply({ embeds: [buildBlackjackEmbed(game)], components: [buttons] });
+  await interaction.reply({ embeds: [buildBlackjackEmbed(game, config)], components: [buttons] });
   const reply = await interaction.fetchReply();
   blackjackGames.set(reply.id, game);
 }
@@ -388,7 +393,7 @@ async function finishBlackjack(interaction, game, config) {
 
   if (winnings > 0) await db.addBalance(game.guildId, game.userId, winnings);
 
-  const embed = buildBlackjackEmbed(game, { reveal: true }).setFooter({ text: outcome });
+  const embed = buildBlackjackEmbed(game, config, { reveal: true }).setFooter({ text: outcome });
   await interaction.update({ embeds: [embed], components: [] });
 }
 
@@ -411,7 +416,7 @@ async function handleBlackjackButton(interaction, config) {
 
     if (total > 21) {
       blackjackGames.delete(interaction.message.id);
-      const embed = buildBlackjackEmbed(game, { reveal: true }).setFooter({ text: `Te pasaste. Perdiste ${formatMoney(game.bet, config)}.` });
+      const embed = buildBlackjackEmbed(game, config, { reveal: true }).setFooter({ text: `Te pasaste. Perdiste ${formatMoney(game.bet, config)}.` });
       await interaction.update({ embeds: [embed], components: [] });
       return;
     }
@@ -420,7 +425,7 @@ async function handleBlackjackButton(interaction, config) {
       new ButtonBuilder().setCustomId('bj-hit').setLabel('Pedir carta').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId('bj-stand').setLabel('Plantarse').setStyle(ButtonStyle.Secondary),
     );
-    await interaction.update({ embeds: [buildBlackjackEmbed(game)], components: [buttons] });
+    await interaction.update({ embeds: [buildBlackjackEmbed(game, config)], components: [buttons] });
     return;
   }
 

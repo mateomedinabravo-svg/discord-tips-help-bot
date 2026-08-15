@@ -11,6 +11,7 @@ async function reportError(client, config, context, error) {
       type: 'error',
       title: '⚠️ Error interno',
       description: `**Contexto:** ${context}\n\`\`\`${String(error?.stack || error?.message || error).slice(0, 1000)}\`\`\``,
+      config,
     });
 
     await channel.send({ embeds: [embed] });

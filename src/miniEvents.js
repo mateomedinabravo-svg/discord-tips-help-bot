@@ -16,6 +16,7 @@ async function postEvent(client, guildId, config) {
       type: 'warning',
       title: '🎉 ¡Evento sorpresa!',
       description: `Reaccioná con ${EVENT_EMOJI} para ganar **${miniEvents.reward} ${config.economy.currencySymbol}${config.economy.currencyName}**. ¡El primero se lo lleva!`,
+      config,
     });
 
     const message = await channel.send({ embeds: [embed] });

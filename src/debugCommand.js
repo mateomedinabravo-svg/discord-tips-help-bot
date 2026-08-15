@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { buildEmbed } = require('./embedStyle');
+const db = require('./db');
 const pkg = require('../package.json');
 
 const definition = new SlashCommandBuilder()
@@ -22,6 +23,7 @@ function formatUptime(ms) {
 async function handleDebugCommand(interaction) {
   const client = interaction.client;
   const mem = process.memoryUsage();
+  const config = await db.getGuildConfig(interaction.guild.id);
 
   const embed = buildEmbed({
     type: 'brand',
@@ -35,6 +37,7 @@ async function handleDebugCommand(interaction) {
       { name: 'Memoria (heap)', value: `${Math.round(mem.heapUsed / 1024 / 1024)} MB`, inline: true },
       { name: 'ID de este server', value: interaction.guild.id },
     ],
+    config,
   });
 
   await interaction.reply({ embeds: [embed], ephemeral: true });

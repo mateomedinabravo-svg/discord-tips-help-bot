@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
+const { resolveColor } = require('./embedStyle');
+const db = require('./db');
 
-const DEFAULT_COLOR = 0x5865f2; // blurple
 const HEX_COLOR_PATTERN = /^#?[0-9a-fA-F]{6}$/;
 
 const definition = new SlashCommandBuilder()
@@ -18,9 +19,10 @@ const definition = new SlashCommandBuilder()
   .addStringOption((opt) => opt.setName('imagen').setDescription('URL de una imagen para el anuncio (opcional)'))
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
 
-function parseColor(colorInput) {
-  if (!colorInput) return DEFAULT_COLOR;
-  if (!HEX_COLOR_PATTERN.test(colorInput)) return DEFAULT_COLOR;
+function parseColor(colorInput, config) {
+  const fallback = resolveColor(config, 'brand');
+  if (!colorInput) return fallback;
+  if (!HEX_COLOR_PATTERN.test(colorInput)) return fallback;
   const hex = colorInput.replace('#', '');
   return parseInt(hex, 16);
 }
@@ -46,7 +48,8 @@ async function handleAnnounceCommand(interaction) {
     return;
   }
 
-  const embed = new EmbedBuilder().setDescription(mensaje).setColor(parseColor(color)).setTimestamp();
+  const config = interaction.guild ? await db.getGuildConfig(interaction.guild.id) : null;
+  const embed = new EmbedBuilder().setDescription(mensaje).setColor(parseColor(color, config)).setTimestamp();
   if (titulo) embed.setTitle(titulo);
   if (imagen && isValidHttpUrl(imagen)) embed.setImage(imagen);
 

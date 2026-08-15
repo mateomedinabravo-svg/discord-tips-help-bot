@@ -1,5 +1,6 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const db = require('./db');
+const { resolveColor } = require('./embedStyle');
 
 const IMAGE_EXTENSIONS = /\.(png|jpe?g|gif|webp)$/i;
 
@@ -18,7 +19,7 @@ async function countReactions(reaction, authorId) {
 
 function buildStarboardEmbed(message, count, config) {
   const embed = new EmbedBuilder()
-    .setColor(0xf0b232)
+    .setColor(resolveColor(config, 'warning'))
     .setAuthor({ name: message.author.username, iconURL: message.author.displayAvatarURL() })
     .setDescription(message.content || '*(sin texto)*')
     .setFooter({ text: `ID: ${message.id}` })

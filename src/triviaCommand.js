@@ -20,6 +20,7 @@ function buildQuestionEmbed(config, game, { revealed = false, winnerId = null } 
         ? `Ganó ${LETTERS[game.correctIndex]} — respondida correctamente`
         : `Se acabó el tiempo. La respuesta era ${LETTERS[game.correctIndex]}`
       : `Tenés ${TIME_LIMIT_MS / 1000} segundos para responder`,
+    config,
   });
 
   return embed;

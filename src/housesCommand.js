@@ -10,6 +10,7 @@ const {
   PermissionFlagsBits,
 } = require('discord.js');
 const db = require('./db');
+const { resolveColor } = require('./embedStyle');
 
 const MODAL_ID = 'house-application';
 const ACCEPT_PREFIX = 'house-accept:';
@@ -70,7 +71,7 @@ async function publishRequestMessage(guild, config) {
     }
   }
 
-  const embed = new EmbedBuilder().setColor(0x5865f2).setTitle(houses.requestTitle).setDescription(houses.requestDescription);
+  const embed = new EmbedBuilder().setColor(resolveColor(config, 'brand')).setTitle(houses.requestTitle).setDescription(houses.requestDescription);
   const button = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(OPEN_BUTTON_ID).setLabel('Solicitar aquí').setStyle(ButtonStyle.Primary).setEmoji('🔔'),
   );
@@ -99,7 +100,7 @@ async function handleModalSubmit(interaction, config) {
       const channel = await interaction.client.channels.fetch(config.houses.reviewChannelId);
       if (channel && channel.isTextBased()) {
         const embed = new EmbedBuilder()
-          .setColor(0x5865f2)
+          .setColor(resolveColor(config, 'brand'))
           .setTitle('🏠 Nueva solicitud de House')
           .setAuthor({ name: interaction.user.username, iconURL: interaction.user.displayAvatarURL() })
           .addFields(Object.entries(answers).map(([label, value]) => ({ name: label, value: value.slice(0, 1024) })))
@@ -157,7 +158,7 @@ async function handleDecisionButton(interaction, config) {
   const decisionLabel = isAccept ? '✅ Aceptada' : '❌ Rechazada';
   const originalEmbed = interaction.message.embeds[0];
   const updatedEmbed = EmbedBuilder.from(originalEmbed)
-    .setColor(isAccept ? 0x3ba55d : 0xed4245)
+    .setColor(isAccept ? resolveColor(config, 'success') : resolveColor(config, 'error'))
     .setFooter({ text: `${decisionLabel} por ${interaction.user.username}` });
 
   await interaction.update({ embeds: [updatedEmbed], components: [] });
