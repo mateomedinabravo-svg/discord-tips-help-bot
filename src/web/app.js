@@ -27,12 +27,18 @@ function createApp({ client }) {
       secret: process.env.SESSION_SECRET || 'change-me',
       resave: false,
       saveUninitialized: false,
+      rolling: true, // cada visita renueva los 30 dias, no vence mientras se siga usando
       store: MongoStore.create({
         mongoUrl: process.env.MONGODB_URI,
         dbName: process.env.MONGODB_DB_NAME || 'discordTipsBot',
         collectionName: 'sessions',
+        ttl: 60 * 60 * 24 * 30, // 30 dias, tiene que coincidir con el maxAge de la cookie
       }),
-      cookie: { secure: process.env.NODE_ENV === 'production', maxAge: 1000 * 60 * 60 * 12 },
+      cookie: {
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 1000 * 60 * 60 * 24 * 30,
+      },
     }),
   );
 
