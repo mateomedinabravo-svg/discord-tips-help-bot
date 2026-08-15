@@ -54,6 +54,7 @@ function layout({ title, user, body, flash, guildName }) {
     border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: 600; }
   button:hover { background: #4752c4; }
   .flash { background: #2f5d3a; color: #d7ffe0; padding: 10px 14px; border-radius: 6px; margin-bottom: 20px; font-size: 14px; }
+  .warning-banner { background: #4a3b1f; color: #f2d9a0; padding: 10px 14px; border-radius: 6px; margin-bottom: 20px; font-size: 14px; }
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
   th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #1e1f22; }
   .pill { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 12px; }
@@ -471,9 +472,13 @@ function housesPage({ user, config, channels, guildName, flash }) {
   const channelOptions = (selected) =>
     channels.map((c) => `<option value="${c.id}" ${c.id === selected ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`).join('');
 
+  const showMismatchWarning = config.houses.requestMessageId && !config.houses.enabled;
+
   const body = `
   <h1>Solicitudes de House</h1>
   <p class="muted">Publicá un mensaje con botón en un canal — al apretarlo, el usuario completa el formulario. Las respuestas llegan al canal de revisión con botones de Aceptar/Rechazar (requieren permiso de Gestionar servidor). También funciona con <code>/casa</code>.</p>
+
+  ${showMismatchWarning ? '<div class="warning-banner">⚠️ El mensaje sigue publicado en Discord, pero el sistema está desactivado — quien apriete el botón va a recibir un error. Activalo de nuevo o volvé a publicar para dar de baja el mensaje.</div>' : ''}
 
   <form class="card" method="post" action="/dashboard/houses">
     <div class="checkbox-row"><input type="checkbox" name="enabled" id="h-enabled" ${config.houses.enabled ? 'checked' : ''}>

@@ -562,7 +562,11 @@ function createApp({ client }) {
 
     try {
       const messageId = await housesCommand.publishRequestMessage(guild, config);
-      await db.updateGuildConfig(req.session.activeGuildId, { houses: { ...config.houses, requestMessageId: messageId } });
+      // publicar el boton implica que el sistema queda activo, para que no quede
+      // un mensaje funcional pero "desactivado" sin que se note
+      await db.updateGuildConfig(req.session.activeGuildId, {
+        houses: { ...config.houses, enabled: true, requestMessageId: messageId },
+      });
       res.redirect('/dashboard/houses?published=1');
     } catch (err) {
       console.error('No se pudo publicar el mensaje de House:', err);
