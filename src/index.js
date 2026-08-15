@@ -11,6 +11,10 @@ const logging = require('./logging');
 const housesCommand = require('./housesCommand');
 const customCommands = require('./customCommands');
 const commandRegistry = require('./commandRegistry');
+const economyCommands = require('./economyCommands');
+const casinoCommands = require('./casinoCommands');
+const marriageCommands = require('./marriageCommands');
+const petCommands = require('./petCommands');
 const { isDirectedAtAnotherUser } = require('./messageDirection');
 const db = require('./db');
 const { createApp } = require('./web/app');
@@ -296,6 +300,24 @@ client.on('interactionCreate', async (interaction) => {
       case 'casa':
         await housesCommand.handleCasaCommand(interaction, config);
         break;
+      case 'economia':
+        await economyCommands.handleEconomyCommand(interaction, config);
+        break;
+      case 'casino':
+        await casinoCommands.handleCasinoCommand(interaction, config);
+        break;
+      case 'casar':
+        await marriageCommands.handleCasarCommand(interaction);
+        break;
+      case 'divorciar':
+        await marriageCommands.handleDivorciarCommand(interaction);
+        break;
+      case 'pareja':
+        await marriageCommands.handleParejaCommand(interaction);
+        break;
+      case 'mascota':
+        await petCommands.handlePetCommand(interaction, config);
+        break;
       default: {
         const custom = config ? customCommands.findCustomCommand(config, interaction.commandName) : null;
         if (custom) await customCommands.handleCustomCommand(interaction, config, custom);
@@ -317,12 +339,23 @@ client.on('interactionCreate', async (interaction) => {
       return;
     }
 
+    if (interaction.customId === 'bj-hit' || interaction.customId === 'bj-stand') {
+      const config = interaction.guild ? configByGuild.get(interaction.guild.id) : null;
+      if (config) await casinoCommands.handleBlackjackButton(interaction, config);
+      return;
+    }
+
+    if (interaction.customId.startsWith('marry-accept:') || interaction.customId.startsWith('marry-reject:')) {
+      await marriageCommands.handleMarriageButton(interaction);
+      return;
+    }
+
     const config = interaction.guild ? configByGuild.get(interaction.guild.id) : null;
     if (!config) return;
 
     if (interaction.customId === housesCommand.OPEN_BUTTON_ID) {
       await housesCommand.handleOpenButton(interaction, config);
-    } else {
+    } else if (interaction.customId.startsWith('house-accept:') || interaction.customId.startsWith('house-reject:')) {
       await housesCommand.handleDecisionButton(interaction, config);
     }
   }

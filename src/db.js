@@ -59,6 +59,26 @@ function defaultConfig(guildId) {
       rejectMessage: '😕 Tu solicitud de House no fue aceptada esta vez. Podés volver a intentarlo más adelante.',
     },
     protectedRoleIds: [],
+    economy: {
+      enabled: false,
+      currencyName: 'monedas',
+      currencySymbol: '🪙',
+      dailyAmount: 100,
+      workMinAmount: 20,
+      workMaxAmount: 80,
+      workCooldownMinutes: 60,
+      shopItems: [],
+    },
+    casino: {
+      enabled: false,
+      minBet: 10,
+      maxBet: 1000,
+    },
+    pets: {
+      enabled: false,
+      feedCooldownMinutes: 120,
+      playCooldownMinutes: 60,
+    },
     updatedAt: new Date(),
   };
 }
@@ -94,6 +114,9 @@ async function getGuildConfig(guildId) {
   config.houses = { ...defaults.houses, ...(config.houses || {}) };
   config.customCommands = config.customCommands || [];
   config.protectedRoleIds = config.protectedRoleIds || [];
+  config.economy = { ...defaults.economy, ...(config.economy || {}) };
+  config.casino = { ...defaults.casino, ...(config.casino || {}) };
+  config.pets = { ...defaults.pets, ...(config.pets || {}) };
 
   return config;
 }
@@ -286,6 +309,122 @@ async function getHouseApplication(applicationId) {
   return database.collection('houseApplications').findOne({ _id: new ObjectId(applicationId) });
 }
 
+// --- Economia ---
+
+async function getEconomyAccount(guildId, userId) {
+  const database = await connect();
+  const accounts = database.collection('economy');
+
+  let account = await accounts.findOne({ guildId, userId });
+  if (!account) {
+    account = { guildId, userId, balance: 0, inventory: [], lastDaily: null, lastWork: null };
+    await accounts.insertOne(account);
+  }
+  return account;
+}
+
+async function addBalance(guildId, userId, amount) {
+  await getEconomyAccount(guildId, userId);
+  const database = await connect();
+  await database.collection('economy').updateOne({ guildId, userId }, { $inc: { balance: amount } });
+  const updated = await database.collection('economy').findOne({ guildId, userId });
+  return updated.balance;
+}
+
+async function setEconomyCooldown(guildId, userId, field, date) {
+  const database = await connect();
+  await database.collection('economy').updateOne({ guildId, userId }, { $set: { [field]: date } }, { upsert: true });
+}
+
+async function transferBalance(guildId, fromUserId, toUserId, amount) {
+  const from = await getEconomyAccount(guildId, fromUserId);
+  if (from.balance < amount) return false;
+  await addBalance(guildId, fromUserId, -amount);
+  await addBalance(guildId, toUserId, amount);
+  return true;
+}
+
+async function addInventoryItem(guildId, userId, item) {
+  const account = await getEconomyAccount(guildId, userId);
+  const inventory = [...account.inventory];
+  const existing = inventory.find((i) => i.itemId === item.itemId);
+  if (existing) {
+    existing.quantity += 1;
+  } else {
+    inventory.push({ itemId: item.itemId, name: item.name, quantity: 1 });
+  }
+
+  const database = await connect();
+  await database.collection('economy').updateOne({ guildId, userId }, { $set: { inventory } });
+}
+
+async function getEconomyLeaderboard(guildId, limit = 10) {
+  const database = await connect();
+  return database.collection('economy').find({ guildId }).sort({ balance: -1 }).limit(limit).toArray();
+}
+
+// --- Matrimonios ---
+
+async function getMarriage(guildId, userId) {
+  const database = await connect();
+  return database.collection('marriages').findOne({ guildId, $or: [{ user1Id: userId }, { user2Id: userId }] });
+}
+
+async function createMarriage(guildId, user1Id, user2Id) {
+  const database = await connect();
+  await database.collection('marriages').insertOne({ guildId, user1Id, user2Id, marriedAt: new Date() });
+}
+
+async function deleteMarriage(guildId, userId) {
+  const database = await connect();
+  await database.collection('marriages').deleteOne({ guildId, $or: [{ user1Id: userId }, { user2Id: userId }] });
+}
+
+// --- Mascotas ---
+
+function petXpRequiredForLevel(level) {
+  return 3 * level * level + 30 * level + 60;
+}
+
+function petLevelInfoFromXp(totalXp) {
+  let level = 1;
+  let remaining = totalXp;
+  while (remaining >= petXpRequiredForLevel(level)) {
+    remaining -= petXpRequiredForLevel(level);
+    level++;
+  }
+  return { level, xpIntoLevel: remaining, xpForNextLevel: petXpRequiredForLevel(level) };
+}
+
+async function getPet(guildId, userId) {
+  const database = await connect();
+  return database.collection('pets').findOne({ guildId, userId });
+}
+
+async function createPet(guildId, userId, { name, species }) {
+  const database = await connect();
+  const pet = {
+    guildId,
+    userId,
+    name,
+    species,
+    xp: 0,
+    hunger: 100,
+    happiness: 100,
+    lastFed: null,
+    lastPlayed: null,
+    createdAt: new Date(),
+  };
+  await database.collection('pets').insertOne(pet);
+  return pet;
+}
+
+async function updatePet(guildId, userId, partialUpdate) {
+  const database = await connect();
+  await database.collection('pets').updateOne({ guildId, userId }, { $set: partialUpdate });
+  return getPet(guildId, userId);
+}
+
 module.exports = {
   connect,
   getGuildConfig,
@@ -309,4 +448,17 @@ module.exports = {
   createHouseApplication,
   decideHouseApplication,
   getHouseApplication,
+  getEconomyAccount,
+  addBalance,
+  setEconomyCooldown,
+  transferBalance,
+  addInventoryItem,
+  getEconomyLeaderboard,
+  getMarriage,
+  createMarriage,
+  deleteMarriage,
+  petLevelInfoFromXp,
+  getPet,
+  createPet,
+  updatePet,
 };

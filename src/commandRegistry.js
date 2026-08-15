@@ -4,6 +4,10 @@ const levelCommands = require('./levelCommands');
 const moderationCommands = require('./moderationCommands');
 const housesCommand = require('./housesCommand');
 const customCommands = require('./customCommands');
+const economyCommands = require('./economyCommands');
+const casinoCommands = require('./casinoCommands');
+const marriageCommands = require('./marriageCommands');
+const petCommands = require('./petCommands');
 
 const STATIC_DEFINITIONS = [
   announceCommand.definition,
@@ -16,6 +20,12 @@ const STATIC_DEFINITIONS = [
   moderationCommands.warnDefinition,
   moderationCommands.warningsDefinition,
   housesCommand.definition,
+  economyCommands.definition,
+  casinoCommands.definition,
+  marriageCommands.casarDefinition,
+  marriageCommands.divorciarDefinition,
+  marriageCommands.parejaDefinition,
+  petCommands.definition,
 ].map((def) => def.toJSON());
 
 async function registerGuildCommands(guild, config) {

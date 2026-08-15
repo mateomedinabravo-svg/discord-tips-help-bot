@@ -88,6 +88,9 @@ ${user ? `<header>
   <a href="/dashboard/comandos">Comandos</a>
   <a href="/dashboard/houses">Houses</a>
   <a href="/dashboard/moderacion">Moderación</a>
+  <a href="/dashboard/economia">Economía</a>
+  <a href="/dashboard/casino">Casino</a>
+  <a href="/dashboard/mascotas">Mascotas</a>
 </nav>` : ''}
 <main>
 ${flash ? `<div class="flash">${escapeHtml(flash)}</div>` : ''}
@@ -545,6 +548,80 @@ function moderationSettingsPage({ user, config, roles, guildName, flash }) {
   return layout({ title: 'Moderación', user, body, flash, guildName });
 }
 
+function economyPage({ user, config, guildName, flash }) {
+  const shopItemsText = (config.economy.shopItems || [])
+    .map((item) => `${item.name}|${item.price}|${item.description || ''}`)
+    .join('\n');
+
+  const body = `
+  <h1>Economía</h1>
+  <form class="card" method="post" action="/dashboard/economia">
+    <div class="checkbox-row"><input type="checkbox" name="enabled" id="e-enabled" ${config.economy.enabled ? 'checked' : ''}>
+      <label for="e-enabled" style="margin:0;">Activada</label></div>
+
+    <label>Nombre de la moneda</label>
+    <input type="text" name="currencyName" value="${escapeHtml(config.economy.currencyName)}">
+
+    <label>Emoji/símbolo de la moneda</label>
+    <input type="text" name="currencySymbol" value="${escapeHtml(config.economy.currencySymbol)}">
+
+    <label>Monto de /economia daily</label>
+    <input type="number" name="dailyAmount" min="0" value="${escapeHtml(config.economy.dailyAmount)}">
+
+    <label>Rango de /economia work (mínimo y máximo)</label>
+    <div class="row-grid" style="grid-template-columns: 1fr 1fr;">
+      <input type="number" name="workMinAmount" min="0" value="${escapeHtml(config.economy.workMinAmount)}">
+      <input type="number" name="workMaxAmount" min="0" value="${escapeHtml(config.economy.workMaxAmount)}">
+    </div>
+
+    <label>Cooldown de /economia work (minutos)</label>
+    <input type="number" name="workCooldownMinutes" min="1" value="${escapeHtml(config.economy.workCooldownMinutes)}">
+
+    <label>Tienda: un item por línea, formato <code>nombre|precio|descripción</code> (la descripción es opcional)</label>
+    <textarea name="shopItemsText" style="min-height:140px; font-family: monospace;">${escapeHtml(shopItemsText)}</textarea>
+
+    <button type="submit">Guardar</button>
+  </form>`;
+  return layout({ title: 'Economía', user, body, flash, guildName });
+}
+
+function casinoSettingsPage({ user, config, guildName, flash }) {
+  const body = `
+  <h1>Casino</h1>
+  <p class="muted">Usa la moneda configurada en Economía. Necesitás tener Economía activada para que funcione.</p>
+  <form class="card" method="post" action="/dashboard/casino">
+    <div class="checkbox-row"><input type="checkbox" name="enabled" id="c-enabled" ${config.casino.enabled ? 'checked' : ''}>
+      <label for="c-enabled" style="margin:0;">Activado</label></div>
+
+    <label>Apuesta mínima</label>
+    <input type="number" name="minBet" min="1" value="${escapeHtml(config.casino.minBet)}">
+
+    <label>Apuesta máxima</label>
+    <input type="number" name="maxBet" min="1" value="${escapeHtml(config.casino.maxBet)}">
+
+    <button type="submit">Guardar</button>
+  </form>`;
+  return layout({ title: 'Casino', user, body, flash, guildName });
+}
+
+function petsSettingsPage({ user, config, guildName, flash }) {
+  const body = `
+  <h1>Mascotas</h1>
+  <form class="card" method="post" action="/dashboard/mascotas">
+    <div class="checkbox-row"><input type="checkbox" name="enabled" id="p-enabled" ${config.pets.enabled ? 'checked' : ''}>
+      <label for="p-enabled" style="margin:0;">Activado</label></div>
+
+    <label>Cooldown para alimentar (minutos)</label>
+    <input type="number" name="feedCooldownMinutes" min="1" value="${escapeHtml(config.pets.feedCooldownMinutes)}">
+
+    <label>Cooldown para jugar (minutos)</label>
+    <input type="number" name="playCooldownMinutes" min="1" value="${escapeHtml(config.pets.playCooldownMinutes)}">
+
+    <button type="submit">Guardar</button>
+  </form>`;
+  return layout({ title: 'Mascotas', user, body, flash, guildName });
+}
+
 module.exports = {
   layout,
   loginPage,
@@ -562,4 +639,7 @@ module.exports = {
   customCommandsPage,
   housesPage,
   moderationSettingsPage,
+  economyPage,
+  casinoSettingsPage,
+  petsSettingsPage,
 };

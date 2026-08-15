@@ -1,6 +1,23 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 
-const RESERVED_NAMES = ['anuncio', 'ticket', 'nivel', 'ranking', 'ban', 'kick', 'mute', 'warn', 'warnings', 'casa'];
+const RESERVED_NAMES = [
+  'anuncio',
+  'ticket',
+  'nivel',
+  'ranking',
+  'ban',
+  'kick',
+  'mute',
+  'warn',
+  'warnings',
+  'casa',
+  'economia',
+  'casino',
+  'casar',
+  'divorciar',
+  'pareja',
+  'mascota',
+];
 const NAME_PATTERN = /^[a-z0-9_-]{1,32}$/;
 
 const lastUse = new Map();

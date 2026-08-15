@@ -21,6 +21,16 @@ const housesCommand = require('../housesCommand');
 // View/Send/History/ManageMessages/ManageChannels/EmbedLinks/AddReactions/Kick/Ban/ManageRoles/ModerateMembers
 const BOT_INVITE_PERMISSIONS = 1099780156502;
 
+function slugify(text) {
+  return (text || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(new RegExp('[' + String.fromCharCode(0x0300) + '-' + String.fromCharCode(0x036f) + ']', 'g'), '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+}
+
 function createApp({ client }) {
   const app = express();
   app.set('trust proxy', 1);
@@ -602,6 +612,95 @@ function createApp({ client }) {
     const protectedRoleIds = [].concat(req.body.protectedRoleIds || []);
     await db.updateGuildConfig(req.session.activeGuildId, { protectedRoleIds });
     res.redirect('/dashboard/moderacion?saved=1');
+  });
+
+  app.get('/dashboard/economia', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    res.send(
+      views.economyPage({
+        user: req.session.user,
+        config,
+        guildName: guildName(req),
+        flash: req.query.saved ? 'Guardado.' : req.query.error || null,
+      }),
+    );
+  });
+
+  app.post('/dashboard/economia', requireAuth, requireActiveGuild, async (req, res) => {
+    const shopItems = (req.body.shopItemsText || '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [name, price, ...descParts] = line.split('|').map((p) => p.trim());
+        return {
+          id: slugify(name),
+          name,
+          price: Math.max(0, Number(price) || 0),
+          description: descParts.join('|') || '',
+        };
+      })
+      .filter((item) => item.name);
+
+    await db.updateGuildConfig(req.session.activeGuildId, {
+      economy: {
+        enabled: req.body.enabled === 'on',
+        currencyName: req.body.currencyName || 'monedas',
+        currencySymbol: req.body.currencySymbol || '🪙',
+        dailyAmount: Math.max(0, Number(req.body.dailyAmount) || 0),
+        workMinAmount: Math.max(0, Number(req.body.workMinAmount) || 0),
+        workMaxAmount: Math.max(0, Number(req.body.workMaxAmount) || 0),
+        workCooldownMinutes: Math.max(1, Number(req.body.workCooldownMinutes) || 60),
+        shopItems,
+      },
+    });
+    res.redirect('/dashboard/economia?saved=1');
+  });
+
+  app.get('/dashboard/casino', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    res.send(
+      views.casinoSettingsPage({
+        user: req.session.user,
+        config,
+        guildName: guildName(req),
+        flash: req.query.saved ? 'Guardado.' : null,
+      }),
+    );
+  });
+
+  app.post('/dashboard/casino', requireAuth, requireActiveGuild, async (req, res) => {
+    await db.updateGuildConfig(req.session.activeGuildId, {
+      casino: {
+        enabled: req.body.enabled === 'on',
+        minBet: Math.max(1, Number(req.body.minBet) || 1),
+        maxBet: Math.max(1, Number(req.body.maxBet) || 1000),
+      },
+    });
+    res.redirect('/dashboard/casino?saved=1');
+  });
+
+  app.get('/dashboard/mascotas', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    res.send(
+      views.petsSettingsPage({
+        user: req.session.user,
+        config,
+        guildName: guildName(req),
+        flash: req.query.saved ? 'Guardado.' : null,
+      }),
+    );
+  });
+
+  app.post('/dashboard/mascotas', requireAuth, requireActiveGuild, async (req, res) => {
+    await db.updateGuildConfig(req.session.activeGuildId, {
+      pets: {
+        enabled: req.body.enabled === 'on',
+        feedCooldownMinutes: Math.max(1, Number(req.body.feedCooldownMinutes) || 120),
+        playCooldownMinutes: Math.max(1, Number(req.body.playCooldownMinutes) || 60),
+      },
+    });
+    res.redirect('/dashboard/mascotas?saved=1');
   });
 
   return app;
