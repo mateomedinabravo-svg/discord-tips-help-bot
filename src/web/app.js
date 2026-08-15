@@ -1,5 +1,6 @@
 const express = require('express');
 const session = require('express-session');
+const { MongoStore } = require('connect-mongo');
 const crypto = require('crypto');
 const { ChannelType, EmbedBuilder } = require('discord.js');
 const {
@@ -21,6 +22,11 @@ function createApp({ client, guildId }) {
       secret: process.env.SESSION_SECRET || 'change-me',
       resave: false,
       saveUninitialized: false,
+      store: MongoStore.create({
+        mongoUrl: process.env.MONGODB_URI,
+        dbName: process.env.MONGODB_DB_NAME || 'discordTipsBot',
+        collectionName: 'sessions',
+      }),
       cookie: { secure: process.env.NODE_ENV === 'production', maxAge: 1000 * 60 * 60 * 12 },
     }),
   );
