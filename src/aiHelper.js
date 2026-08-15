@@ -4,16 +4,20 @@ const MODERATION_COOLDOWN_MS = 3000;
 
 const lastModerationCallByGuild = new Map();
 
-function isConfigured() {
-  return Boolean(process.env.GROQ_API_KEY);
+function resolveApiKey(config) {
+  return config?.ai?.apiKey || process.env.GROQ_API_KEY || null;
 }
 
-async function askAI(systemPrompt, userPrompt, { maxTokens = 200, temperature = 0.4 } = {}) {
+function isConfigured(config) {
+  return Boolean(resolveApiKey(config));
+}
+
+async function askAI(apiKey, systemPrompt, userPrompt, { maxTokens = 200, temperature = 0.4 } = {}) {
   const res = await fetch(GROQ_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       model: MODEL,
@@ -35,7 +39,8 @@ async function askAI(systemPrompt, userPrompt, { maxTokens = 200, temperature = 
 }
 
 async function answerHelpQuestion(config, question) {
-  if (!isConfigured()) return null;
+  const apiKey = resolveApiKey(config);
+  if (!apiKey) return null;
 
   const topicsSummary = (config.helpResponses.topics || [])
     .map((t) => `- ${t.name}: ${t.response}`)
@@ -50,7 +55,7 @@ Reglas:
 - Si no tenés información para responder con seguridad, decí que no estás seguro y sugerí preguntar en el canal de ayuda o a un moderador. Nunca inventes canales, reglas o datos que no están en la lista.`;
 
   try {
-    return await askAI(systemPrompt, question, { maxTokens: 150 });
+    return await askAI(apiKey, systemPrompt, question, { maxTokens: 150 });
   } catch (err) {
     console.error('No se pudo consultar la IA para ayuda:', err.message);
     return null;
@@ -65,14 +70,15 @@ function canRunModerationCheck(guildId) {
   return true;
 }
 
-async function checkToxicMessage(content) {
-  if (!isConfigured()) return false;
+async function checkToxicMessage(config, content) {
+  const apiKey = resolveApiKey(config);
+  if (!apiKey) return false;
 
   const systemPrompt =
     'Sos un moderador de un server de Discord en español. Tu unica tarea es decidir si el mensaje del usuario es toxico, acoso, insulto grave, discurso de odio o amenaza. No marques groserias comunes entre amigos ni bromas normales. Respondé UNICAMENTE con la palabra SI o NO, sin nada mas.';
 
   try {
-    const reply = await askAI(systemPrompt, content, { maxTokens: 5, temperature: 0 });
+    const reply = await askAI(apiKey, systemPrompt, content, { maxTokens: 5, temperature: 0 });
     return Boolean(reply && reply.trim().toUpperCase().startsWith('SI'));
   } catch (err) {
     console.error('No se pudo consultar la IA para moderación:', err.message);

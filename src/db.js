@@ -128,6 +128,7 @@ function defaultConfig(guildId) {
       enabled: false,
       helpFallback: true,
       moderation: false,
+      apiKey: '',
     },
     updatedAt: new Date(),
   };

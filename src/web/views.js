@@ -789,14 +789,25 @@ function miniEventsPage({ user, config, channels, guildName, flash }) {
 }
 
 function aiPage({ user, config, aiConfigured, guildName, flash }) {
+  const hasOwnKey = Boolean(config.ai.apiKey);
   const setupWarning = !aiConfigured
-    ? `<div class="warning-banner">⚠️ Todavía no configuraste la clave de IA en el servidor (variable <code>GROQ_API_KEY</code>). Podés activar estas opciones, pero no van a hacer nada hasta que esté configurada.</div>`
+    ? `<div class="warning-banner">⚠️ Todavía no configuraste una clave de Groq. Podés activar estas opciones, pero no van a hacer nada hasta que pongas una clave abajo.</div>`
     : '';
 
   const body = `
   <h1>IA (gratis, con Groq)</h1>
   <p class="muted">Usa un modelo de IA gratuito para dos cosas puntuales: responder mejor cuando el sistema normal no entiende, y ayudar a detectar mensajes tóxicos que el filtro de palabras no capta.</p>
   ${setupWarning}
+
+  <div class="card">
+    <h2>Cómo conseguir la clave (gratis, sin tarjeta)</h2>
+    <ol style="margin:0; padding-left:20px; font-size:14px; color:#dbdee1; line-height:1.8;">
+      <li>Andá a <a href="https://console.groq.com/keys" target="_blank" rel="noopener" style="color:#8ea1ff;">console.groq.com/keys</a> e iniciá sesión (podés usar Google).</li>
+      <li>Click en <strong>"Create API Key"</strong>, ponele un nombre y creala.</li>
+      <li>Copiala y pegala abajo, en el campo "Clave de Groq".</li>
+    </ol>
+  </div>
+
   <form class="card" method="post" action="/dashboard/ia">
     <div class="checkbox-row"><input type="checkbox" name="enabled" id="ai-enabled" ${config.ai.enabled ? 'checked' : ''}>
       <label for="ai-enabled" style="margin:0;">Activada</label></div>
@@ -806,6 +817,12 @@ function aiPage({ user, config, aiConfigured, guildName, flash }) {
 
     <div class="checkbox-row"><input type="checkbox" name="moderation" id="ai-mod" ${config.ai.moderation ? 'checked' : ''}>
       <label for="ai-mod" style="margin:0;">Usar IA para detectar mensajes tóxicos (además del filtro de palabras)</label></div>
+
+    <label>Clave de Groq ${hasOwnKey ? '(ya tenés una guardada — dejá esto vacío para no cambiarla)' : ''}</label>
+    <input type="password" name="apiKey" placeholder="${hasOwnKey ? '••••••••••••••••' : 'gsk_...'}" autocomplete="off">
+
+    ${hasOwnKey ? `<div class="checkbox-row"><input type="checkbox" name="removeApiKey" id="ai-remove-key">
+      <label for="ai-remove-key" style="margin:0;">Quitar la clave guardada</label></div>` : ''}
 
     <button type="submit">Guardar</button>
   </form>`;

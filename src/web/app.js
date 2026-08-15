@@ -931,7 +931,7 @@ function createApp({ client }) {
       views.aiPage({
         user: req.session.user,
         config,
-        aiConfigured: aiHelper.isConfigured(),
+        aiConfigured: aiHelper.isConfigured(config),
         guildName: guildName(req),
         flash: req.query.saved ? 'Guardado.' : null,
       }),
@@ -939,11 +939,15 @@ function createApp({ client }) {
   });
 
   app.post('/dashboard/ia', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
     await db.updateGuildConfig(req.session.activeGuildId, {
       ai: {
         enabled: req.body.enabled === 'on',
         helpFallback: req.body.helpFallback === 'on',
         moderation: req.body.moderation === 'on',
+        // si el campo llega vacio, mantenemos la clave que ya estaba guardada (no la borramos por error),
+        // salvo que se tilde explicitamente "quitar clave"
+        apiKey: req.body.removeApiKey === 'on' ? '' : req.body.apiKey && req.body.apiKey.trim() ? req.body.apiKey.trim() : config.ai.apiKey,
       },
     });
     res.redirect('/dashboard/ia?saved=1');

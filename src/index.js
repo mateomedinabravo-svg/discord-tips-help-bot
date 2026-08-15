@@ -165,9 +165,9 @@ async function applyAutomod(message, config) {
     }
   }
 
-  if (config?.ai?.enabled && config.ai.moderation && aiHelper.isConfigured() && message.content.trim().length > 0) {
+  if (config?.ai?.enabled && config.ai.moderation && aiHelper.isConfigured(config) && message.content.trim().length > 0) {
     if (aiHelper.canRunModerationCheck(message.guild.id)) {
-      const isToxic = await aiHelper.checkToxicMessage(message.content);
+      const isToxic = await aiHelper.checkToxicMessage(config, message.content);
       if (isToxic) {
         await deleteWithWarning(message, 'contenido inapropiado (detectado por IA)');
         return true;
@@ -253,7 +253,7 @@ client.on('messageCreate', async (message) => {
 
   if (response === NEEDS_FALLBACK) {
     let reply = config?.helpResponses?.fallbackResponse;
-    if (config?.ai?.enabled && config.ai.helpFallback && aiHelper.isConfigured()) {
+    if (config?.ai?.enabled && config.ai.helpFallback && aiHelper.isConfigured(config)) {
       const aiReply = await aiHelper.answerHelpQuestion(config, message.content);
       if (aiReply) reply = aiReply;
     }
