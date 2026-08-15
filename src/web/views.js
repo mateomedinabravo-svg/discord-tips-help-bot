@@ -34,9 +34,14 @@ function layout({ title, user, body, flash, guildName }) {
   .server-row a.btn.invite { background: #3ba55d; }
   .row-grid { display: grid; grid-template-columns: 1.2fr 1.5fr 1fr auto; gap: 8px; align-items: center; margin-top: 8px; }
   .row-grid input, .row-grid select { margin: 0; }
-  nav { display: flex; gap: 4px; flex-wrap: wrap; padding: 12px 24px; background: #111214; border-bottom: 1px solid #2b2d31; }
-  nav a { color: #b5bac1; text-decoration: none; padding: 8px 14px; border-radius: 6px; font-size: 14px; }
+  nav { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; padding: 12px 24px 14px; background: #111214; border-bottom: 1px solid #2b2d31; }
+  nav .nav-group { display: flex; flex-direction: column; gap: 2px; }
+  nav .nav-group-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #72767d;
+    padding: 4px 10px 2px; font-weight: 700; }
+  nav .nav-group-links { display: flex; flex-wrap: wrap; gap: 2px; }
+  nav a { color: #b5bac1; text-decoration: none; padding: 6px 10px; border-radius: 6px; font-size: 13px; white-space: nowrap; }
   nav a:hover { background: #2b2d31; color: #fff; }
+  nav a.active { background: #3a3d44; color: #fff; }
   main { max-width: 900px; margin: 0 auto; padding: 28px 24px 60px; }
   h1 { font-size: 22px; margin-bottom: 4px; }
   .muted { color: #949ba4; font-size: 14px; margin-bottom: 24px; }
@@ -75,26 +80,61 @@ ${user ? `<header>
   </div>
 </header>
 <nav>
-  <a href="/dashboard">General</a>
-  <a href="/dashboard/bienvenida">Bienvenida / Despedida</a>
-  <a href="/dashboard/automoderacion">Automoderación</a>
-  <a href="/dashboard/mensajes">Tips y ayuda</a>
-  <a href="/dashboard/anuncio">Anuncios</a>
-  <a href="/dashboard/estadisticas">Estadísticas</a>
-  <a href="/dashboard/tickets">Tickets</a>
-  <a href="/dashboard/tickets/config">Config. Tickets</a>
-  <a href="/dashboard/niveles">Niveles</a>
-  <a href="/dashboard/roles-reaccion">Roles por reacción</a>
-  <a href="/dashboard/logs">Logs</a>
-  <a href="/dashboard/comandos">Comandos</a>
-  <a href="/dashboard/houses">Houses</a>
-  <a href="/dashboard/moderacion">Moderación</a>
-  <a href="/dashboard/economia">Economía</a>
-  <a href="/dashboard/casino">Casino</a>
-  <a href="/dashboard/mascotas">Mascotas</a>
-  <a href="/dashboard/starboard">Starboard</a>
-  <a href="/dashboard/trivia">Trivia</a>
-  <a href="/dashboard/eventos">Eventos</a>
+  <div class="nav-group">
+    <div class="nav-group-label">General</div>
+    <div class="nav-group-links">
+      <a href="/dashboard">General</a>
+      <a href="/dashboard/estadisticas">Estadísticas</a>
+    </div>
+  </div>
+  <div class="nav-group">
+    <div class="nav-group-label">Comunidad</div>
+    <div class="nav-group-links">
+      <a href="/dashboard/bienvenida">Bienvenida/Despedida</a>
+      <a href="/dashboard/mensajes">Tips y ayuda</a>
+      <a href="/dashboard/anuncio">Anuncios</a>
+      <a href="/dashboard/houses">Houses</a>
+      <a href="/dashboard/starboard">Starboard</a>
+    </div>
+  </div>
+  <div class="nav-group">
+    <div class="nav-group-label">Moderación</div>
+    <div class="nav-group-links">
+      <a href="/dashboard/automoderacion">Automoderación</a>
+      <a href="/dashboard/logs">Logs</a>
+      <a href="/dashboard/moderacion">Roles protegidos</a>
+    </div>
+  </div>
+  <div class="nav-group">
+    <div class="nav-group-label">Tickets</div>
+    <div class="nav-group-links">
+      <a href="/dashboard/tickets">Tickets</a>
+      <a href="/dashboard/tickets/config">Configurar</a>
+    </div>
+  </div>
+  <div class="nav-group">
+    <div class="nav-group-label">Progresión</div>
+    <div class="nav-group-links">
+      <a href="/dashboard/niveles">Niveles</a>
+      <a href="/dashboard/roles-reaccion">Roles por reacción</a>
+    </div>
+  </div>
+  <div class="nav-group">
+    <div class="nav-group-label">Economía y juegos</div>
+    <div class="nav-group-links">
+      <a href="/dashboard/economia">Economía</a>
+      <a href="/dashboard/casino">Casino</a>
+      <a href="/dashboard/mascotas">Mascotas</a>
+      <a href="/dashboard/trivia">Trivia</a>
+      <a href="/dashboard/eventos">Eventos</a>
+    </div>
+  </div>
+  <div class="nav-group">
+    <div class="nav-group-label">A medida</div>
+    <div class="nav-group-links">
+      <a href="/dashboard/comandos">Comandos</a>
+    </div>
+  </div>
 </nav>` : ''}
 <main>
 ${flash ? `<div class="flash">${escapeHtml(flash)}</div>` : ''}
