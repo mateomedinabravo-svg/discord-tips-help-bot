@@ -994,12 +994,16 @@ function createApp({ client }) {
 
   app.get('/dashboard/guia', requireAuth, requireActiveGuild, async (req, res) => {
     const config = await db.getGuildConfig(req.session.activeGuildId);
+    const editingSection = req.query.edit
+      ? (config.serverGuide.sections || []).find((s) => s.id === req.query.edit) || null
+      : null;
     res.send(
       views.serverGuidePage({
         user: req.session.user,
         config,
         channels: getTextChannels(req),
         guildName: guildName(req),
+        editingSection,
         flash: req.query.saved ? 'Guardado.' : req.query.published ? 'Panel publicado.' : req.query.error || null,
       }),
     );
@@ -1028,14 +1032,18 @@ function createApp({ client }) {
     }
 
     const config = await db.getGuildConfig(req.session.activeGuildId);
-    const id = slugify(label) || `seccion-${Date.now()}`;
+    const sections = config.serverGuide.sections || [];
+    const existingId = (req.body.id || '').trim();
+    const isEditing = existingId && sections.some((s) => s.id === existingId);
+    const id = isEditing ? existingId : slugify(label) || `seccion-${Date.now()}`;
     const section = { id, label, emoji: (req.body.emoji || '').trim(), content };
 
-    const sections = (config.serverGuide.sections || []).filter((s) => s.id !== id);
-    sections.push(section);
+    const updatedSections = isEditing
+      ? sections.map((s) => (s.id === id ? section : s))
+      : [...sections.filter((s) => s.id !== id), section];
 
     await db.updateGuildConfig(req.session.activeGuildId, {
-      serverGuide: { ...config.serverGuide, sections },
+      serverGuide: { ...config.serverGuide, sections: updatedSections },
     });
     res.redirect('/dashboard/guia?saved=1');
   });

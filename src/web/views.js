@@ -839,7 +839,7 @@ function aiPage({ user, config, aiConfigured, guildName, flash }) {
   return layout({ title: 'IA', user, body, flash, guildName });
 }
 
-function serverGuidePage({ user, config, channels, guildName, flash }) {
+function serverGuidePage({ user, config, channels, guildName, flash, editingSection }) {
   const channelOptions = channels
     .map((c) => `<option value="${c.id}" ${c.id === config.serverGuide.channelId ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`)
     .join('');
@@ -848,10 +848,13 @@ function serverGuidePage({ user, config, channels, guildName, flash }) {
     .map(
       (s) => `<div class="server-row">
         <span class="name">${s.emoji || ''} ${escapeHtml(s.label)}</span>
-        <form method="post" action="/dashboard/guia/seccion/eliminar" style="margin:0;">
-          <input type="hidden" name="id" value="${escapeHtml(s.id)}">
-          <button type="submit" style="margin:0; background:#ed4245;">Eliminar</button>
-        </form>
+        <div style="display:flex; gap:8px;">
+          <a class="btn" href="/dashboard/guia?edit=${encodeURIComponent(s.id)}" style="background:#4752c4;">Editar</a>
+          <form method="post" action="/dashboard/guia/seccion/eliminar" style="margin:0;">
+            <input type="hidden" name="id" value="${escapeHtml(s.id)}">
+            <button type="submit" style="margin:0; background:#ed4245;">Eliminar</button>
+          </form>
+        </div>
       </div>`,
     )
     .join('');
@@ -866,14 +869,16 @@ function serverGuidePage({ user, config, channels, guildName, flash }) {
   </div>
 
   <form class="card" method="post" action="/dashboard/guia/seccion">
-    <h2>Nueva sección</h2>
+    <h2>${editingSection ? 'Editar sección' : 'Nueva sección'}</h2>
+    ${editingSection ? `<input type="hidden" name="id" value="${escapeHtml(editingSection.id)}">` : ''}
     <label>Nombre</label>
-    <input type="text" name="label" required maxlength="80">
+    <input type="text" name="label" required maxlength="80" value="${escapeHtml(editingSection ? editingSection.label : '')}">
     <label>Emoji (opcional)</label>
-    <input type="text" name="emoji" maxlength="10">
+    <input type="text" name="emoji" maxlength="10" value="${escapeHtml(editingSection ? editingSection.emoji || '' : '')}">
     <label>Contenido</label>
-    <textarea name="content" required style="min-height:100px;"></textarea>
-    <button type="submit">Crear sección</button>
+    <textarea name="content" required style="min-height:100px;">${escapeHtml(editingSection ? editingSection.content : '')}</textarea>
+    <button type="submit">${editingSection ? 'Guardar cambios' : 'Crear sección'}</button>
+    ${editingSection ? '<a href="/dashboard/guia" style="margin-left:12px; color:#b5bac1; font-size:13px;">Cancelar</a>' : ''}
   </form>
 
   <form class="card" method="post" action="/dashboard/guia">
