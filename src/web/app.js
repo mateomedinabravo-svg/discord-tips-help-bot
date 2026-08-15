@@ -280,8 +280,17 @@ function createApp({ client }) {
 
   app.get('/dashboard/mensajes', requireAuth, requireActiveGuild, async (req, res) => {
     const config = await db.getGuildConfig(req.session.activeGuildId);
+    const editingTopic = req.query.editar
+      ? (config.helpResponses.topics || []).find((t) => t.name === req.query.editar) || null
+      : null;
     res.send(
-      views.messagesPage({ user: req.session.user, config, guildName: guildName(req), flash: req.query.saved ? 'Guardado.' : null }),
+      views.messagesPage({
+        user: req.session.user,
+        config,
+        editingTopic,
+        guildName: guildName(req),
+        flash: req.query.saved ? 'Guardado.' : req.query.error || null,
+      }),
     );
   });
 
@@ -294,22 +303,56 @@ function createApp({ client }) {
     res.redirect('/dashboard/mensajes?saved=1');
   });
 
-  app.post('/dashboard/mensajes/ayuda', requireAuth, requireActiveGuild, async (req, res) => {
-    try {
-      const helpResponses = JSON.parse(req.body.helpResponsesJson);
-      await db.updateGuildConfig(req.session.activeGuildId, { helpResponses });
-      res.redirect('/dashboard/mensajes?saved=1');
-    } catch (err) {
-      const config = await db.getGuildConfig(req.session.activeGuildId);
-      res.status(400).send(
-        views.messagesPage({
-          user: req.session.user,
-          config,
-          guildName: guildName(req),
-          flash: 'El JSON de respuestas de ayuda no es válido, no se guardó.',
-        }),
-      );
+  app.post('/dashboard/mensajes/ayuda/general', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    const generalTriggers = (req.body.generalTriggers || '')
+      .split('\n')
+      .map((t) => t.trim().toLowerCase())
+      .filter(Boolean);
+
+    await db.updateGuildConfig(req.session.activeGuildId, {
+      helpResponses: {
+        ...config.helpResponses,
+        generalTriggers,
+        fallbackResponse: req.body.fallbackResponse || config.helpResponses.fallbackResponse,
+      },
+    });
+    res.redirect('/dashboard/mensajes?saved=1');
+  });
+
+  app.post('/dashboard/mensajes/ayuda/tema', requireAuth, requireActiveGuild, async (req, res) => {
+    const name = (req.body.name || '').trim().toLowerCase().replace(/\s+/g, '-');
+    const response = (req.body.response || '').trim();
+
+    if (!name || !response) {
+      return res.redirect(`/dashboard/mensajes?error=${encodeURIComponent('El tema necesita un nombre y una respuesta.')}`);
     }
+
+    const keywords = (req.body.keywords || '')
+      .split('\n')
+      .map((k) => k.trim().toLowerCase())
+      .filter(Boolean);
+    const examples = (req.body.examples || '')
+      .split('\n')
+      .map((e) => e.trim())
+      .filter(Boolean);
+
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    const originalName = (req.body.originalName || '').trim().toLowerCase();
+    const topics = (config.helpResponses.topics || []).filter((t) => t.name !== name && t.name !== originalName);
+    topics.push({ name, keywords, examples, response });
+
+    await db.updateGuildConfig(req.session.activeGuildId, {
+      helpResponses: { ...config.helpResponses, topics },
+    });
+    res.redirect('/dashboard/mensajes?saved=1');
+  });
+
+  app.post('/dashboard/mensajes/ayuda/tema/eliminar', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    const topics = (config.helpResponses.topics || []).filter((t) => t.name !== req.body.name);
+    await db.updateGuildConfig(req.session.activeGuildId, { helpResponses: { ...config.helpResponses, topics } });
+    res.redirect('/dashboard/mensajes?saved=1');
   });
 
   app.get('/dashboard/anuncio', requireAuth, requireActiveGuild, (req, res) => {

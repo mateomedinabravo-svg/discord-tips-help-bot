@@ -200,7 +200,24 @@ function automodPage({ user, config, guildName, flash }) {
   return layout({ title: 'Automoderación', user, body, flash, guildName });
 }
 
-function messagesPage({ user, config, guildName, flash }) {
+function messagesPage({ user, config, editingTopic, guildName, flash }) {
+  const topicRows = (config.helpResponses.topics || [])
+    .map(
+      (t) => `<div class="server-row">
+        <span class="name">${escapeHtml(t.name)} · ${t.keywords.length} palabra(s) clave</span>
+        <span>
+          <a class="btn" href="/dashboard/mensajes?editar=${encodeURIComponent(t.name)}">Editar</a>
+          <form method="post" action="/dashboard/mensajes/ayuda/tema/eliminar" style="display:inline; margin:0;">
+            <input type="hidden" name="name" value="${escapeHtml(t.name)}">
+            <button type="submit" style="margin:0; background:#ed4245;">Eliminar</button>
+          </form>
+        </span>
+      </div>`,
+    )
+    .join('');
+
+  const topic = editingTopic || { name: '', keywords: [], examples: [], response: '' };
+
   const body = `
   <h1>Tips y respuestas de ayuda</h1>
 
@@ -211,11 +228,34 @@ function messagesPage({ user, config, guildName, flash }) {
     <button type="submit">Guardar tips</button>
   </form>
 
-  <form class="card" method="post" action="/dashboard/mensajes/ayuda">
-    <h2>Respuestas de ayuda (avanzado)</h2>
-    <p class="muted">JSON completo: triggers generales, temas, palabras clave, ejemplos y respuesta de cada uno. Si el JSON es inválido, no se guarda.</p>
-    <textarea name="helpResponsesJson" style="min-height:320px; font-family: monospace;">${escapeHtml(JSON.stringify(config.helpResponses, null, 2))}</textarea>
-    <button type="submit">Guardar respuestas de ayuda</button>
+  <form class="card" method="post" action="/dashboard/mensajes/ayuda/general">
+    <h2>Cuándo responde el bot</h2>
+    <label>Palabras disparadoras (una por línea — alguna tiene que aparecer para que responda con parafraseo o el mensaje genérico)</label>
+    <textarea name="generalTriggers">${escapeHtml((config.helpResponses.generalTriggers || []).join('\n'))}</textarea>
+    <label>Mensaje genérico (cuando detecta un pedido de ayuda pero no un tema específico)</label>
+    <textarea name="fallbackResponse">${escapeHtml(config.helpResponses.fallbackResponse)}</textarea>
+    <button type="submit">Guardar</button>
+  </form>
+
+  <div class="card">
+    <h2>Temas</h2>
+    <p class="muted">Cada tema responde solo con que aparezca una de sus palabras clave (no hace falta decir "ayuda").</p>
+    <div class="server-list">${topicRows || '<p class="muted">Todavía no hay temas.</p>'}</div>
+  </div>
+
+  <form class="card" method="post" action="/dashboard/mensajes/ayuda/tema">
+    <h2>${editingTopic ? `Editando: ${escapeHtml(editingTopic.name)}` : 'Nuevo tema'}</h2>
+    <input type="hidden" name="originalName" value="${escapeHtml(topic.name)}">
+    <label>Nombre (identificador simple, sin espacios)</label>
+    <input type="text" name="name" value="${escapeHtml(topic.name)}" required>
+    <label>Palabras clave (una por línea)</label>
+    <textarea name="keywords">${escapeHtml(topic.keywords.join('\n'))}</textarea>
+    <label>Frases de ejemplo (opcional, ayuda a reconocer paráfrasis sin la palabra exacta)</label>
+    <textarea name="examples">${escapeHtml((topic.examples || []).join('\n'))}</textarea>
+    <label>Respuesta</label>
+    <textarea name="response" required>${escapeHtml(topic.response)}</textarea>
+    <button type="submit">${editingTopic ? 'Guardar cambios' : 'Crear tema'}</button>
+    ${editingTopic ? '<a class="btn" href="/dashboard/mensajes" style="margin-left:10px; background:#4a4d53;">Cancelar edición</a>' : ''}
   </form>`;
   return layout({ title: 'Tips y ayuda', user, body, flash, guildName });
 }
