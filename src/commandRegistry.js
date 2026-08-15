@@ -8,6 +8,7 @@ const economyCommands = require('./economyCommands');
 const casinoCommands = require('./casinoCommands');
 const marriageCommands = require('./marriageCommands');
 const petCommands = require('./petCommands');
+const triviaCommand = require('./triviaCommand');
 
 const STATIC_DEFINITIONS = [
   announceCommand.definition,
@@ -26,6 +27,7 @@ const STATIC_DEFINITIONS = [
   marriageCommands.divorciarDefinition,
   marriageCommands.parejaDefinition,
   petCommands.definition,
+  triviaCommand.definition,
 ].map((def) => def.toJSON());
 
 async function registerGuildCommands(guild, config) {

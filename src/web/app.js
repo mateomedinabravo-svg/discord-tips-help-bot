@@ -855,6 +855,50 @@ function createApp({ client }) {
     res.redirect('/dashboard/starboard?saved=1');
   });
 
+  app.get('/dashboard/trivia', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    res.send(
+      views.triviaPage({
+        user: req.session.user,
+        config,
+        guildName: guildName(req),
+        flash: req.query.saved ? 'Guardado.' : req.query.error || null,
+      }),
+    );
+  });
+
+  app.post('/dashboard/trivia', requireAuth, requireActiveGuild, async (req, res) => {
+    const lines = (req.body.questionsText || '')
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean);
+
+    const questions = [];
+    for (const line of lines) {
+      const parts = line.split('|').map((p) => p.trim());
+      if (parts.length < 6) continue;
+      const [question, optA, optB, optC, optD, correct] = parts;
+      const correctIndex = Number(correct) - 1;
+      if (!question || correctIndex < 0 || correctIndex > 3) continue;
+      questions.push({ question, options: [optA, optB, optC, optD], correctIndex });
+    }
+
+    if (!questions.length) {
+      return res.redirect(
+        `/dashboard/trivia?error=${encodeURIComponent('Ninguna pregunta tiene el formato correcto (pregunta|A|B|C|D|correcta).')}`,
+      );
+    }
+
+    await db.updateGuildConfig(req.session.activeGuildId, {
+      trivia: {
+        enabled: req.body.enabled === 'on',
+        rewardAmount: Math.max(1, Number(req.body.rewardAmount) || 50),
+        questions,
+      },
+    });
+    res.redirect('/dashboard/trivia?saved=1');
+  });
+
   return app;
 }
 

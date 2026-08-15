@@ -16,6 +16,7 @@ const economyCommands = require('./economyCommands');
 const casinoCommands = require('./casinoCommands');
 const marriageCommands = require('./marriageCommands');
 const petCommands = require('./petCommands');
+const triviaCommand = require('./triviaCommand');
 const { isDirectedAtAnotherUser } = require('./messageDirection');
 const db = require('./db');
 const { createApp } = require('./web/app');
@@ -329,6 +330,9 @@ client.on('interactionCreate', async (interaction) => {
       case 'mascota':
         await petCommands.handlePetCommand(interaction, config);
         break;
+      case 'trivia':
+        await triviaCommand.handleTriviaCommand(interaction, config);
+        break;
       default: {
         const custom = config ? customCommands.findCustomCommand(config, interaction.commandName) : null;
         if (custom) await customCommands.handleCustomCommand(interaction, config, custom);
@@ -372,6 +376,12 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.customId === 'bj-hit' || interaction.customId === 'bj-stand') {
       const config = interaction.guild ? configByGuild.get(interaction.guild.id) : null;
       if (config) await casinoCommands.handleBlackjackButton(interaction, config);
+      return;
+    }
+
+    if (interaction.customId.startsWith('trivia-opt-')) {
+      const config = interaction.guild ? configByGuild.get(interaction.guild.id) : null;
+      if (config) await triviaCommand.handleTriviaButton(interaction, config);
       return;
     }
 

@@ -107,6 +107,17 @@ function defaultConfig(guildId) {
       threshold: 3,
       channelId: null,
     },
+    trivia: {
+      enabled: false,
+      rewardAmount: 50,
+      questions: [
+        {
+          question: '¿Cuál es el planeta más grande del sistema solar?',
+          options: ['Marte', 'Júpiter', 'Saturno', 'Tierra'],
+          correctIndex: 1,
+        },
+      ],
+    },
     updatedAt: new Date(),
   };
 }
@@ -150,6 +161,7 @@ async function getGuildConfig(guildId) {
   config.ticketTranscripts = { ...defaults.ticketTranscripts, ...(config.ticketTranscripts || {}) };
   config.ticketFeedback = { ...defaults.ticketFeedback, ...(config.ticketFeedback || {}) };
   config.starboard = { ...defaults.starboard, ...(config.starboard || {}) };
+  config.trivia = { ...defaults.trivia, ...(config.trivia || {}) };
 
   return config;
 }

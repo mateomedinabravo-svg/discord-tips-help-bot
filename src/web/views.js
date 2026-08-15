@@ -93,6 +93,7 @@ ${user ? `<header>
   <a href="/dashboard/casino">Casino</a>
   <a href="/dashboard/mascotas">Mascotas</a>
   <a href="/dashboard/starboard">Starboard</a>
+  <a href="/dashboard/trivia">Trivia</a>
 </nav>` : ''}
 <main>
 ${flash ? `<div class="flash">${escapeHtml(flash)}</div>` : ''}
@@ -694,6 +695,29 @@ function starboardPage({ user, config, channels, guildName, flash }) {
   return layout({ title: 'Starboard', user, body, flash, guildName });
 }
 
+function triviaPage({ user, config, guildName, flash }) {
+  const questionsText = (config.trivia.questions || [])
+    .map((q) => `${q.question}|${q.options[0]}|${q.options[1]}|${q.options[2]}|${q.options[3]}|${q.correctIndex + 1}`)
+    .join('\n');
+
+  const body = `
+  <h1>Trivia</h1>
+  <p class="muted">Con <code>/trivia</code>, el bot tira una pregunta al azar con 4 opciones (A-D). El primero en apretar el botón correcto gana la recompensa.</p>
+  <form class="card" method="post" action="/dashboard/trivia">
+    <div class="checkbox-row"><input type="checkbox" name="enabled" id="tr-enabled" ${config.trivia.enabled ? 'checked' : ''}>
+      <label for="tr-enabled" style="margin:0;">Activada</label></div>
+
+    <label>Recompensa por acertar</label>
+    <input type="number" name="rewardAmount" min="1" value="${escapeHtml(config.trivia.rewardAmount)}">
+
+    <label>Preguntas: una por línea, formato <code>pregunta|opciónA|opciónB|opciónC|opciónD|correcta(1-4)</code></label>
+    <textarea name="questionsText" style="min-height:200px; font-family: monospace;">${escapeHtml(questionsText)}</textarea>
+
+    <button type="submit">Guardar</button>
+  </form>`;
+  return layout({ title: 'Trivia', user, body, flash, guildName });
+}
+
 function ticketConfigPage({ user, config, channels, roles, guildName, flash }) {
   const channelOptions = (selected) =>
     channels.map((c) => `<option value="${c.id}" ${c.id === selected ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`).join('');
@@ -787,4 +811,5 @@ module.exports = {
   petsSettingsPage,
   ticketConfigPage,
   starboardPage,
+  triviaPage,
 };

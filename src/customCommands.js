@@ -17,6 +17,7 @@ const RESERVED_NAMES = [
   'divorciar',
   'pareja',
   'mascota',
+  'trivia',
 ];
 const NAME_PATTERN = /^[a-z0-9_-]{1,32}$/;
 
