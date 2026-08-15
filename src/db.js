@@ -118,6 +118,12 @@ function defaultConfig(guildId) {
         },
       ],
     },
+    miniEvents: {
+      enabled: false,
+      intervalMinutes: 120,
+      reward: 30,
+      channelId: null,
+    },
     updatedAt: new Date(),
   };
 }
@@ -162,6 +168,7 @@ async function getGuildConfig(guildId) {
   config.ticketFeedback = { ...defaults.ticketFeedback, ...(config.ticketFeedback || {}) };
   config.starboard = { ...defaults.starboard, ...(config.starboard || {}) };
   config.trivia = { ...defaults.trivia, ...(config.trivia || {}) };
+  config.miniEvents = { ...defaults.miniEvents, ...(config.miniEvents || {}) };
 
   return config;
 }

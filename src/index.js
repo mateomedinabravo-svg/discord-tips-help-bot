@@ -18,6 +18,7 @@ const marriageCommands = require('./marriageCommands');
 const petCommands = require('./petCommands');
 const triviaCommand = require('./triviaCommand');
 const memeCommand = require('./memeCommand');
+const miniEvents = require('./miniEvents');
 const { isDirectedAtAnotherUser } = require('./messageDirection');
 const db = require('./db');
 const { createApp } = require('./web/app');
@@ -41,6 +42,7 @@ const configByGuild = new Map();
 const findHelpResponseByGuild = new Map();
 const trackerByGuild = new Map();
 const tipTimerByGuild = new Map();
+const miniEventTimerByGuild = new Map();
 
 const client = new Client({
   intents: [
@@ -92,6 +94,24 @@ function stopTipLoop(guildId) {
   const timer = tipTimerByGuild.get(guildId);
   if (timer) clearTimeout(timer);
   tipTimerByGuild.delete(guildId);
+}
+
+function startMiniEventLoop(guildId) {
+  async function scheduleEvent() {
+    const config = configByGuild.get(guildId);
+    if (config?.miniEvents?.enabled) {
+      await miniEvents.postEvent(client, guildId, config);
+    }
+    const delayMs = Math.max(5, config?.miniEvents?.intervalMinutes || 120) * 60 * 1000;
+    miniEventTimerByGuild.set(guildId, setTimeout(scheduleEvent, delayMs));
+  }
+  scheduleEvent();
+}
+
+function stopMiniEventLoop(guildId) {
+  const timer = miniEventTimerByGuild.get(guildId);
+  if (timer) clearTimeout(timer);
+  miniEventTimerByGuild.delete(guildId);
 }
 
 async function sendTipToMostActiveChannel(guildId) {
@@ -149,6 +169,7 @@ async function setUpGuild(guild) {
     console.error(`No se pudieron registrar los comandos en ${guild.name}:`, err);
   }
   startTipLoop(guild.id);
+  startMiniEventLoop(guild.id);
 }
 
 client.once('ready', async () => {
@@ -178,6 +199,7 @@ client.on('guildDelete', (guild) => {
   findHelpResponseByGuild.delete(guild.id);
   trackerByGuild.delete(guild.id);
   stopTipLoop(guild.id);
+  stopMiniEventLoop(guild.id);
 });
 
 client.on('messageCreate', async (message) => {
@@ -228,6 +250,7 @@ client.on('messageUpdate', async (oldMessage, newMessage) => {
 
 client.on('messageReactionAdd', async (reaction, user) => {
   await reactionRoles.handleReactionChange(reaction, user, 'add');
+  await miniEvents.handleMiniEventReaction(reaction, user);
 
   if (reaction.message.guild) {
     const config = configByGuild.get(reaction.message.guild.id);

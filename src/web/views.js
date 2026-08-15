@@ -94,6 +94,7 @@ ${user ? `<header>
   <a href="/dashboard/mascotas">Mascotas</a>
   <a href="/dashboard/starboard">Starboard</a>
   <a href="/dashboard/trivia">Trivia</a>
+  <a href="/dashboard/eventos">Eventos</a>
 </nav>` : ''}
 <main>
 ${flash ? `<div class="flash">${escapeHtml(flash)}</div>` : ''}
@@ -718,6 +719,34 @@ function triviaPage({ user, config, guildName, flash }) {
   return layout({ title: 'Trivia', user, body, flash, guildName });
 }
 
+function miniEventsPage({ user, config, channels, guildName, flash }) {
+  const channelOptions = channels
+    .map((c) => `<option value="${c.id}" ${c.id === config.miniEvents.channelId ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`)
+    .join('');
+  const mismatch = config.miniEvents.enabled && !config.miniEvents.channelId;
+
+  const body = `
+  <h1>Eventos automáticos</h1>
+  <p class="muted">De vez en cuando el bot publica un mensaje sorpresa — el primero en reaccionar gana monedas.</p>
+  ${mismatch ? '<div class="warning-banner">⚠️ Está activado pero no elegiste canal, así que no se publica nada. Elegí uno abajo.</div>' : ''}
+  <form class="card" method="post" action="/dashboard/eventos">
+    <div class="checkbox-row"><input type="checkbox" name="enabled" id="me-enabled" ${config.miniEvents.enabled ? 'checked' : ''}>
+      <label for="me-enabled" style="margin:0;">Activado</label></div>
+
+    <label>Canal donde se publican</label>
+    <select name="channelId"><option value="">-- elegir --</option>${channelOptions}</select>
+
+    <label>Cada cuánto (minutos)</label>
+    <input type="number" name="intervalMinutes" min="5" value="${escapeHtml(config.miniEvents.intervalMinutes)}">
+
+    <label>Recompensa</label>
+    <input type="number" name="reward" min="1" value="${escapeHtml(config.miniEvents.reward)}">
+
+    <button type="submit">Guardar</button>
+  </form>`;
+  return layout({ title: 'Eventos', user, body, flash, guildName });
+}
+
 function ticketConfigPage({ user, config, channels, roles, guildName, flash }) {
   const channelOptions = (selected) =>
     channels.map((c) => `<option value="${c.id}" ${c.id === selected ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`).join('');
@@ -812,4 +841,5 @@ module.exports = {
   ticketConfigPage,
   starboardPage,
   triviaPage,
+  miniEventsPage,
 };

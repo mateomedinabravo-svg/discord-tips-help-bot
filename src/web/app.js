@@ -899,6 +899,31 @@ function createApp({ client }) {
     res.redirect('/dashboard/trivia?saved=1');
   });
 
+  app.get('/dashboard/eventos', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    res.send(
+      views.miniEventsPage({
+        user: req.session.user,
+        config,
+        channels: getTextChannels(req),
+        guildName: guildName(req),
+        flash: req.query.saved ? 'Guardado.' : null,
+      }),
+    );
+  });
+
+  app.post('/dashboard/eventos', requireAuth, requireActiveGuild, async (req, res) => {
+    await db.updateGuildConfig(req.session.activeGuildId, {
+      miniEvents: {
+        enabled: req.body.enabled === 'on',
+        intervalMinutes: Math.max(5, Number(req.body.intervalMinutes) || 120),
+        reward: Math.max(1, Number(req.body.reward) || 30),
+        channelId: req.body.channelId || null,
+      },
+    });
+    res.redirect('/dashboard/eventos?saved=1');
+  });
+
   return app;
 }
 
