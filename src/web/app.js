@@ -15,7 +15,8 @@ const views = require('./views');
 const db = require('../db');
 const reactionRoles = require('../reactionRoles');
 
-const BOT_INVITE_PERMISSIONS = 93200; // View/Send/History/ManageMessages/ManageChannels/EmbedLinks
+// View/Send/History/ManageMessages/ManageChannels/EmbedLinks/AddReactions/Kick/Ban/ManageRoles/ModerateMembers
+const BOT_INVITE_PERMISSIONS = 1099780156502;
 
 function createApp({ client }) {
   const app = express();
