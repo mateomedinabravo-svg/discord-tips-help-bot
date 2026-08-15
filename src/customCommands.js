@@ -19,6 +19,7 @@ const RESERVED_NAMES = [
   'mascota',
   'trivia',
   'meme',
+  'debug',
 ];
 const NAME_PATTERN = /^[a-z0-9_-]{1,32}$/;
 

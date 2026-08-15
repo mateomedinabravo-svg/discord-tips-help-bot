@@ -20,6 +20,8 @@ const housesCommand = require('../housesCommand');
 const ticketCommand = require('../ticketCommand');
 const aiHelper = require('../aiHelper');
 const serverGuide = require('../serverGuide');
+const debugCommand = require('../debugCommand');
+const pkg = require('../../package.json');
 
 // View/Send/History/ManageMessages/ManageChannels/EmbedLinks/AddReactions/Kick/Ban/ManageRoles/ModerateMembers
 const BOT_INVITE_PERMISSIONS = 1099780156502;
@@ -623,6 +625,38 @@ function createApp({ client }) {
       },
     });
     res.redirect('/dashboard/logs?saved=1');
+  });
+
+  app.get('/dashboard/debug', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    const mem = process.memoryUsage();
+    res.send(
+      views.debugPage({
+        user: req.session.user,
+        config,
+        channels: getTextChannels(req),
+        guildName: guildName(req),
+        flash: req.query.saved ? 'Guardado.' : null,
+        stats: {
+          version: pkg.version,
+          nodeVersion: process.version,
+          ping: client.ws.ping,
+          uptime: debugCommand.formatUptime(client.uptime),
+          guildCount: client.guilds.cache.size,
+          memoryMb: Math.round(mem.heapUsed / 1024 / 1024),
+        },
+      }),
+    );
+  });
+
+  app.post('/dashboard/debug', requireAuth, requireActiveGuild, async (req, res) => {
+    await db.updateGuildConfig(req.session.activeGuildId, {
+      debug: {
+        enabled: req.body.enabled === 'on',
+        errorChannelId: req.body.errorChannelId || null,
+      },
+    });
+    res.redirect('/dashboard/debug?saved=1');
   });
 
   app.get('/dashboard/comandos', requireAuth, requireActiveGuild, async (req, res) => {

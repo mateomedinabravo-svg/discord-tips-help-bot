@@ -10,6 +10,7 @@ const marriageCommands = require('./marriageCommands');
 const petCommands = require('./petCommands');
 const triviaCommand = require('./triviaCommand');
 const memeCommand = require('./memeCommand');
+const debugCommand = require('./debugCommand');
 
 const STATIC_DEFINITIONS = [
   announceCommand.definition,
@@ -30,6 +31,7 @@ const STATIC_DEFINITIONS = [
   petCommands.definition,
   triviaCommand.definition,
   memeCommand.definition,
+  debugCommand.definition,
 ].map((def) => def.toJSON());
 
 async function registerGuildCommands(guild, config) {

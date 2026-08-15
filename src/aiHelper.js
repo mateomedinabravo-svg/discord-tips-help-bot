@@ -1,5 +1,7 @@
+const errorReporter = require('./errorReporter');
+
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const MODEL = 'llama-3.1-8b-instant';
+const MODEL = 'openai/gpt-oss-20b';
 const MODERATION_COOLDOWN_MS = 3000;
 
 const lastModerationCallByGuild = new Map();
@@ -38,7 +40,7 @@ async function askAI(apiKey, systemPrompt, userPrompt, { maxTokens = 200, temper
   return data.choices?.[0]?.message?.content?.trim() || null;
 }
 
-async function answerHelpQuestion(config, question) {
+async function answerHelpQuestion(client, config, question) {
   const apiKey = resolveApiKey(config);
   if (!apiKey) return null;
 
@@ -58,6 +60,7 @@ Reglas:
     return await askAI(apiKey, systemPrompt, question, { maxTokens: 150 });
   } catch (err) {
     console.error('No se pudo consultar la IA para ayuda:', err.message);
+    await errorReporter.reportError(client, config, 'aiHelper.answerHelpQuestion', err);
     return null;
   }
 }
@@ -70,7 +73,7 @@ function canRunModerationCheck(guildId) {
   return true;
 }
 
-async function checkToxicMessage(config, content) {
+async function checkToxicMessage(client, config, content) {
   const apiKey = resolveApiKey(config);
   if (!apiKey) return false;
 
@@ -82,6 +85,7 @@ async function checkToxicMessage(config, content) {
     return Boolean(reply && reply.trim().toUpperCase().startsWith('SI'));
   } catch (err) {
     console.error('No se pudo consultar la IA para moderación:', err.message);
+    await errorReporter.reportError(client, config, 'aiHelper.checkToxicMessage', err);
     return false;
   }
 }

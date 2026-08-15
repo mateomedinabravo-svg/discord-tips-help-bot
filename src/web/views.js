@@ -85,6 +85,7 @@ ${user ? `<header>
     <div class="nav-group-links">
       <a href="/dashboard">General</a>
       <a href="/dashboard/estadisticas">Estadísticas</a>
+      <a href="/dashboard/debug">Estado / Debug</a>
     </div>
   </div>
   <div class="nav-group">
@@ -971,6 +972,45 @@ function ticketConfigPage({ user, config, channels, roles, guildName, flash }) {
   return layout({ title: 'Config. Tickets', user, body, flash, guildName });
 }
 
+function debugPage({ user, config, channels, guildName, flash, stats }) {
+  const channelOptions = channels.map((c) => `<option value="${c.id}" ${c.id === config.debug.errorChannelId ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`).join('');
+  const mismatch = config.debug.enabled && !config.debug.errorChannelId;
+
+  const body = `
+  <h1>Estado / Debug</h1>
+
+  <div class="card">
+    <h2>Estado del bot</h2>
+    <table>
+      <tr><td>Versión</td><td>${escapeHtml(stats.version)}</td></tr>
+      <tr><td>Node</td><td>${escapeHtml(stats.nodeVersion)}</td></tr>
+      <tr><td>Ping</td><td>${stats.ping}ms</td></tr>
+      <tr><td>Uptime</td><td>${escapeHtml(stats.uptime)}</td></tr>
+      <tr><td>Servers conectados</td><td>${stats.guildCount}</td></tr>
+      <tr><td>Memoria (heap)</td><td>${stats.memoryMb} MB</td></tr>
+    </table>
+  </div>
+
+  <form class="card" method="post" action="/dashboard/debug">
+    <h2>Canal de errores</h2>
+    ${mismatch ? '<div class="warning-banner">⚠️ Está activado pero no elegiste canal, así que no se reportan errores. Elegí uno abajo.</div>' : ''}
+    <p class="muted">Si algo falla internamente, el bot puede avisarte en un canal de Discord.</p>
+    <div class="checkbox-row"><input type="checkbox" name="enabled" id="debug-enabled" ${config.debug.enabled ? 'checked' : ''}>
+      <label for="debug-enabled" style="margin:0;">Activado</label></div>
+
+    <label>Canal para reportar errores</label>
+    <select name="errorChannelId"><option value="">-- elegir --</option>${channelOptions}</select>
+
+    <button type="submit">Guardar</button>
+  </form>
+
+  <div class="card">
+    <h2>Comando /debug</h2>
+    <p class="muted">Cualquier miembro con permiso "Gestionar servidor" puede usar <code>/debug</code> en Discord para ver esta misma info técnica al instante.</p>
+  </div>`;
+  return layout({ title: 'Estado / Debug', user, body, flash, guildName });
+}
+
 module.exports = {
   layout,
   loginPage,
@@ -997,4 +1037,5 @@ module.exports = {
   miniEventsPage,
   aiPage,
   serverGuidePage,
+  debugPage,
 };

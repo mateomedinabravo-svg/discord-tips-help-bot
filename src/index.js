@@ -22,6 +22,8 @@ const triviaCommand = require('./triviaCommand');
 const memeCommand = require('./memeCommand');
 const miniEvents = require('./miniEvents');
 const serverGuide = require('./serverGuide');
+const debugCommand = require('./debugCommand');
+const errorReporter = require('./errorReporter');
 const { isDirectedAtAnotherUser } = require('./messageDirection');
 const db = require('./db');
 const { createApp } = require('./web/app');
@@ -173,7 +175,7 @@ async function applyAutomod(message, config) {
 
   if (config?.ai?.enabled && config.ai.moderation && aiHelper.isConfigured(config) && message.content.trim().length > 0) {
     if (aiHelper.canRunModerationCheck(message.guild.id)) {
-      const isToxic = await aiHelper.checkToxicMessage(config, message.content);
+      const isToxic = await aiHelper.checkToxicMessage(client, config, message.content);
       if (isToxic) {
         await deleteWithWarning(message, 'contenido inapropiado (detectado por IA)');
         return true;
@@ -232,40 +234,45 @@ client.on('messageCreate', async (message) => {
   const guildId = message.guild.id;
   const config = configByGuild.get(guildId);
 
-  if (WHITELIST.length === 0 || WHITELIST.includes(message.channel.id)) {
-    getTracker(guildId).registerMessage(message.channel.id);
-  }
-  db.incrementMessageStat(guildId, message.channel.id).catch((err) =>
-    console.error('No se pudo registrar la estadística del mensaje:', err),
-  );
-
-  const wasRemoved = await applyAutomod(message, config);
-  if (wasRemoved) return;
-
-  if (config) {
-    levelCommands.awardXp(message, config).catch((err) => console.error('No se pudo otorgar XP:', err));
-  }
-
-  const directedElsewhere = isDirectedAtAnotherUser({
-    mentionsBot: message.mentions.has(client.user.id),
-    repliedUserId: message.mentions.repliedUser ? message.mentions.repliedUser.id : null,
-    mentionedUserIds: message.mentions.users.map((user) => user.id),
-    botId: client.user.id,
-  });
-  if (directedElsewhere) return;
-
-  const findHelpResponse = findHelpResponseByGuild.get(guildId) || (() => null);
-  const response = findHelpResponse(message.content);
-
-  if (response === NEEDS_FALLBACK) {
-    let reply = config?.helpResponses?.fallbackResponse;
-    if (config?.ai?.enabled && config.ai.helpFallback && aiHelper.isConfigured(config)) {
-      const aiReply = await aiHelper.answerHelpQuestion(config, message.content);
-      if (aiReply) reply = aiReply;
+  try {
+    if (WHITELIST.length === 0 || WHITELIST.includes(message.channel.id)) {
+      getTracker(guildId).registerMessage(message.channel.id);
     }
-    if (reply) await message.reply(reply);
-  } else if (response) {
-    await message.reply(response);
+    db.incrementMessageStat(guildId, message.channel.id).catch((err) =>
+      console.error('No se pudo registrar la estadística del mensaje:', err),
+    );
+
+    const wasRemoved = await applyAutomod(message, config);
+    if (wasRemoved) return;
+
+    if (config) {
+      levelCommands.awardXp(message, config).catch((err) => console.error('No se pudo otorgar XP:', err));
+    }
+
+    const directedElsewhere = isDirectedAtAnotherUser({
+      mentionsBot: message.mentions.has(client.user.id),
+      repliedUserId: message.mentions.repliedUser ? message.mentions.repliedUser.id : null,
+      mentionedUserIds: message.mentions.users.map((user) => user.id),
+      botId: client.user.id,
+    });
+    if (directedElsewhere) return;
+
+    const findHelpResponse = findHelpResponseByGuild.get(guildId) || (() => null);
+    const response = findHelpResponse(message.content);
+
+    if (response === NEEDS_FALLBACK) {
+      let reply = config?.helpResponses?.fallbackResponse;
+      if (config?.ai?.enabled && config.ai.helpFallback && aiHelper.isConfigured(config)) {
+        const aiReply = await aiHelper.answerHelpQuestion(client, config, message.content);
+        if (aiReply) reply = aiReply;
+      }
+      if (reply) await message.reply(reply);
+    } else if (response) {
+      await message.reply(response);
+    }
+  } catch (err) {
+    console.error('Error en messageCreate:', err);
+    await errorReporter.reportError(client, config, 'messageCreate', err);
   }
 });
 
@@ -300,20 +307,20 @@ client.on('messageReactionRemove', async (reaction, user) => {
 
 client.on('guildMemberAdd', async (member) => {
   const config = configByGuild.get(member.guild.id);
-  await logging.logMemberJoin(client, config, member);
-
-  const welcome = config?.welcome;
-  if (welcome?.roleId) {
-    try {
-      await member.roles.add(welcome.roleId);
-    } catch (err) {
-      console.error('No se pudo asignar el autorole:', err);
-    }
-  }
-
-  if (!welcome || !welcome.enabled || !welcome.channelId) return;
-
   try {
+    await logging.logMemberJoin(client, config, member);
+
+    const welcome = config?.welcome;
+    if (welcome?.roleId) {
+      try {
+        await member.roles.add(welcome.roleId);
+      } catch (err) {
+        console.error('No se pudo asignar el autorole:', err);
+      }
+    }
+
+    if (!welcome || !welcome.enabled || !welcome.channelId) return;
+
     const channel = await client.channels.fetch(welcome.channelId);
     if (channel && channel.isTextBased()) {
       const text = formatTemplate(welcome.message, member);
@@ -326,17 +333,18 @@ client.on('guildMemberAdd', async (member) => {
     }
   } catch (err) {
     console.error('No se pudo mandar el mensaje de bienvenida:', err);
+    await errorReporter.reportError(client, config, 'guildMemberAdd', err);
   }
 });
 
 client.on('guildMemberRemove', async (member) => {
   const config = configByGuild.get(member.guild.id);
-  await logging.logMemberLeave(client, config, member);
-
-  const goodbye = config?.goodbye;
-  if (!goodbye || !goodbye.enabled || !goodbye.channelId) return;
-
   try {
+    await logging.logMemberLeave(client, config, member);
+
+    const goodbye = config?.goodbye;
+    if (!goodbye || !goodbye.enabled || !goodbye.channelId) return;
+
     const channel = await client.channels.fetch(goodbye.channelId);
     if (channel && channel.isTextBased()) {
       const text = formatTemplate(goodbye.message, member);
@@ -349,10 +357,21 @@ client.on('guildMemberRemove', async (member) => {
     }
   } catch (err) {
     console.error('No se pudo mandar el mensaje de despedida:', err);
+    await errorReporter.reportError(client, config, 'guildMemberRemove', err);
   }
 });
 
 client.on('interactionCreate', async (interaction) => {
+  const guildConfig = interaction.guild ? configByGuild.get(interaction.guild.id) : null;
+  try {
+    await handleInteraction(interaction);
+  } catch (err) {
+    console.error('Error en interactionCreate:', err);
+    await errorReporter.reportError(client, guildConfig, `interactionCreate (${interaction.type})`, err);
+  }
+});
+
+async function handleInteraction(interaction) {
   if (interaction.isChatInputCommand()) {
     const config = interaction.guild ? configByGuild.get(interaction.guild.id) : null;
 
@@ -410,6 +429,9 @@ client.on('interactionCreate', async (interaction) => {
         break;
       case 'meme':
         await memeCommand.handleMemeCommand(interaction);
+        break;
+      case 'debug':
+        await debugCommand.handleDebugCommand(interaction);
         break;
       default: {
         const custom = config ? customCommands.findCustomCommand(config, interaction.commandName) : null;
@@ -479,6 +501,6 @@ client.on('interactionCreate', async (interaction) => {
       await serverGuide.handleGuideButton(interaction, config);
     }
   }
-});
+}
 
 client.login(TOKEN);
