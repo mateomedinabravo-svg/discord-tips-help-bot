@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const db = require('./db');
+const { buildEmbed } = require('./embedStyle');
 
 const RED_NUMBERS = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
 const SLOT_SYMBOLS = [
@@ -111,11 +112,12 @@ async function handleCoinFlip(interaction, config) {
 
   await db.addBalance(interaction.guild.id, interaction.user.id, won ? amount : -amount);
   const emoji = result === 'cara' ? '🪙' : '🌀';
-  await interaction.reply(
-    won
-      ? `${emoji} Salió **${result}**. ¡Ganaste ${formatMoney(amount, config)}!`
-      : `${emoji} Salió **${result}**. Perdiste ${formatMoney(amount, config)}.`,
-  );
+  const embed = buildEmbed({
+    type: won ? 'success' : 'error',
+    title: `${emoji} Salió ${result}`,
+    description: won ? `¡Ganaste **${formatMoney(amount, config)}**!` : `Perdiste **${formatMoney(amount, config)}**.`,
+  });
+  await interaction.reply({ embeds: [embed] });
 }
 
 function pickWeightedSymbol() {
@@ -147,7 +149,12 @@ async function handleSlots(interaction, config) {
   }
 
   await db.addBalance(interaction.guild.id, interaction.user.id, winnings);
-  await interaction.reply(`🎰 [ ${display} ]\n${outcome}`);
+  const embed = buildEmbed({
+    type: winnings > 0 ? 'success' : winnings === 0 ? 'warning' : 'error',
+    title: '🎰 Tragamonedas',
+    description: `**[ ${display} ]**\n${outcome}`,
+  });
+  await interaction.reply({ embeds: [embed] });
 }
 
 async function handleRoulette(interaction, config) {
@@ -172,8 +179,13 @@ async function handleRoulette(interaction, config) {
   }
 
   await db.addBalance(interaction.guild.id, interaction.user.id, winnings);
-  const outcome = winnings > 0 ? `¡Ganaste ${formatMoney(winnings, config)}!` : `Perdiste ${formatMoney(amount, config)}.`;
-  await interaction.reply(`🎡 Salió **${result} (${resultColor})**.\n${outcome}`);
+  const outcome = winnings > 0 ? `¡Ganaste **${formatMoney(winnings, config)}**!` : `Perdiste **${formatMoney(amount, config)}**.`;
+  const embed = buildEmbed({
+    type: winnings > 0 ? 'success' : 'error',
+    title: '🎡 Ruleta',
+    description: `Salió **${result} (${resultColor})**.\n${outcome}`,
+  });
+  await interaction.reply({ embeds: [embed] });
 }
 
 // --- Blackjack ---

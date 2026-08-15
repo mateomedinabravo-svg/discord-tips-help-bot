@@ -1,5 +1,6 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const db = require('./db');
+const { buildEmbed } = require('./embedStyle');
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -85,7 +86,12 @@ async function handleEconomyCommand(interaction, config) {
 async function handleBalance(interaction, config) {
   const target = interaction.options.getUser('usuario') || interaction.user;
   const account = await db.getEconomyAccount(interaction.guild.id, target.id);
-  await interaction.reply(`💰 <@${target.id}> tiene ${formatMoney(account.balance, config)}.`);
+  const embed = buildEmbed({
+    type: 'brand',
+    author: { name: target.username, iconURL: target.displayAvatarURL() },
+    description: `💰 Tiene **${formatMoney(account.balance, config)}**.`,
+  });
+  await interaction.reply({ embeds: [embed] });
 }
 
 async function handleDaily(interaction, config) {
@@ -101,7 +107,12 @@ async function handleDaily(interaction, config) {
   const amount = config.economy.dailyAmount;
   await db.addBalance(interaction.guild.id, interaction.user.id, amount);
   await db.setEconomyCooldown(interaction.guild.id, interaction.user.id, 'lastDaily', new Date());
-  await interaction.reply(`🎁 Reclamaste tu diario: +${formatMoney(amount, config)}.`);
+  const embed = buildEmbed({
+    type: 'success',
+    title: '🎁 Recompensa diaria',
+    description: `Ganaste **+${formatMoney(amount, config)}**. Volvé mañana por más.`,
+  });
+  await interaction.reply({ embeds: [embed] });
 }
 
 async function handleWork(interaction, config) {
@@ -121,7 +132,12 @@ async function handleWork(interaction, config) {
 
   await db.addBalance(interaction.guild.id, interaction.user.id, amount);
   await db.setEconomyCooldown(interaction.guild.id, interaction.user.id, 'lastWork', new Date());
-  await interaction.reply(`💼 Trabajaste y ganaste ${formatMoney(amount, config)}.`);
+  const embed = buildEmbed({
+    type: 'success',
+    title: '💼 A trabajar',
+    description: `Ganaste **${formatMoney(amount, config)}**.`,
+  });
+  await interaction.reply({ embeds: [embed] });
 }
 
 async function handlePay(interaction, config) {
@@ -143,7 +159,11 @@ async function handlePay(interaction, config) {
     return;
   }
 
-  await interaction.reply(`✅ Le transferiste ${formatMoney(amount, config)} a <@${target.id}>.`);
+  const embed = buildEmbed({
+    type: 'success',
+    description: `✅ Le transferiste **${formatMoney(amount, config)}** a <@${target.id}>.`,
+  });
+  await interaction.reply({ embeds: [embed] });
 }
 
 async function handleShop(interaction, config) {
@@ -153,12 +173,14 @@ async function handleShop(interaction, config) {
     return;
   }
 
-  const embed = new EmbedBuilder()
-    .setColor(0x5865f2)
-    .setTitle('🛒 Tienda')
-    .setDescription(
-      items.map((item) => `**${item.name}** — ${formatMoney(item.price, config)}${item.description ? `\n${item.description}` : ''}`).join('\n\n'),
-    );
+  const embed = buildEmbed({
+    type: 'brand',
+    title: '🛒 Tienda',
+    description: items
+      .map((item) => `**${item.name}** — ${formatMoney(item.price, config)}${item.description ? `\n${item.description}` : ''}`)
+      .join('\n\n'),
+    footer: 'Comprá con /economia comprar',
+  });
 
   await interaction.reply({ embeds: [embed] });
 }
@@ -180,7 +202,11 @@ async function handleBuy(interaction, config) {
 
   await db.addBalance(interaction.guild.id, interaction.user.id, -item.price);
   await db.addInventoryItem(interaction.guild.id, interaction.user.id, { itemId: item.id, name: item.name });
-  await interaction.reply(`✅ Compraste **${item.name}** por ${formatMoney(item.price, config)}.`);
+  const embed = buildEmbed({
+    type: 'success',
+    description: `✅ Compraste **${item.name}** por ${formatMoney(item.price, config)}.`,
+  });
+  await interaction.reply({ embeds: [embed] });
 }
 
 async function handleInventory(interaction, config) {
@@ -193,7 +219,7 @@ async function handleInventory(interaction, config) {
   }
 
   const lines = account.inventory.map((item) => `**${item.name}** x${item.quantity}`);
-  const embed = new EmbedBuilder().setColor(0x5865f2).setTitle(`🎒 Inventario de ${target.username}`).setDescription(lines.join('\n'));
+  const embed = buildEmbed({ type: 'brand', title: `🎒 Inventario de ${target.username}`, description: lines.join('\n') });
   await interaction.reply({ embeds: [embed] });
 }
 
@@ -205,15 +231,17 @@ async function handleProfile(interaction, config) {
     db.getPet(interaction.guild.id, target.id),
   ]);
 
-  const embed = new EmbedBuilder()
-    .setColor(0x5865f2)
-    .setAuthor({ name: target.username, iconURL: target.displayAvatarURL() })
-    .setTitle('Perfil')
-    .addFields(
+  const embed = buildEmbed({
+    type: 'brand',
+    author: { name: target.username, iconURL: target.displayAvatarURL() },
+    title: '🪪 Perfil',
+    thumbnail: target.displayAvatarURL(),
+    fields: [
       { name: 'Saldo', value: formatMoney(account.balance, config), inline: true },
       { name: 'Nivel', value: `${levelInfo.level} (${levelInfo.xp} XP)`, inline: true },
       { name: 'Items', value: String(account.inventory.length), inline: true },
-    );
+    ],
+  });
 
   if (pet) {
     embed.addFields({ name: 'Mascota', value: `${pet.name} (${pet.species}) — nivel ${db.petLevelInfoFromXp(pet.xp).level}` });
