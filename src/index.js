@@ -24,6 +24,8 @@ const miniEvents = require('./miniEvents');
 const serverGuide = require('./serverGuide');
 const debugCommand = require('./debugCommand');
 const giveawayCommand = require('./giveawayCommand');
+const pollCommand = require('./pollCommand');
+const suggestionBox = require('./suggestionBox');
 const errorReporter = require('./errorReporter');
 const { isDirectedAtAnotherUser } = require('./messageDirection');
 const db = require('./db');
@@ -38,6 +40,7 @@ if (!TOKEN) {
 
 const CONFIG_REFRESH_MS = 60 * 1000;
 const GIVEAWAY_CHECK_MS = 30 * 1000;
+const MEMBER_COUNTER_INTERVAL_MS = 10 * 60 * 1000;
 const WHITELIST = (process.env.TIPS_CHANNEL_WHITELIST || '')
   .split(',')
   .map((id) => id.trim())
@@ -83,6 +86,31 @@ async function applyBotNickname(guildId, config) {
   } catch (err) {
     console.error(`No se pudo cambiar el apodo del bot en el server ${guildId}:`, err);
   }
+}
+
+async function updateMemberCounter(guildId, config) {
+  const counter = config?.memberCounter;
+  if (!counter?.enabled || !counter.channelId) return;
+
+  try {
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) return;
+    const channel = await guild.channels.fetch(counter.channelId).catch(() => null);
+    if (!channel) return;
+
+    const name = counter.template.replace(/\{count\}/g, String(guild.memberCount)).slice(0, 100);
+    if (channel.name !== name) {
+      await channel.setName(name);
+    }
+  } catch (err) {
+    console.error(`No se pudo actualizar el contador de miembros en el server ${guildId}:`, err);
+  }
+}
+
+async function updateAllMemberCounters() {
+  await Promise.all(
+    Array.from(client.guilds.cache.keys()).map((guildId) => updateMemberCounter(guildId, configByGuild.get(guildId))),
+  );
 }
 
 async function refreshGuildConfig(guildId) {
@@ -214,6 +242,7 @@ async function setUpGuild(guild) {
   }
   startTipLoop(guild.id);
   startMiniEventLoop(guild.id);
+  await updateMemberCounter(guild.id, configByGuild.get(guild.id));
 }
 
 client.once('ready', async () => {
@@ -232,6 +261,7 @@ client.once('ready', async () => {
       errorReporter.reportError(client, null, 'giveawayCommand.checkExpiredGiveaways', err);
     });
   }, GIVEAWAY_CHECK_MS);
+  setInterval(updateAllMemberCounters, MEMBER_COUNTER_INTERVAL_MS);
 
   const webApp = createApp({ client });
   webApp.listen(process.env.PORT || 3000, () => {
@@ -260,6 +290,9 @@ client.on('messageCreate', async (message) => {
   const config = configByGuild.get(guildId);
 
   try {
+    const wasSuggestion = await suggestionBox.handleSuggestionMessage(message, config);
+    if (wasSuggestion) return;
+
     if (WHITELIST.length === 0 || WHITELIST.includes(message.channel.id)) {
       getTracker(guildId).registerMessage(message.channel.id);
     }
@@ -465,6 +498,9 @@ async function handleInteraction(interaction) {
       case 'sorteo':
         await giveawayCommand.handleGiveawayCommand(interaction);
         break;
+      case 'encuesta':
+        await pollCommand.handlePollCommand(interaction);
+        break;
       default: {
         const custom = config ? customCommands.findCustomCommand(config, interaction.commandName) : null;
         if (custom) await customCommands.handleCustomCommand(interaction, config, custom);
@@ -524,6 +560,23 @@ async function handleInteraction(interaction) {
 
     if (interaction.customId.startsWith(giveawayCommand.ENTER_BUTTON_PREFIX)) {
       await giveawayCommand.handleEnterButton(interaction);
+      return;
+    }
+
+    if (interaction.customId.startsWith(pollCommand.VOTE_BUTTON_PREFIX)) {
+      await pollCommand.handleVoteButton(interaction);
+      return;
+    }
+
+    if (interaction.customId === suggestionBox.VOTE_UP_ID || interaction.customId === suggestionBox.VOTE_DOWN_ID) {
+      const config = interaction.guild ? configByGuild.get(interaction.guild.id) : null;
+      if (config) await suggestionBox.handleVoteButton(interaction, config);
+      return;
+    }
+
+    if (interaction.customId === suggestionBox.APPROVE_ID || interaction.customId === suggestionBox.REJECT_ID) {
+      const config = interaction.guild ? configByGuild.get(interaction.guild.id) : null;
+      if (config) await suggestionBox.handleDecisionButton(interaction, config);
       return;
     }
 

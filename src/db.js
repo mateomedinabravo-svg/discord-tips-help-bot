@@ -663,13 +663,15 @@ async function setPollVote(messageId, userId, optionIndex) {
   return database.collection('polls').findOne({ messageId });
 }
 
-async function createSuggestion({ guildId, channelId, messageId, authorId, content }) {
+async function createSuggestion({ guildId, channelId, messageId, authorId, authorTag, authorAvatar, content }) {
   const database = await connect();
   await database.collection('suggestions').insertOne({
     guildId,
     channelId,
     messageId,
     authorId,
+    authorTag,
+    authorAvatar,
     content,
     status: 'pending',
     votes: {},
@@ -688,9 +690,15 @@ async function setSuggestionVote(messageId, userId, value) {
   return database.collection('suggestions').findOne({ messageId });
 }
 
-async function setSuggestionStatus(messageId, status, staffId) {
+async function removeSuggestionVote(messageId, userId) {
   const database = await connect();
-  await database.collection('suggestions').updateOne({ messageId }, { $set: { status, staffId } });
+  await database.collection('suggestions').updateOne({ messageId }, { $unset: { [`votes.${userId}`]: '' } });
+  return database.collection('suggestions').findOne({ messageId });
+}
+
+async function setSuggestionStatus(messageId, status, staffId, staffTag) {
+  const database = await connect();
+  await database.collection('suggestions').updateOne({ messageId }, { $set: { status, staffId, staffTag } });
   return database.collection('suggestions').findOne({ messageId });
 }
 
@@ -748,5 +756,6 @@ module.exports = {
   createSuggestion,
   getSuggestion,
   setSuggestionVote,
+  removeSuggestionVote,
   setSuggestionStatus,
 };

@@ -96,6 +96,15 @@ function createApp({ client }) {
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
+  function getVoiceChannels(req) {
+    const guild = getGuild(req);
+    if (!guild) return [];
+    return guild.channels.cache
+      .filter((c) => c.type === ChannelType.GuildVoice)
+      .map((c) => ({ id: c.id, name: c.name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
   function getAssignableRoles(req) {
     const guild = getGuild(req);
     if (!guild) return [];
@@ -713,6 +722,65 @@ function createApp({ client }) {
     }
 
     res.redirect('/dashboard/apariencia?saved=1');
+  });
+
+  app.get('/dashboard/contador', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    res.send(
+      views.memberCounterPage({
+        user: req.session.user,
+        config,
+        voiceChannels: getVoiceChannels(req),
+        guildName: guildName(req),
+        flash: req.query.saved ? 'Guardado.' : null,
+      }),
+    );
+  });
+
+  app.post('/dashboard/contador', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+
+    await db.updateGuildConfig(req.session.activeGuildId, {
+      memberCounter: {
+        enabled: req.body.enabled === 'on',
+        channelId: req.body.channelId || null,
+        template: req.body.template || config.memberCounter.template,
+      },
+    });
+
+    res.redirect('/dashboard/contador?saved=1');
+  });
+
+  app.get('/dashboard/sugerencias', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    res.send(
+      views.suggestionsPage({
+        user: req.session.user,
+        config,
+        channels: getTextChannels(req),
+        roles: getAssignableRoles(req),
+        guildName: guildName(req),
+        flash: req.query.saved ? 'Guardado.' : null,
+      }),
+    );
+  });
+
+  app.post('/dashboard/sugerencias', requireAuth, requireActiveGuild, async (req, res) => {
+    const approvalRoleIds = Array.isArray(req.body.approvalRoleIds)
+      ? req.body.approvalRoleIds
+      : req.body.approvalRoleIds
+        ? [req.body.approvalRoleIds]
+        : [];
+
+    await db.updateGuildConfig(req.session.activeGuildId, {
+      suggestions: {
+        enabled: req.body.enabled === 'on',
+        channelId: req.body.channelId || null,
+        approvalRoleIds,
+        anonymous: req.body.anonymous === 'on',
+      },
+    });
+    res.redirect('/dashboard/sugerencias?saved=1');
   });
 
   app.get('/dashboard/comandos', requireAuth, requireActiveGuild, async (req, res) => {

@@ -88,6 +88,7 @@ ${user ? `<header>
     <div class="nav-group-links">
       <a href="/dashboard">General</a>
       <a href="/dashboard/estadisticas">Estadísticas</a>
+      <a href="/dashboard/contador">Contador de miembros</a>
       <a href="/dashboard/debug">Estado / Debug</a>
     </div>
   </div>
@@ -99,6 +100,7 @@ ${user ? `<header>
       <a href="/dashboard/anuncio">Anuncios</a>
       <a href="/dashboard/houses">Houses</a>
       <a href="/dashboard/starboard">Starboard</a>
+      <a href="/dashboard/sugerencias">Sugerencias</a>
     </div>
   </div>
   <div class="nav-group">
@@ -1055,6 +1057,66 @@ function appearancePage({ user, config, guildName, flash }) {
   return layout({ title: 'Apariencia', user, body, flash, guildName });
 }
 
+function suggestionsPage({ user, config, channels, roles, guildName, flash }) {
+  const channelOptions = channels
+    .map((c) => `<option value="${c.id}" ${c.id === config.suggestions.channelId ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`)
+    .join('');
+  const roleOptions = roles
+    .map((r) => `<option value="${r.id}" ${config.suggestions.approvalRoleIds.includes(r.id) ? 'selected' : ''}>${escapeHtml(r.name)}</option>`)
+    .join('');
+  const mismatch = config.suggestions.enabled && !config.suggestions.channelId;
+
+  const body = `
+  <h1>Buzón de sugerencias</h1>
+  <p class="muted">Los mensajes que se manden en el canal elegido se convierten automáticamente en tarjetas votables. El staff las aprueba o rechaza con botones.</p>
+
+  <form class="card" method="post" action="/dashboard/sugerencias">
+    ${mismatch ? '<div class="warning-banner">⚠️ Está activado pero no elegiste canal, así que no pasa nada todavía. Elegí uno abajo.</div>' : ''}
+    <div class="checkbox-row"><input type="checkbox" name="enabled" id="sug-enabled" ${config.suggestions.enabled ? 'checked' : ''}>
+      <label for="sug-enabled" style="margin:0;">Activado</label></div>
+
+    <label>Canal de sugerencias</label>
+    <select name="channelId"><option value="">-- elegir --</option>${channelOptions}</select>
+
+    <label>Roles que pueden aprobar/rechazar (opcional, podés elegir varios)</label>
+    <select name="approvalRoleIds" multiple size="5">${roleOptions}</select>
+    <p class="muted" style="margin-top:6px;">Si no elegís ninguno, se usa cualquier rol con "Gestionar servidor".</p>
+
+    <div class="checkbox-row"><input type="checkbox" name="anonymous" id="sug-anon" ${config.suggestions.anonymous ? 'checked' : ''}>
+      <label for="sug-anon" style="margin:0;">Ocultar el nombre de quien sugiere (anónimo)</label></div>
+
+    <button type="submit">Guardar</button>
+  </form>`;
+  return layout({ title: 'Sugerencias', user, body, flash, guildName });
+}
+
+function memberCounterPage({ user, config, voiceChannels, guildName, flash }) {
+  const channelOptions = voiceChannels
+    .map((c) => `<option value="${c.id}" ${c.id === config.memberCounter.channelId ? 'selected' : ''}>🔊 ${escapeHtml(c.name)}</option>`)
+    .join('');
+  const mismatch = config.memberCounter.enabled && !config.memberCounter.channelId;
+
+  const body = `
+  <h1>Contador de miembros</h1>
+  <p class="muted">Un canal de voz que muestra el número de miembros del server en su nombre. Se actualiza solo cada 10 minutos aprox (Discord limita cuántas veces se puede renombrar un canal).</p>
+
+  <form class="card" method="post" action="/dashboard/contador">
+    ${mismatch ? '<div class="warning-banner">⚠️ Está activado pero no elegiste canal, así que no se actualiza nada. Elegí uno abajo.</div>' : ''}
+    <div class="checkbox-row"><input type="checkbox" name="enabled" id="mc-enabled" ${config.memberCounter.enabled ? 'checked' : ''}>
+      <label for="mc-enabled" style="margin:0;">Activado</label></div>
+
+    <label>Canal de voz</label>
+    <select name="channelId"><option value="">-- elegir --</option>${channelOptions}</select>
+    ${!voiceChannels.length ? '<p class="muted">No hay canales de voz en este server todavía. Creá uno en Discord primero.</p>' : ''}
+
+    <label>Formato del nombre (usá <code>{count}</code> para el número)</label>
+    <input type="text" name="template" maxlength="90" value="${escapeHtml(config.memberCounter.template)}">
+
+    <button type="submit">Guardar</button>
+  </form>`;
+  return layout({ title: 'Contador de miembros', user, body, flash, guildName });
+}
+
 module.exports = {
   layout,
   loginPage,
@@ -1083,4 +1145,6 @@ module.exports = {
   serverGuidePage,
   debugPage,
   appearancePage,
+  suggestionsPage,
+  memberCounterPage,
 };

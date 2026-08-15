@@ -12,6 +12,7 @@ const triviaCommand = require('./triviaCommand');
 const memeCommand = require('./memeCommand');
 const debugCommand = require('./debugCommand');
 const giveawayCommand = require('./giveawayCommand');
+const pollCommand = require('./pollCommand');
 
 const STATIC_DEFINITIONS = [
   announceCommand.definition,
@@ -34,6 +35,7 @@ const STATIC_DEFINITIONS = [
   memeCommand.definition,
   debugCommand.definition,
   giveawayCommand.definition,
+  pollCommand.definition,
 ].map((def) => def.toJSON());
 
 async function registerGuildCommands(guild, config) {
