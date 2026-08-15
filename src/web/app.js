@@ -19,6 +19,7 @@ const commandRegistry = require('../commandRegistry');
 const housesCommand = require('../housesCommand');
 const ticketCommand = require('../ticketCommand');
 const aiHelper = require('../aiHelper');
+const serverGuide = require('../serverGuide');
 
 // View/Send/History/ManageMessages/ManageChannels/EmbedLinks/AddReactions/Kick/Ban/ManageRoles/ModerateMembers
 const BOT_INVITE_PERMISSIONS = 1099780156502;
@@ -951,6 +952,77 @@ function createApp({ client }) {
       },
     });
     res.redirect('/dashboard/ia?saved=1');
+  });
+
+  app.get('/dashboard/guia', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    res.send(
+      views.serverGuidePage({
+        user: req.session.user,
+        config,
+        channels: getTextChannels(req),
+        guildName: guildName(req),
+        flash: req.query.saved ? 'Guardado.' : req.query.published ? 'Panel publicado.' : req.query.error || null,
+      }),
+    );
+  });
+
+  app.post('/dashboard/guia', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    await db.updateGuildConfig(req.session.activeGuildId, {
+      serverGuide: {
+        ...config.serverGuide,
+        enabled: req.body.enabled === 'on',
+        channelId: req.body.channelId || null,
+        title: req.body.title || config.serverGuide.title,
+        description: req.body.description || config.serverGuide.description,
+      },
+    });
+    res.redirect('/dashboard/guia?saved=1');
+  });
+
+  app.post('/dashboard/guia/seccion', requireAuth, requireActiveGuild, async (req, res) => {
+    const label = (req.body.label || '').trim();
+    const content = (req.body.content || '').trim();
+
+    if (!label || !content) {
+      return res.redirect(`/dashboard/guia?error=${encodeURIComponent('La sección necesita un nombre y un contenido.')}`);
+    }
+
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    const id = slugify(label) || `seccion-${Date.now()}`;
+    const section = { id, label, emoji: (req.body.emoji || '').trim(), content };
+
+    const sections = (config.serverGuide.sections || []).filter((s) => s.id !== id);
+    sections.push(section);
+
+    await db.updateGuildConfig(req.session.activeGuildId, {
+      serverGuide: { ...config.serverGuide, sections },
+    });
+    res.redirect('/dashboard/guia?saved=1');
+  });
+
+  app.post('/dashboard/guia/seccion/eliminar', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    const sections = (config.serverGuide.sections || []).filter((s) => s.id !== req.body.id);
+    await db.updateGuildConfig(req.session.activeGuildId, { serverGuide: { ...config.serverGuide, sections } });
+    res.redirect('/dashboard/guia?saved=1');
+  });
+
+  app.post('/dashboard/guia/publicar', requireAuth, requireActiveGuild, async (req, res) => {
+    const guild = getGuild(req);
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+
+    try {
+      const messageId = await serverGuide.publishGuide(guild, config);
+      await db.updateGuildConfig(req.session.activeGuildId, {
+        serverGuide: { ...config.serverGuide, enabled: true, messageId },
+      });
+      res.redirect('/dashboard/guia?published=1');
+    } catch (err) {
+      console.error('No se pudo publicar la guía del servidor:', err);
+      res.redirect(`/dashboard/guia?error=${encodeURIComponent('No se pudo publicar: ' + err.message)}`);
+    }
   });
 
   return app;

@@ -130,6 +130,18 @@ function defaultConfig(guildId) {
       moderation: false,
       apiKey: '',
     },
+    serverGuide: {
+      enabled: false,
+      channelId: null,
+      messageId: null,
+      title: '📖 Guía del servidor',
+      description: '¡Bienvenido! Elegí una categoría para ver toda la información.',
+      sections: [
+        { id: 'canales', label: 'Uso de canales', emoji: '✅', content: 'Contame para qué sirve cada canal de tu server.' },
+        { id: 'comandos', label: 'Comandos', emoji: '🤖', content: 'Lista los comandos más importantes del bot acá.' },
+        { id: 'staff', label: 'Staff', emoji: '🔴', content: 'Contame quién es el staff y cómo contactarlo.' },
+      ],
+    },
     updatedAt: new Date(),
   };
 }
@@ -176,6 +188,7 @@ async function getGuildConfig(guildId) {
   config.trivia = { ...defaults.trivia, ...(config.trivia || {}) };
   config.miniEvents = { ...defaults.miniEvents, ...(config.miniEvents || {}) };
   config.ai = { ...defaults.ai, ...(config.ai || {}) };
+  config.serverGuide = { ...defaults.serverGuide, ...(config.serverGuide || {}) };
 
   return config;
 }

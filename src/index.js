@@ -20,6 +20,7 @@ const petCommands = require('./petCommands');
 const triviaCommand = require('./triviaCommand');
 const memeCommand = require('./memeCommand');
 const miniEvents = require('./miniEvents');
+const serverGuide = require('./serverGuide');
 const { isDirectedAtAnotherUser } = require('./messageDirection');
 const db = require('./db');
 const { createApp } = require('./web/app');
@@ -449,6 +450,8 @@ client.on('interactionCreate', async (interaction) => {
       await housesCommand.handleOpenButton(interaction, config);
     } else if (interaction.customId.startsWith('house-accept:') || interaction.customId.startsWith('house-reject:')) {
       await housesCommand.handleDecisionButton(interaction, config);
+    } else if (interaction.customId.startsWith(serverGuide.BUTTON_PREFIX)) {
+      await serverGuide.handleGuideButton(interaction, config);
     }
   }
 });

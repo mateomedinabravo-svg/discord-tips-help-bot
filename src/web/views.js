@@ -134,6 +134,7 @@ ${user ? `<header>
     <div class="nav-group-links">
       <a href="/dashboard/comandos">Comandos</a>
       <a href="/dashboard/ia">IA</a>
+      <a href="/dashboard/guia">Guía</a>
     </div>
   </div>
 </nav>` : ''}
@@ -829,6 +830,68 @@ function aiPage({ user, config, aiConfigured, guildName, flash }) {
   return layout({ title: 'IA', user, body, flash, guildName });
 }
 
+function serverGuidePage({ user, config, channels, guildName, flash }) {
+  const channelOptions = channels
+    .map((c) => `<option value="${c.id}" ${c.id === config.serverGuide.channelId ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`)
+    .join('');
+
+  const sectionRows = (config.serverGuide.sections || [])
+    .map(
+      (s) => `<div class="server-row">
+        <span class="name">${s.emoji || ''} ${escapeHtml(s.label)}</span>
+        <form method="post" action="/dashboard/guia/seccion/eliminar" style="margin:0;">
+          <input type="hidden" name="id" value="${escapeHtml(s.id)}">
+          <button type="submit" style="margin:0; background:#ed4245;">Eliminar</button>
+        </form>
+      </div>`,
+    )
+    .join('');
+
+  const body = `
+  <h1>Guía del servidor</h1>
+  <p class="muted">Publicá un panel con botones — cada uno muestra el contenido de esa sección (visible solo para quien lo aprieta).</p>
+
+  <div class="card">
+    <h2>Secciones</h2>
+    <div class="server-list">${sectionRows || '<p class="muted">Todavía no hay secciones.</p>'}</div>
+  </div>
+
+  <form class="card" method="post" action="/dashboard/guia/seccion">
+    <h2>Nueva sección</h2>
+    <label>Nombre</label>
+    <input type="text" name="label" required maxlength="80">
+    <label>Emoji (opcional)</label>
+    <input type="text" name="emoji" maxlength="10">
+    <label>Contenido</label>
+    <textarea name="content" required style="min-height:100px;"></textarea>
+    <button type="submit">Crear sección</button>
+  </form>
+
+  <form class="card" method="post" action="/dashboard/guia">
+    <h2>Panel</h2>
+    <div class="checkbox-row"><input type="checkbox" name="enabled" id="guide-enabled" ${config.serverGuide.enabled ? 'checked' : ''}>
+      <label for="guide-enabled" style="margin:0;">Activado</label></div>
+
+    <label>Canal donde va el panel</label>
+    <select name="channelId"><option value="">-- elegir --</option>${channelOptions}</select>
+
+    <label>Título</label>
+    <input type="text" name="title" value="${escapeHtml(config.serverGuide.title)}">
+
+    <label>Descripción</label>
+    <textarea name="description">${escapeHtml(config.serverGuide.description)}</textarea>
+
+    <button type="submit">Guardar</button>
+  </form>
+
+  <form class="card" method="post" action="/dashboard/guia/publicar">
+    <h2>Publicar / actualizar el panel</h2>
+    <p class="muted">Guardá los cambios de arriba primero. Esto borra el panel anterior (si había) y publica uno nuevo con las secciones actuales.</p>
+    <button type="submit">Publicar panel</button>
+  </form>`;
+  return layout({ title: 'Guía', user, body, flash, guildName });
+}
+
 function ticketConfigPage({ user, config, channels, roles, guildName, flash }) {
   const channelOptions = (selected) =>
     channels.map((c) => `<option value="${c.id}" ${c.id === selected ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`).join('');
@@ -925,4 +988,5 @@ module.exports = {
   triviaPage,
   miniEventsPage,
   aiPage,
+  serverGuidePage,
 };
