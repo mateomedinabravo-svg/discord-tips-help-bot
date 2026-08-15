@@ -101,6 +101,12 @@ function defaultConfig(guildId) {
     ticketFeedback: {
       enabled: false,
     },
+    starboard: {
+      enabled: false,
+      emoji: '⭐',
+      threshold: 3,
+      channelId: null,
+    },
     updatedAt: new Date(),
   };
 }
@@ -143,6 +149,7 @@ async function getGuildConfig(guildId) {
   config.ticketPanel = { ...defaults.ticketPanel, ...(config.ticketPanel || {}) };
   config.ticketTranscripts = { ...defaults.ticketTranscripts, ...(config.ticketTranscripts || {}) };
   config.ticketFeedback = { ...defaults.ticketFeedback, ...(config.ticketFeedback || {}) };
+  config.starboard = { ...defaults.starboard, ...(config.starboard || {}) };
 
   return config;
 }
@@ -481,6 +488,31 @@ async function updatePet(guildId, userId, partialUpdate) {
   return getPet(guildId, userId);
 }
 
+// --- Starboard ---
+
+async function getStarboardPost(guildId, originalMessageId) {
+  const database = await connect();
+  return database.collection('starboardPosts').findOne({ guildId, originalMessageId });
+}
+
+async function createStarboardPost({ guildId, originalMessageId, originalChannelId, starboardMessageId, authorId, starCount }) {
+  const database = await connect();
+  await database.collection('starboardPosts').insertOne({
+    guildId,
+    originalMessageId,
+    originalChannelId,
+    starboardMessageId,
+    authorId,
+    starCount,
+    createdAt: new Date(),
+  });
+}
+
+async function updateStarboardPostCount(guildId, originalMessageId, starCount) {
+  const database = await connect();
+  await database.collection('starboardPosts').updateOne({ guildId, originalMessageId }, { $set: { starCount } });
+}
+
 module.exports = {
   connect,
   getGuildConfig,
@@ -521,4 +553,7 @@ module.exports = {
   getPet,
   createPet,
   updatePet,
+  getStarboardPost,
+  createStarboardPost,
+  updateStarboardPostCount,
 };

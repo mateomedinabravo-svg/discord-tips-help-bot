@@ -7,6 +7,7 @@ const ticketCommand = require('./ticketCommand');
 const levelCommands = require('./levelCommands');
 const moderationCommands = require('./moderationCommands');
 const reactionRoles = require('./reactionRoles');
+const starboard = require('./starboard');
 const logging = require('./logging');
 const housesCommand = require('./housesCommand');
 const customCommands = require('./customCommands');
@@ -225,10 +226,20 @@ client.on('messageUpdate', async (oldMessage, newMessage) => {
 
 client.on('messageReactionAdd', async (reaction, user) => {
   await reactionRoles.handleReactionChange(reaction, user, 'add');
+
+  if (reaction.message.guild) {
+    const config = configByGuild.get(reaction.message.guild.id);
+    if (config) await starboard.handleStarboardReaction(reaction, config);
+  }
 });
 
 client.on('messageReactionRemove', async (reaction, user) => {
   await reactionRoles.handleReactionChange(reaction, user, 'remove');
+
+  if (reaction.message.guild) {
+    const config = configByGuild.get(reaction.message.guild.id);
+    if (config) await starboard.handleStarboardReaction(reaction, config);
+  }
 });
 
 client.on('guildMemberAdd', async (member) => {

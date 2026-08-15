@@ -92,6 +92,7 @@ ${user ? `<header>
   <a href="/dashboard/economia">Economía</a>
   <a href="/dashboard/casino">Casino</a>
   <a href="/dashboard/mascotas">Mascotas</a>
+  <a href="/dashboard/starboard">Starboard</a>
 </nav>` : ''}
 <main>
 ${flash ? `<div class="flash">${escapeHtml(flash)}</div>` : ''}
@@ -627,6 +628,32 @@ function petsSettingsPage({ user, config, guildName, flash }) {
   return layout({ title: 'Mascotas', user, body, flash, guildName });
 }
 
+function starboardPage({ user, config, channels, guildName, flash }) {
+  const channelOptions = channels
+    .map((c) => `<option value="${c.id}" ${c.id === config.starboard.channelId ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`)
+    .join('');
+
+  const body = `
+  <h1>Starboard</h1>
+  <p class="muted">Cuando un mensaje junta suficientes reacciones de un emoji, se republica en el canal que elijas (ideal para un canal tipo #destacados). La reacción del propio autor no cuenta.</p>
+  <form class="card" method="post" action="/dashboard/starboard">
+    <div class="checkbox-row"><input type="checkbox" name="enabled" id="sb-enabled" ${config.starboard.enabled ? 'checked' : ''}>
+      <label for="sb-enabled" style="margin:0;">Activado</label></div>
+
+    <label>Emoji a contar</label>
+    <input type="text" name="emoji" value="${escapeHtml(config.starboard.emoji)}" maxlength="10">
+
+    <label>Cantidad mínima de reacciones</label>
+    <input type="number" name="threshold" min="1" value="${escapeHtml(config.starboard.threshold)}">
+
+    <label>Canal de destacados</label>
+    <select name="channelId"><option value="">-- elegir --</option>${channelOptions}</select>
+
+    <button type="submit">Guardar</button>
+  </form>`;
+  return layout({ title: 'Starboard', user, body, flash, guildName });
+}
+
 function ticketConfigPage({ user, config, channels, roles, guildName, flash }) {
   const channelOptions = (selected) =>
     channels.map((c) => `<option value="${c.id}" ${c.id === selected ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`).join('');
@@ -719,4 +746,5 @@ module.exports = {
   casinoSettingsPage,
   petsSettingsPage,
   ticketConfigPage,
+  starboardPage,
 };
