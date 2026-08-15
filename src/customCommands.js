@@ -22,6 +22,9 @@ const RESERVED_NAMES = [
   'debug',
   'sorteo',
   'encuesta',
+  'afk',
+  'cumpleanos',
+  'invitaciones',
 ];
 const NAME_PATTERN = /^[a-z0-9_-]{1,32}$/;
 

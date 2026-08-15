@@ -26,6 +26,10 @@ const debugCommand = require('./debugCommand');
 const giveawayCommand = require('./giveawayCommand');
 const pollCommand = require('./pollCommand');
 const suggestionBox = require('./suggestionBox');
+const afkCommand = require('./afkCommand');
+const birthdayCommand = require('./birthdayCommand');
+const inviteCommand = require('./inviteCommand');
+const inviteTracker = require('./inviteTracker');
 const errorReporter = require('./errorReporter');
 const { isDirectedAtAnotherUser } = require('./messageDirection');
 const db = require('./db');
@@ -41,6 +45,7 @@ if (!TOKEN) {
 const CONFIG_REFRESH_MS = 60 * 1000;
 const GIVEAWAY_CHECK_MS = 30 * 1000;
 const MEMBER_COUNTER_INTERVAL_MS = 10 * 60 * 1000;
+const BIRTHDAY_CHECK_MS = 60 * 60 * 1000;
 const WHITELIST = (process.env.TIPS_CHANNEL_WHITELIST || '')
   .split(',')
   .map((id) => id.trim())
@@ -61,6 +66,7 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessageReactions,
+    GatewayIntentBits.GuildInvites,
   ],
   partials: [Partials.Channel, Partials.Message, Partials.Reaction, Partials.User],
 });
@@ -243,6 +249,7 @@ async function setUpGuild(guild) {
   startTipLoop(guild.id);
   startMiniEventLoop(guild.id);
   await updateMemberCounter(guild.id, configByGuild.get(guild.id));
+  await inviteTracker.snapshotInvites(guild);
 }
 
 client.once('ready', async () => {
@@ -262,6 +269,13 @@ client.once('ready', async () => {
     });
   }, GIVEAWAY_CHECK_MS);
   setInterval(updateAllMemberCounters, MEMBER_COUNTER_INTERVAL_MS);
+  setInterval(() => {
+    birthdayCommand.checkBirthdaysToday(client, configByGuild).catch((err) => {
+      console.error('Error revisando cumpleaños:', err);
+      errorReporter.reportError(client, null, 'birthdayCommand.checkBirthdaysToday', err);
+    });
+  }, BIRTHDAY_CHECK_MS);
+  birthdayCommand.checkBirthdaysToday(client, configByGuild).catch((err) => console.error('Error revisando cumpleaños al iniciar:', err));
 
   const webApp = createApp({ client });
   webApp.listen(process.env.PORT || 3000, () => {
@@ -282,6 +296,9 @@ client.on('guildDelete', (guild) => {
   stopMiniEventLoop(guild.id);
 });
 
+client.on('inviteCreate', (invite) => inviteTracker.handleInviteCreate(invite));
+client.on('inviteDelete', (invite) => inviteTracker.handleInviteDelete(invite));
+
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
   if (message.channel.type !== ChannelType.GuildText) return;
@@ -292,6 +309,8 @@ client.on('messageCreate', async (message) => {
   try {
     const wasSuggestion = await suggestionBox.handleSuggestionMessage(message, config);
     if (wasSuggestion) return;
+
+    afkCommand.handleAfkMessage(message).catch((err) => console.error('No se pudo procesar el estado AFK:', err));
 
     if (WHITELIST.length === 0 || WHITELIST.includes(message.channel.id)) {
       getTracker(guildId).registerMessage(message.channel.id);
@@ -367,6 +386,7 @@ client.on('guildMemberAdd', async (member) => {
   const config = configByGuild.get(member.guild.id);
   try {
     await logging.logMemberJoin(client, config, member);
+    await inviteTracker.handleMemberJoin(member, config);
 
     const welcome = config?.welcome;
     if (welcome?.roleId) {
@@ -500,6 +520,15 @@ async function handleInteraction(interaction) {
         break;
       case 'encuesta':
         await pollCommand.handlePollCommand(interaction);
+        break;
+      case 'afk':
+        await afkCommand.handleAfkCommand(interaction);
+        break;
+      case 'cumpleanos':
+        await birthdayCommand.handleBirthdayCommand(interaction);
+        break;
+      case 'invitaciones':
+        await inviteCommand.handleInviteCommand(interaction, config);
         break;
       default: {
         const custom = config ? customCommands.findCustomCommand(config, interaction.commandName) : null;

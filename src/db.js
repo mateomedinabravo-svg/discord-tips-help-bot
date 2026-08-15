@@ -181,6 +181,15 @@ function defaultConfig(guildId) {
       channelId: null,
       template: '📊 Miembros: {count}',
     },
+    birthdays: {
+      enabled: false,
+      channelId: null,
+      message: '🎂 ¡Hoy es el cumpleaños de {user}! 🎉',
+    },
+    inviteTracker: {
+      enabled: false,
+      channelId: null,
+    },
     updatedAt: new Date(),
   };
 }
@@ -234,6 +243,8 @@ async function getGuildConfig(guildId) {
   config.branding = { ...defaults.branding, ...(config.branding || {}), colors: { ...defaults.branding.colors, ...(config.branding?.colors || {}) } };
   config.suggestions = { ...defaults.suggestions, ...(config.suggestions || {}) };
   config.memberCounter = { ...defaults.memberCounter, ...(config.memberCounter || {}) };
+  config.birthdays = { ...defaults.birthdays, ...(config.birthdays || {}) };
+  config.inviteTracker = { ...defaults.inviteTracker, ...(config.inviteTracker || {}) };
 
   return config;
 }
@@ -702,6 +713,69 @@ async function setSuggestionStatus(messageId, status, staffId, staffTag) {
   return database.collection('suggestions').findOne({ messageId });
 }
 
+async function setAfk(guildId, userId, reason) {
+  const database = await connect();
+  await database
+    .collection('afk')
+    .updateOne({ guildId, userId }, { $set: { reason, since: new Date() } }, { upsert: true });
+}
+
+async function getAfk(guildId, userId) {
+  const database = await connect();
+  return database.collection('afk').findOne({ guildId, userId });
+}
+
+async function removeAfk(guildId, userId) {
+  const database = await connect();
+  const result = await database.collection('afk').findOneAndDelete({ guildId, userId });
+  return result?.value !== undefined ? result.value : result;
+}
+
+async function setBirthday(guildId, userId, day, month) {
+  const database = await connect();
+  await database
+    .collection('birthdays')
+    .updateOne({ guildId, userId }, { $set: { day, month }, $unset: { lastAnnouncedYear: '' } }, { upsert: true });
+}
+
+async function getBirthday(guildId, userId) {
+  const database = await connect();
+  return database.collection('birthdays').findOne({ guildId, userId });
+}
+
+async function getBirthdaysForToday(day, month) {
+  const database = await connect();
+  return database.collection('birthdays').find({ day, month }).toArray();
+}
+
+async function markBirthdayAnnounced(guildId, userId, year) {
+  const database = await connect();
+  await database.collection('birthdays').updateOne({ guildId, userId }, { $set: { lastAnnouncedYear: year } });
+}
+
+async function recordInviteJoin({ guildId, userId, inviterId, code }) {
+  const database = await connect();
+  await database.collection('inviteJoins').insertOne({ guildId, userId, inviterId, code, joinedAt: new Date() });
+}
+
+async function countInvitesByUser(guildId, inviterId) {
+  const database = await connect();
+  return database.collection('inviteJoins').countDocuments({ guildId, inviterId });
+}
+
+async function getInviteLeaderboard(guildId, limit = 10) {
+  const database = await connect();
+  return database
+    .collection('inviteJoins')
+    .aggregate([
+      { $match: { guildId, inviterId: { $ne: null } } },
+      { $group: { _id: '$inviterId', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: limit },
+    ])
+    .toArray();
+}
+
 module.exports = {
   connect,
   getGuildConfig,
@@ -758,4 +832,14 @@ module.exports = {
   setSuggestionVote,
   removeSuggestionVote,
   setSuggestionStatus,
+  setAfk,
+  getAfk,
+  removeAfk,
+  setBirthday,
+  getBirthday,
+  getBirthdaysForToday,
+  markBirthdayAnnounced,
+  recordInviteJoin,
+  countInvitesByUser,
+  getInviteLeaderboard,
 };

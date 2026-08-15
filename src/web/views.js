@@ -101,6 +101,8 @@ ${user ? `<header>
       <a href="/dashboard/houses">Houses</a>
       <a href="/dashboard/starboard">Starboard</a>
       <a href="/dashboard/sugerencias">Sugerencias</a>
+      <a href="/dashboard/cumpleanos">Cumpleaños</a>
+      <a href="/dashboard/invitaciones">Invite Tracker</a>
     </div>
   </div>
   <div class="nav-group">
@@ -1057,6 +1059,31 @@ function appearancePage({ user, config, guildName, flash }) {
   return layout({ title: 'Apariencia', user, body, flash, guildName });
 }
 
+function inviteTrackerPage({ user, config, channels, guildName, flash, missingPermission }) {
+  const channelOptions = channels
+    .map((c) => `<option value="${c.id}" ${c.id === config.inviteTracker.channelId ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`)
+    .join('');
+  const mismatch = config.inviteTracker.enabled && !config.inviteTracker.channelId;
+
+  const body = `
+  <h1>Invite Tracker</h1>
+  <p class="muted">Rastrea qué invitación usó cada nuevo miembro. Usá <code>/invitaciones ver</code> y <code>/invitaciones ranking</code> en Discord para consultarlo.</p>
+
+  ${missingPermission ? '<div class="warning-banner">⚠️ El bot no tiene el permiso "Gestionar servidor" en este server, así que no puede leer las invitaciones. Volvé a invitarlo con el link actualizado desde "Tus servers", o dale ese permiso manualmente al rol del bot.</div>' : ''}
+
+  <form class="card" method="post" action="/dashboard/invitaciones">
+    ${mismatch ? '<div class="warning-banner">⚠️ Está activado pero no elegiste canal, así que no se registra nada. Elegí uno abajo.</div>' : ''}
+    <div class="checkbox-row"><input type="checkbox" name="enabled" id="inv-enabled" ${config.inviteTracker.enabled ? 'checked' : ''}>
+      <label for="inv-enabled" style="margin:0;">Activado</label></div>
+
+    <label>Canal de logs (opcional)</label>
+    <select name="channelId"><option value="">-- elegir --</option>${channelOptions}</select>
+
+    <button type="submit">Guardar</button>
+  </form>`;
+  return layout({ title: 'Invite Tracker', user, body, flash, guildName });
+}
+
 function suggestionsPage({ user, config, channels, roles, guildName, flash }) {
   const channelOptions = channels
     .map((c) => `<option value="${c.id}" ${c.id === config.suggestions.channelId ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`)
@@ -1117,6 +1144,32 @@ function memberCounterPage({ user, config, voiceChannels, guildName, flash }) {
   return layout({ title: 'Contador de miembros', user, body, flash, guildName });
 }
 
+function birthdaysPage({ user, config, channels, guildName, flash }) {
+  const channelOptions = channels
+    .map((c) => `<option value="${c.id}" ${c.id === config.birthdays.channelId ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`)
+    .join('');
+  const mismatch = config.birthdays.enabled && !config.birthdays.channelId;
+
+  const body = `
+  <h1>Cumpleaños</h1>
+  <p class="muted">Los usuarios cargan su fecha con <code>/cumpleanos configurar</code>. El bot anuncia solo el día que corresponde.</p>
+
+  <form class="card" method="post" action="/dashboard/cumpleanos">
+    ${mismatch ? '<div class="warning-banner">⚠️ Está activado pero no elegiste canal, así que no se anuncia nada. Elegí uno abajo.</div>' : ''}
+    <div class="checkbox-row"><input type="checkbox" name="enabled" id="bday-enabled" ${config.birthdays.enabled ? 'checked' : ''}>
+      <label for="bday-enabled" style="margin:0;">Activado</label></div>
+
+    <label>Canal para los anuncios</label>
+    <select name="channelId"><option value="">-- elegir --</option>${channelOptions}</select>
+
+    <label>Mensaje (usá <code>{user}</code> para mencionar a quien cumple años)</label>
+    <textarea name="message" style="min-height:70px;">${escapeHtml(config.birthdays.message)}</textarea>
+
+    <button type="submit">Guardar</button>
+  </form>`;
+  return layout({ title: 'Cumpleaños', user, body, flash, guildName });
+}
+
 module.exports = {
   layout,
   loginPage,
@@ -1147,4 +1200,6 @@ module.exports = {
   appearancePage,
   suggestionsPage,
   memberCounterPage,
+  birthdaysPage,
+  inviteTrackerPage,
 };

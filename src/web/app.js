@@ -21,11 +21,12 @@ const ticketCommand = require('../ticketCommand');
 const aiHelper = require('../aiHelper');
 const serverGuide = require('../serverGuide');
 const debugCommand = require('../debugCommand');
+const inviteTracker = require('../inviteTracker');
 const { resolveColor } = require('../embedStyle');
 const pkg = require('../../package.json');
 
-// View/Send/History/ManageMessages/ManageChannels/EmbedLinks/AddReactions/Kick/Ban/ManageRoles/ModerateMembers
-const BOT_INVITE_PERMISSIONS = 1099780156502;
+// View/Send/History/ManageMessages/ManageChannels/EmbedLinks/AddReactions/Kick/Ban/ManageRoles/ModerateMembers/ManageGuild
+const BOT_INVITE_PERMISSIONS = 1099780156534;
 
 function slugify(text) {
   return (text || '')
@@ -749,6 +750,58 @@ function createApp({ client }) {
     });
 
     res.redirect('/dashboard/contador?saved=1');
+  });
+
+  app.get('/dashboard/invitaciones', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    const guild = getGuild(req);
+    res.send(
+      views.inviteTrackerPage({
+        user: req.session.user,
+        config,
+        channels: getTextChannels(req),
+        guildName: guildName(req),
+        missingPermission: guild ? !inviteTracker.hasManageGuild(guild) : false,
+        flash: req.query.saved ? 'Guardado.' : null,
+      }),
+    );
+  });
+
+  app.post('/dashboard/invitaciones', requireAuth, requireActiveGuild, async (req, res) => {
+    await db.updateGuildConfig(req.session.activeGuildId, {
+      inviteTracker: {
+        enabled: req.body.enabled === 'on',
+        channelId: req.body.channelId || null,
+      },
+    });
+    res.redirect('/dashboard/invitaciones?saved=1');
+  });
+
+  app.get('/dashboard/cumpleanos', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    res.send(
+      views.birthdaysPage({
+        user: req.session.user,
+        config,
+        channels: getTextChannels(req),
+        guildName: guildName(req),
+        flash: req.query.saved ? 'Guardado.' : null,
+      }),
+    );
+  });
+
+  app.post('/dashboard/cumpleanos', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+
+    await db.updateGuildConfig(req.session.activeGuildId, {
+      birthdays: {
+        enabled: req.body.enabled === 'on',
+        channelId: req.body.channelId || null,
+        message: req.body.message || config.birthdays.message,
+      },
+    });
+
+    res.redirect('/dashboard/cumpleanos?saved=1');
   });
 
   app.get('/dashboard/sugerencias', requireAuth, requireActiveGuild, async (req, res) => {

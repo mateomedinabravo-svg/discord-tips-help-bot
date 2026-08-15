@@ -13,6 +13,9 @@ const memeCommand = require('./memeCommand');
 const debugCommand = require('./debugCommand');
 const giveawayCommand = require('./giveawayCommand');
 const pollCommand = require('./pollCommand');
+const afkCommand = require('./afkCommand');
+const birthdayCommand = require('./birthdayCommand');
+const inviteCommand = require('./inviteCommand');
 
 const STATIC_DEFINITIONS = [
   announceCommand.definition,
@@ -36,6 +39,9 @@ const STATIC_DEFINITIONS = [
   debugCommand.definition,
   giveawayCommand.definition,
   pollCommand.definition,
+  afkCommand.definition,
+  birthdayCommand.definition,
+  inviteCommand.definition,
 ].map((def) => def.toJSON());
 
 async function registerGuildCommands(guild, config) {
