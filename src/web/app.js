@@ -979,6 +979,9 @@ function createApp({ client }) {
 
   app.post('/dashboard/ia', requireAuth, requireActiveGuild, async (req, res) => {
     const config = await db.getGuildConfig(req.session.activeGuildId);
+    // las claves de Groq son ASCII imprimible; se limpia cualquier caracter pegado
+    // por error (emojis, comillas raras, etc.) que rompería el header HTTP al usarla
+    const cleanedInput = (req.body.apiKey || '').replace(/[^\x21-\x7e]/g, '').trim();
     await db.updateGuildConfig(req.session.activeGuildId, {
       ai: {
         enabled: req.body.enabled === 'on',
@@ -986,7 +989,7 @@ function createApp({ client }) {
         moderation: req.body.moderation === 'on',
         // si el campo llega vacio, mantenemos la clave que ya estaba guardada (no la borramos por error),
         // salvo que se tilde explicitamente "quitar clave"
-        apiKey: req.body.removeApiKey === 'on' ? '' : req.body.apiKey && req.body.apiKey.trim() ? req.body.apiKey.trim() : config.ai.apiKey,
+        apiKey: req.body.removeApiKey === 'on' ? '' : cleanedInput || config.ai.apiKey,
       },
     });
     res.redirect('/dashboard/ia?saved=1');

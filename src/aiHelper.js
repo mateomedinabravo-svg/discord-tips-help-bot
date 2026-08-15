@@ -7,7 +7,12 @@ const MODERATION_COOLDOWN_MS = 3000;
 const lastModerationCallByGuild = new Map();
 
 function resolveApiKey(config) {
-  return config?.ai?.apiKey || process.env.GROQ_API_KEY || null;
+  const raw = config?.ai?.apiKey || process.env.GROQ_API_KEY || null;
+  if (!raw) return null;
+  // las claves de Groq son ASCII imprimible; se limpia cualquier caracter
+  // pegado por error (emojis, comillas raras, etc.) que rompería el header HTTP
+  const cleaned = raw.replace(/[^\x21-\x7e]/g, '');
+  return cleaned || null;
 }
 
 function isConfigured(config) {

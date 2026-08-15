@@ -367,7 +367,11 @@ client.on('interactionCreate', async (interaction) => {
     await handleInteraction(interaction);
   } catch (err) {
     console.error('Error en interactionCreate:', err);
-    await errorReporter.reportError(client, guildConfig, `interactionCreate (${interaction.type})`, err);
+    // código 10062 = la interacción expiró antes de que pudiéramos responder (lag de Discord/hosting),
+    // no es un bug del bot y reportarla cada vez solo generaría ruido en el canal de errores
+    if (err.code !== 10062) {
+      await errorReporter.reportError(client, guildConfig, `interactionCreate (${interaction.type})`, err);
+    }
   }
 });
 
