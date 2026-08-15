@@ -17,6 +17,7 @@ const casinoCommands = require('./casinoCommands');
 const marriageCommands = require('./marriageCommands');
 const petCommands = require('./petCommands');
 const triviaCommand = require('./triviaCommand');
+const memeCommand = require('./memeCommand');
 const { isDirectedAtAnotherUser } = require('./messageDirection');
 const db = require('./db');
 const { createApp } = require('./web/app');
@@ -332,6 +333,9 @@ client.on('interactionCreate', async (interaction) => {
         break;
       case 'trivia':
         await triviaCommand.handleTriviaCommand(interaction, config);
+        break;
+      case 'meme':
+        await memeCommand.handleMemeCommand(interaction);
         break;
       default: {
         const custom = config ? customCommands.findCustomCommand(config, interaction.commandName) : null;
