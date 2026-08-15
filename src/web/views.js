@@ -141,12 +141,16 @@ function welcomePage({ user, config, channels, guildName, flash }) {
   const channelOptions = (selected) =>
     channels.map((c) => `<option value="${c.id}" ${c.id === selected ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`).join('');
 
+  const welcomeMismatch = config.welcome.enabled && !config.welcome.channelId;
+  const goodbyeMismatch = config.goodbye.enabled && !config.goodbye.channelId;
+
   const body = `
   <h1>Bienvenida y despedida</h1>
   <p class="muted">Usá <code>{user}</code> en el mensaje para mencionar al usuario.</p>
 
   <form class="card" method="post" action="/dashboard/bienvenida/welcome">
     <h2>Mensaje de bienvenida</h2>
+    ${welcomeMismatch ? '<div class="warning-banner">⚠️ Está activado pero no elegiste canal, así que no se manda nada. Elegí uno abajo.</div>' : ''}
     <div class="checkbox-row"><input type="checkbox" name="enabled" id="w-enabled" ${config.welcome.enabled ? 'checked' : ''}>
       <label for="w-enabled" style="margin:0;">Activado</label></div>
     <label>Canal</label>
@@ -158,6 +162,7 @@ function welcomePage({ user, config, channels, guildName, flash }) {
 
   <form class="card" method="post" action="/dashboard/bienvenida/goodbye">
     <h2>Mensaje de despedida</h2>
+    ${goodbyeMismatch ? '<div class="warning-banner">⚠️ Está activado pero no elegiste canal, así que no se manda nada. Elegí uno abajo.</div>' : ''}
     <div class="checkbox-row"><input type="checkbox" name="enabled" id="g-enabled" ${config.goodbye.enabled ? 'checked' : ''}>
       <label for="g-enabled" style="margin:0;">Activado</label></div>
     <label>Canal</label>
@@ -405,10 +410,12 @@ function reactionRolesPage({ user, sets, channels, roles, guildName, flash }) {
 
 function logsPage({ user, config, channels, guildName, flash }) {
   const channelOptions = channels.map((c) => `<option value="${c.id}" ${c.id === config.logging.channelId ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`).join('');
+  const mismatch = config.logging.enabled && !config.logging.channelId;
 
   const body = `
   <h1>Registro de actividad (logs)</h1>
   <form class="card" method="post" action="/dashboard/logs">
+    ${mismatch ? '<div class="warning-banner">⚠️ Está activado pero no elegiste canal, así que no se registra nada. Elegí uno abajo.</div>' : ''}
     <div class="checkbox-row"><input type="checkbox" name="enabled" id="log-enabled" ${config.logging.enabled ? 'checked' : ''}>
       <label for="log-enabled" style="margin:0;">Activado</label></div>
 

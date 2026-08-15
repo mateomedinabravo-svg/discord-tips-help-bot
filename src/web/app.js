@@ -403,7 +403,11 @@ function createApp({ client }) {
         channels: getTextChannels(req),
         roles: getAssignableRoles(req),
         guildName: guildName(req),
-        flash: req.query.saved ? 'Mensaje de roles creado.' : req.query.deleted ? 'Eliminado.' : null,
+        flash: req.query.saved
+          ? 'Mensaje de roles creado.'
+          : req.query.deleted
+            ? 'Eliminado.'
+            : req.query.error || null,
       }),
     );
   });
@@ -417,11 +421,16 @@ function createApp({ client }) {
       if (emoji && roleId) pairs.push({ emoji, roleId, label });
     }
 
-    const guild = getGuild(req);
-    if (!pairs.length || !guild) {
-      return res.redirect('/dashboard/roles-reaccion');
+    if (!req.body.channelId) {
+      return res.redirect(`/dashboard/roles-reaccion?error=${encodeURIComponent('Elegí un canal.')}`);
+    }
+    if (!pairs.length) {
+      return res.redirect(
+        `/dashboard/roles-reaccion?error=${encodeURIComponent('Completá al menos un par de emoji + rol.')}`,
+      );
     }
 
+    const guild = getGuild(req);
     try {
       await reactionRoles.postReactionRoleMessage(guild, {
         channelId: req.body.channelId,
@@ -432,7 +441,9 @@ function createApp({ client }) {
       res.redirect('/dashboard/roles-reaccion?saved=1');
     } catch (err) {
       console.error('No se pudo crear el mensaje de roles por reacción:', err);
-      res.redirect('/dashboard/roles-reaccion');
+      res.redirect(
+        `/dashboard/roles-reaccion?error=${encodeURIComponent('No se pudo crear el mensaje: ' + err.message)}`,
+      );
     }
   });
 
