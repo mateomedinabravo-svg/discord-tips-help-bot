@@ -8,7 +8,7 @@ function escapeHtml(value) {
   }[ch]));
 }
 
-function layout({ title, user, body, flash }) {
+function layout({ title, user, body, flash, guildName }) {
   return `<!doctype html>
 <html lang="es">
 <head>
@@ -23,6 +23,17 @@ function layout({ title, user, body, flash }) {
   header a.brand { color: #fff; font-weight: 700; text-decoration: none; font-size: 18px; }
   header .user { display: flex; align-items: center; gap: 10px; font-size: 14px; color: #b5bac1; }
   header .user a { color: #f2b8b5; text-decoration: none; }
+  header .guild-badge { color: #949ba4; }
+  header .guild-badge a { color: #b5bac1; }
+  .server-list { display: flex; flex-direction: column; gap: 10px; }
+  .server-row { display: flex; align-items: center; justify-content: space-between; background: #1e1f22;
+    padding: 12px 16px; border-radius: 8px; }
+  .server-row .name { font-weight: 600; }
+  .server-row a.btn, a.btn { background: #5865f2; color: #fff; text-decoration: none; padding: 8px 16px;
+    border-radius: 6px; font-size: 13px; font-weight: 600; }
+  .server-row a.btn.invite { background: #3ba55d; }
+  .row-grid { display: grid; grid-template-columns: 1.2fr 1.5fr 1fr auto; gap: 8px; align-items: center; margin-top: 8px; }
+  .row-grid input, .row-grid select { margin: 0; }
   nav { display: flex; gap: 4px; flex-wrap: wrap; padding: 12px 24px; background: #111214; border-bottom: 1px solid #2b2d31; }
   nav a { color: #b5bac1; text-decoration: none; padding: 8px 14px; border-radius: 6px; font-size: 14px; }
   nav a:hover { background: #2b2d31; color: #fff; }
@@ -57,7 +68,10 @@ function layout({ title, user, body, flash }) {
 <body>
 ${user ? `<header>
   <a class="brand" href="/dashboard">🤖 Panel del bot</a>
-  <div class="user">${escapeHtml(user.username)} · <a href="/logout">salir</a></div>
+  <div class="user">
+    ${guildName ? `<span class="guild-badge">${escapeHtml(guildName)} · <a href="/servers">cambiar de server</a> ·</span>` : ''}
+    ${escapeHtml(user.username)} · <a href="/logout">salir</a>
+  </div>
 </header>
 <nav>
   <a href="/dashboard">General</a>
@@ -67,6 +81,9 @@ ${user ? `<header>
   <a href="/dashboard/anuncio">Anuncios</a>
   <a href="/dashboard/estadisticas">Estadísticas</a>
   <a href="/dashboard/tickets">Tickets</a>
+  <a href="/dashboard/niveles">Niveles</a>
+  <a href="/dashboard/roles-reaccion">Roles por reacción</a>
+  <a href="/dashboard/logs">Logs</a>
 </nav>` : ''}
 <main>
 ${flash ? `<div class="flash">${escapeHtml(flash)}</div>` : ''}
@@ -99,7 +116,7 @@ function loginPage({ authorizeUrl, error }) {
 </body></html>`;
 }
 
-function generalPage({ user, config, flash }) {
+function generalPage({ user, config, guildName, flash }) {
   const body = `
   <h1>Configuración general</h1>
   <p class="muted">Idioma e intervalo del tip automático.</p>
@@ -113,10 +130,10 @@ function generalPage({ user, config, flash }) {
     <input type="number" name="tipsIntervalMinutes" min="1" value="${escapeHtml(config.tipsIntervalMinutes)}">
     <button type="submit">Guardar</button>
   </form>`;
-  return layout({ title: 'General', user, body, flash });
+  return layout({ title: 'General', user, body, flash, guildName });
 }
 
-function welcomePage({ user, config, channels, flash }) {
+function welcomePage({ user, config, channels, guildName, flash }) {
   const channelOptions = (selected) =>
     channels.map((c) => `<option value="${c.id}" ${c.id === selected ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`).join('');
 
@@ -145,10 +162,10 @@ function welcomePage({ user, config, channels, flash }) {
     <textarea name="message">${escapeHtml(config.goodbye.message)}</textarea>
     <button type="submit">Guardar despedida</button>
   </form>`;
-  return layout({ title: 'Bienvenida / Despedida', user, body, flash });
+  return layout({ title: 'Bienvenida / Despedida', user, body, flash, guildName });
 }
 
-function automodPage({ user, config, flash }) {
+function automodPage({ user, config, guildName, flash }) {
   const body = `
   <h1>Automoderación</h1>
   <form class="card" method="post" action="/dashboard/automoderacion">
@@ -166,10 +183,10 @@ function automodPage({ user, config, flash }) {
 
     <button type="submit">Guardar</button>
   </form>`;
-  return layout({ title: 'Automoderación', user, body, flash });
+  return layout({ title: 'Automoderación', user, body, flash, guildName });
 }
 
-function messagesPage({ user, config, flash }) {
+function messagesPage({ user, config, guildName, flash }) {
   const body = `
   <h1>Tips y respuestas de ayuda</h1>
 
@@ -186,10 +203,10 @@ function messagesPage({ user, config, flash }) {
     <textarea name="helpResponsesJson" style="min-height:320px; font-family: monospace;">${escapeHtml(JSON.stringify(config.helpResponses, null, 2))}</textarea>
     <button type="submit">Guardar respuestas de ayuda</button>
   </form>`;
-  return layout({ title: 'Tips y ayuda', user, body, flash });
+  return layout({ title: 'Tips y ayuda', user, body, flash, guildName });
 }
 
-function announcePage({ user, channels, flash }) {
+function announcePage({ user, channels, guildName, flash }) {
   const channelOptions = channels.map((c) => `<option value="${c.id}">#${escapeHtml(c.name)}</option>`).join('');
   const body = `
   <h1>Mandar un anuncio</h1>
@@ -209,10 +226,14 @@ function announcePage({ user, channels, flash }) {
   return layout({ title: 'Anuncios', user, body, flash });
 }
 
-function statsPage({ user, stats, channelNames }) {
+function statsPage({ user, stats, channelNames, leaderboard, guildName }) {
   const rows = Object.entries(stats.channelMessageCounts || {})
     .sort((a, b) => b[1] - a[1])
     .map(([channelId, count]) => `<tr><td>#${escapeHtml(channelNames[channelId] || channelId)}</td><td>${count}</td></tr>`)
+    .join('');
+
+  const leaderboardRows = (leaderboard || [])
+    .map((entry, i) => `<tr><td>${i + 1}</td><td>ID ${escapeHtml(entry.userId)}</td><td>${entry.xp} XP</td></tr>`)
     .join('');
 
   const body = `
@@ -225,11 +246,16 @@ function statsPage({ user, stats, channelNames }) {
   <div class="card">
     <h2>Mensajes por canal</h2>
     <table><thead><tr><th>Canal</th><th>Mensajes</th></tr></thead><tbody>${rows || '<tr><td colspan="2">Todavía no hay datos</td></tr>'}</tbody></table>
+  </div>
+  <div class="card">
+    <h2>Top experiencia</h2>
+    <table><thead><tr><th>#</th><th>Usuario</th><th>XP</th></tr></thead>
+    <tbody>${leaderboardRows || '<tr><td colspan="3">Todavía no hay datos</td></tr>'}</tbody></table>
   </div>`;
-  return layout({ title: 'Estadísticas', user, body });
+  return layout({ title: 'Estadísticas', user, body, guildName });
 }
 
-function ticketsPage({ user, tickets }) {
+function ticketsPage({ user, tickets, guildName }) {
   const rows = tickets
     .map(
       (t) => `<tr>
@@ -246,7 +272,157 @@ function ticketsPage({ user, tickets }) {
     <table><thead><tr><th>Canal</th><th>Estado</th><th>Creado</th></tr></thead>
     <tbody>${rows || '<tr><td colspan="3">Todavía no hay tickets</td></tr>'}</tbody></table>
   </div>`;
-  return layout({ title: 'Tickets', user, body });
+  return layout({ title: 'Tickets', user, body, guildName });
+}
+
+function serversPage({ user, managed, invitable }) {
+  const managedRows = managed
+    .map(
+      (g) => `<div class="server-row"><span class="name">${escapeHtml(g.name)}</span><a class="btn" href="/servers/select/${g.id}">Gestionar</a></div>`,
+    )
+    .join('');
+
+  const invitableRows = invitable
+    .map(
+      (g) => `<div class="server-row"><span class="name">${escapeHtml(g.name)}</span><a class="btn invite" href="${g.inviteUrl}">Invitar bot</a></div>`,
+    )
+    .join('');
+
+  const body = `
+  <h1>Tus servers</h1>
+  <p class="muted">Solo se listan los servers donde tenés permiso de Gestionar servidor.</p>
+
+  <div class="card">
+    <h2>Ya gestionás</h2>
+    <div class="server-list">${managedRows || '<p class="muted">Ninguno todavía.</p>'}</div>
+  </div>
+
+  <div class="card">
+    <h2>Podés invitar el bot</h2>
+    <div class="server-list">${invitableRows || '<p class="muted">Ninguno pendiente.</p>'}</div>
+  </div>
+
+  <p><a href="/servers/refresh">🔄 Actualizar lista</a></p>`;
+  return layout({ title: 'Tus servers', user, body });
+}
+
+function levelsPage({ user, config, roles, channels, guildName, flash }) {
+  const roleOptions = (selected) =>
+    `<option value="">--</option>` +
+    roles.map((r) => `<option value="${r.id}" ${r.id === selected ? 'selected' : ''}>${escapeHtml(r.name)}</option>`).join('');
+  const channelOptions = channels.map((c) => `<option value="${c.id}" ${c.id === config.leveling.levelUpChannelId ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`).join('');
+
+  const existingRoles = config.leveling.levelRoles || [];
+  const rows = Array.from({ length: 5 }, (_, i) => existingRoles[i] || {});
+
+  const roleRows = rows
+    .map(
+      (r, i) => `<div class="row-grid">
+        <input type="number" name="level_${i + 1}" placeholder="Nivel" min="1" value="${r.level ?? ''}">
+        <select name="role_${i + 1}">${roleOptions(r.roleId)}</select>
+      </div>`,
+    )
+    .join('');
+
+  const body = `
+  <h1>Niveles / XP</h1>
+  <form class="card" method="post" action="/dashboard/niveles">
+    <div class="checkbox-row"><input type="checkbox" name="enabled" id="l-enabled" ${config.leveling.enabled ? 'checked' : ''}>
+      <label for="l-enabled" style="margin:0;">Activado</label></div>
+
+    <label>XP mínima y máxima por mensaje</label>
+    <div class="row-grid" style="grid-template-columns: 1fr 1fr;">
+      <input type="number" name="xpMin" min="1" value="${escapeHtml(config.leveling.xpMin)}">
+      <input type="number" name="xpMax" min="1" value="${escapeHtml(config.leveling.xpMax)}">
+    </div>
+
+    <label>Cooldown entre mensajes que dan XP (segundos)</label>
+    <input type="number" name="cooldownSeconds" min="0" value="${escapeHtml(config.leveling.cooldownSeconds)}">
+
+    <label>Canal para avisos de subida de nivel (vacío = el mismo canal donde escribió)</label>
+    <select name="levelUpChannelId"><option value="">-- mismo canal --</option>${channelOptions}</select>
+
+    <label>Roles por nivel (hasta 5)</label>
+    <p class="muted">Cuando alguien llega a ese nivel, se le asigna el rol automáticamente.</p>
+    ${roleRows}
+
+    <button type="submit">Guardar</button>
+  </form>`;
+  return layout({ title: 'Niveles', user, body, flash, guildName });
+}
+
+function reactionRolesPage({ user, sets, channels, roles, guildName, flash }) {
+  const channelOptions = channels.map((c) => `<option value="${c.id}">#${escapeHtml(c.name)}</option>`).join('');
+  const roleOptions = `<option value="">--</option>` + roles.map((r) => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
+
+  const pairRows = Array.from(
+    { length: 5 },
+    (_, i) => `<div class="row-grid">
+      <input type="text" name="emoji_${i + 1}" placeholder="Emoji (ej 🎨)">
+      <select name="role_${i + 1}">${roleOptions}</select>
+      <input type="text" name="label_${i + 1}" placeholder="Etiqueta (opcional)">
+    </div>`,
+  ).join('');
+
+  const existingRows = sets
+    .map(
+      (s) => `<div class="server-row">
+        <span class="name">#${escapeHtml(channels.find((c) => c.id === s.channelId)?.name || s.channelId)} — ${s.pairs.length} rol(es)</span>
+        <form method="post" action="/dashboard/roles-reaccion/eliminar" style="margin:0;">
+          <input type="hidden" name="messageId" value="${escapeHtml(s.messageId)}">
+          <button type="submit" style="margin:0; background:#ed4245;">Eliminar</button>
+        </form>
+      </div>`,
+    )
+    .join('');
+
+  const body = `
+  <h1>Roles por reacción</h1>
+
+  <div class="card">
+    <h2>Mensajes activos</h2>
+    <div class="server-list">${existingRows || '<p class="muted">Todavía no creaste ninguno.</p>'}</div>
+  </div>
+
+  <form class="card" method="post" action="/dashboard/roles-reaccion">
+    <h2>Crear mensaje nuevo</h2>
+    <label>Canal</label>
+    <select name="channelId" required>${channelOptions}</select>
+    <label>Título (opcional)</label>
+    <input type="text" name="titulo">
+    <label>Descripción (opcional)</label>
+    <textarea name="descripcion" style="min-height:70px;"></textarea>
+    <label>Pares emoji / rol (hasta 5, dejá vacío lo que no uses)</label>
+    ${pairRows}
+    <button type="submit">Crear</button>
+  </form>`;
+  return layout({ title: 'Roles por reacción', user, body, flash, guildName });
+}
+
+function logsPage({ user, config, channels, guildName, flash }) {
+  const channelOptions = channels.map((c) => `<option value="${c.id}" ${c.id === config.logging.channelId ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`).join('');
+
+  const body = `
+  <h1>Registro de actividad (logs)</h1>
+  <form class="card" method="post" action="/dashboard/logs">
+    <div class="checkbox-row"><input type="checkbox" name="enabled" id="log-enabled" ${config.logging.enabled ? 'checked' : ''}>
+      <label for="log-enabled" style="margin:0;">Activado</label></div>
+
+    <label>Canal de logs</label>
+    <select name="channelId"><option value="">-- elegir --</option>${channelOptions}</select>
+
+    <div class="checkbox-row"><input type="checkbox" name="logDeletes" id="log-del" ${config.logging.logDeletes ? 'checked' : ''}>
+      <label for="log-del" style="margin:0;">Mensajes borrados</label></div>
+    <div class="checkbox-row"><input type="checkbox" name="logEdits" id="log-edit" ${config.logging.logEdits ? 'checked' : ''}>
+      <label for="log-edit" style="margin:0;">Mensajes editados</label></div>
+    <div class="checkbox-row"><input type="checkbox" name="logJoins" id="log-join" ${config.logging.logJoins ? 'checked' : ''}>
+      <label for="log-join" style="margin:0;">Entradas / salidas de miembros</label></div>
+    <div class="checkbox-row"><input type="checkbox" name="logModeration" id="log-mod" ${config.logging.logModeration ? 'checked' : ''}>
+      <label for="log-mod" style="margin:0;">Acciones de moderación (ban/kick/mute/warn)</label></div>
+
+    <button type="submit">Guardar</button>
+  </form>`;
+  return layout({ title: 'Logs', user, body, flash, guildName });
 }
 
 module.exports = {
@@ -259,4 +435,8 @@ module.exports = {
   announcePage,
   statsPage,
   ticketsPage,
+  serversPage,
+  levelsPage,
+  reactionRolesPage,
+  logsPage,
 };

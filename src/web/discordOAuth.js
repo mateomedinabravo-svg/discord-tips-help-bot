@@ -57,8 +57,20 @@ function hasManagePermission(permissions) {
   return (bitfield & BigInt(MANAGE_GUILD)) !== 0n || (bitfield & BigInt(ADMINISTRATOR)) !== 0n;
 }
 
+function buildBotInviteUrl({ clientId, permissions, guildId }) {
+  const params = new URLSearchParams({
+    client_id: clientId,
+    permissions: String(permissions),
+    scope: 'bot applications.commands',
+    guild_id: guildId,
+    disable_guild_select: 'true',
+  });
+  return `https://discord.com/api/oauth2/authorize?${params.toString()}`;
+}
+
 module.exports = {
   buildAuthorizeUrl,
+  buildBotInviteUrl,
   exchangeCodeForToken,
   fetchDiscordUser,
   fetchUserGuilds,

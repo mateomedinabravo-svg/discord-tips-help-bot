@@ -30,6 +30,22 @@ function defaultConfig(guildId) {
       blockInvites: false,
       mentionSpamLimit: 5,
     },
+    leveling: {
+      enabled: false,
+      xpMin: 15,
+      xpMax: 25,
+      cooldownSeconds: 60,
+      levelUpChannelId: null,
+      levelRoles: [],
+    },
+    logging: {
+      enabled: false,
+      channelId: null,
+      logDeletes: true,
+      logEdits: true,
+      logJoins: true,
+      logModeration: true,
+    },
     updatedAt: new Date(),
   };
 }
@@ -57,6 +73,11 @@ async function getGuildConfig(guildId) {
     config = defaultConfig(guildId);
     await configs.insertOne(config);
   }
+
+  // completa campos nuevos para configs guardadas antes de que existieran
+  const defaults = defaultConfig(guildId);
+  config.leveling = { ...defaults.leveling, ...(config.leveling || {}) };
+  config.logging = { ...defaults.logging, ...(config.logging || {}) };
 
   return config;
 }
@@ -127,6 +148,100 @@ async function listTickets(guildId, status) {
   return database.collection('tickets').find(query).sort({ createdAt: -1 }).limit(100).toArray();
 }
 
+// --- Niveles / XP ---
+
+// xp necesaria para pasar de "level" al siguiente
+function xpRequiredForLevel(level) {
+  return 5 * level * level + 50 * level + 100;
+}
+
+function levelInfoFromXp(totalXp) {
+  let level = 0;
+  let remaining = totalXp;
+  while (remaining >= xpRequiredForLevel(level)) {
+    remaining -= xpRequiredForLevel(level);
+    level++;
+  }
+  return { level, xpIntoLevel: remaining, xpForNextLevel: xpRequiredForLevel(level) };
+}
+
+async function addXp(guildId, userId, amount) {
+  const database = await connect();
+  const levels = database.collection('levels');
+
+  const before = await levels.findOne({ guildId, userId });
+  const previousLevel = before ? levelInfoFromXp(before.xp || 0).level : 0;
+
+  await levels.updateOne(
+    { guildId, userId },
+    { $inc: { xp: amount }, $set: { updatedAt: new Date() } },
+    { upsert: true },
+  );
+
+  const after = await levels.findOne({ guildId, userId });
+  const newLevel = levelInfoFromXp(after.xp).level;
+
+  return { xp: after.xp, level: newLevel, leveledUp: newLevel > previousLevel };
+}
+
+async function getUserLevel(guildId, userId) {
+  const database = await connect();
+  const doc = await database.collection('levels').findOne({ guildId, userId });
+  const xp = doc ? doc.xp : 0;
+  return { xp, ...levelInfoFromXp(xp) };
+}
+
+async function getLeaderboard(guildId, limit = 10) {
+  const database = await connect();
+  return database.collection('levels').find({ guildId }).sort({ xp: -1 }).limit(limit).toArray();
+}
+
+// --- Roles por reaccion ---
+
+async function createReactionRoleSet({ guildId, channelId, messageId, pairs }) {
+  const database = await connect();
+  await database.collection('reactionRoleSets').insertOne({
+    guildId,
+    channelId,
+    messageId,
+    pairs,
+    createdAt: new Date(),
+  });
+}
+
+async function getReactionRoleSet(messageId) {
+  const database = await connect();
+  return database.collection('reactionRoleSets').findOne({ messageId });
+}
+
+async function listReactionRoleSets(guildId) {
+  const database = await connect();
+  return database.collection('reactionRoleSets').find({ guildId }).sort({ createdAt: -1 }).toArray();
+}
+
+async function deleteReactionRoleSet(messageId) {
+  const database = await connect();
+  await database.collection('reactionRoleSets').deleteOne({ messageId });
+}
+
+// --- Advertencias (warnings) ---
+
+async function addWarning({ guildId, userId, moderatorId, reason }) {
+  const database = await connect();
+  await database.collection('warnings').insertOne({
+    guildId,
+    userId,
+    moderatorId,
+    reason,
+    createdAt: new Date(),
+  });
+}
+
+async function listWarnings(guildId, userId) {
+  const database = await connect();
+  return database.collection('warnings').find({ guildId, userId }).sort({ createdAt: -1 }).toArray();
+}
+
 module.exports = {
   connect,
   getGuildConfig,
@@ -137,4 +252,14 @@ module.exports = {
   closeTicket,
   listTickets,
   defaultConfig,
+  levelInfoFromXp,
+  addXp,
+  getUserLevel,
+  getLeaderboard,
+  createReactionRoleSet,
+  getReactionRoleSet,
+  listReactionRoleSets,
+  deleteReactionRoleSet,
+  addWarning,
+  listWarnings,
 };

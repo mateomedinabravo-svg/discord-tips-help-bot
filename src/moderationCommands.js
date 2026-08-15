@@ -1,0 +1,151 @@
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const db = require('./db');
+
+const banDefinition = new SlashCommandBuilder()
+  .setName('ban')
+  .setDescription('Banea a un usuario del server')
+  .addUserOption((opt) => opt.setName('usuario').setDescription('Usuario a banear').setRequired(true))
+  .addStringOption((opt) => opt.setName('razon').setDescription('Motivo (opcional)'))
+  .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers);
+
+const kickDefinition = new SlashCommandBuilder()
+  .setName('kick')
+  .setDescription('Expulsa a un usuario del server')
+  .addUserOption((opt) => opt.setName('usuario').setDescription('Usuario a expulsar').setRequired(true))
+  .addStringOption((opt) => opt.setName('razon').setDescription('Motivo (opcional)'))
+  .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers);
+
+const muteDefinition = new SlashCommandBuilder()
+  .setName('mute')
+  .setDescription('Silencia temporalmente a un usuario (timeout)')
+  .addUserOption((opt) => opt.setName('usuario').setDescription('Usuario a silenciar').setRequired(true))
+  .addIntegerOption((opt) =>
+    opt.setName('minutos').setDescription('Duración en minutos').setRequired(true).setMinValue(1).setMaxValue(40320),
+  )
+  .addStringOption((opt) => opt.setName('razon').setDescription('Motivo (opcional)'))
+  .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers);
+
+const warnDefinition = new SlashCommandBuilder()
+  .setName('warn')
+  .setDescription('Registra una advertencia para un usuario')
+  .addUserOption((opt) => opt.setName('usuario').setDescription('Usuario a advertir').setRequired(true))
+  .addStringOption((opt) => opt.setName('razon').setDescription('Motivo').setRequired(true))
+  .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers);
+
+const warningsDefinition = new SlashCommandBuilder()
+  .setName('warnings')
+  .setDescription('Muestra el historial de advertencias de un usuario')
+  .addUserOption((opt) => opt.setName('usuario').setDescription('Usuario a consultar').setRequired(true))
+  .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers);
+
+async function logModerationAction(client, config, { action, moderator, target, reason }) {
+  const logging = config?.logging;
+  if (!logging || !logging.enabled || !logging.logModeration || !logging.channelId) return;
+
+  try {
+    const channel = await client.channels.fetch(logging.channelId);
+    if (!channel || !channel.isTextBased()) return;
+
+    const embed = new EmbedBuilder()
+      .setColor(0xed4245)
+      .setTitle(`🛡️ ${action}`)
+      .addFields(
+        { name: 'Usuario', value: `<@${target.id}> (${target.tag || target.username})`, inline: true },
+        { name: 'Moderador', value: `<@${moderator.id}>`, inline: true },
+        { name: 'Motivo', value: reason || 'Sin especificar' },
+      )
+      .setTimestamp();
+
+    await channel.send({ embeds: [embed] });
+  } catch (err) {
+    console.error('No se pudo mandar el log de moderación:', err);
+  }
+}
+
+async function handleBanCommand(interaction, config) {
+  const user = interaction.options.getUser('usuario', true);
+  const reason = interaction.options.getString('razon') || 'Sin especificar';
+
+  try {
+    await interaction.guild.members.ban(user.id, { reason });
+    await interaction.reply(`🔨 <@${user.id}> fue baneado. Motivo: ${reason}`);
+    await logModerationAction(interaction.client, config, { action: 'Ban', moderator: interaction.user, target: user, reason });
+  } catch (err) {
+    await interaction.reply({ content: `❌ No pude banear a ese usuario: ${err.message}`, ephemeral: true });
+  }
+}
+
+async function handleKickCommand(interaction, config) {
+  const user = interaction.options.getUser('usuario', true);
+  const reason = interaction.options.getString('razon') || 'Sin especificar';
+
+  try {
+    const member = await interaction.guild.members.fetch(user.id);
+    await member.kick(reason);
+    await interaction.reply(`👢 <@${user.id}> fue expulsado. Motivo: ${reason}`);
+    await logModerationAction(interaction.client, config, { action: 'Kick', moderator: interaction.user, target: user, reason });
+  } catch (err) {
+    await interaction.reply({ content: `❌ No pude expulsar a ese usuario: ${err.message}`, ephemeral: true });
+  }
+}
+
+async function handleMuteCommand(interaction, config) {
+  const user = interaction.options.getUser('usuario', true);
+  const minutes = interaction.options.getInteger('minutos', true);
+  const reason = interaction.options.getString('razon') || 'Sin especificar';
+
+  try {
+    const member = await interaction.guild.members.fetch(user.id);
+    await member.timeout(minutes * 60 * 1000, reason);
+    await interaction.reply(`🔇 <@${user.id}> fue silenciado por ${minutes} min. Motivo: ${reason}`);
+    await logModerationAction(interaction.client, config, {
+      action: `Mute (${minutes} min)`,
+      moderator: interaction.user,
+      target: user,
+      reason,
+    });
+  } catch (err) {
+    await interaction.reply({ content: `❌ No pude silenciar a ese usuario: ${err.message}`, ephemeral: true });
+  }
+}
+
+async function handleWarnCommand(interaction, config) {
+  const user = interaction.options.getUser('usuario', true);
+  const reason = interaction.options.getString('razon', true);
+
+  await db.addWarning({ guildId: interaction.guild.id, userId: user.id, moderatorId: interaction.user.id, reason });
+  await interaction.reply(`⚠️ <@${user.id}> fue advertido. Motivo: ${reason}`);
+  await logModerationAction(interaction.client, config, { action: 'Warn', moderator: interaction.user, target: user, reason });
+}
+
+async function handleWarningsCommand(interaction) {
+  const user = interaction.options.getUser('usuario', true);
+  const warnings = await db.listWarnings(interaction.guild.id, user.id);
+
+  if (!warnings.length) {
+    await interaction.reply({ content: `<@${user.id}> no tiene advertencias.`, ephemeral: true });
+    return;
+  }
+
+  const lines = warnings.map((w, i) => `**${i + 1}.** ${w.reason} — <t:${Math.floor(w.createdAt.getTime() / 1000)}:R>`);
+  const embed = new EmbedBuilder()
+    .setColor(0xf0b232)
+    .setTitle(`Advertencias de ${user.username}`)
+    .setDescription(lines.join('\n'));
+
+  await interaction.reply({ embeds: [embed], ephemeral: true });
+}
+
+module.exports = {
+  banDefinition,
+  kickDefinition,
+  muteDefinition,
+  warnDefinition,
+  warningsDefinition,
+  handleBanCommand,
+  handleKickCommand,
+  handleMuteCommand,
+  handleWarnCommand,
+  handleWarningsCommand,
+  logModerationAction,
+};

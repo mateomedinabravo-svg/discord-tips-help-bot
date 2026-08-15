@@ -4,19 +4,18 @@ const { ActivityTracker } = require('./activityTracker');
 const { buildResponder } = require('./helpResponder');
 const announceCommand = require('./announceCommand');
 const ticketCommand = require('./ticketCommand');
+const levelCommands = require('./levelCommands');
+const moderationCommands = require('./moderationCommands');
+const reactionRoles = require('./reactionRoles');
+const logging = require('./logging');
 const { isDirectedAtAnotherUser } = require('./messageDirection');
 const db = require('./db');
 const { createApp } = require('./web/app');
 
 const TOKEN = process.env.DISCORD_TOKEN;
-const GUILD_ID = process.env.GUILD_ID;
 
 if (!TOKEN) {
   console.error('Falta DISCORD_TOKEN en el archivo .env');
-  process.exit(1);
-}
-if (!GUILD_ID) {
-  console.error('Falta GUILD_ID en el archivo .env (el ID de tu server)');
   process.exit(1);
 }
 
@@ -26,9 +25,24 @@ const WHITELIST = (process.env.TIPS_CHANNEL_WHITELIST || '')
   .map((id) => id.trim())
   .filter(Boolean);
 
-const tracker = new ActivityTracker();
-let currentConfig = null;
-let currentFindHelpResponse = () => null;
+const ALL_COMMAND_DEFINITIONS = [
+  announceCommand.definition,
+  ticketCommand.definition,
+  levelCommands.nivelDefinition,
+  levelCommands.rankingDefinition,
+  moderationCommands.banDefinition,
+  moderationCommands.kickDefinition,
+  moderationCommands.muteDefinition,
+  moderationCommands.warnDefinition,
+  moderationCommands.warningsDefinition,
+].map((def) => def.toJSON());
+
+// estado por servidor: cada guild tiene su propia config, su propio buscador
+// de respuestas de ayuda, su propio tracker de actividad y su propio timer de tips
+const configByGuild = new Map();
+const findHelpResponseByGuild = new Map();
+const trackerByGuild = new Map();
+const tipTimerByGuild = new Map();
 
 const client = new Client({
   intents: [
@@ -36,40 +50,65 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessageReactions,
   ],
-  partials: [Partials.Channel],
+  partials: [Partials.Channel, Partials.Message, Partials.Reaction, Partials.User],
 });
 
-async function refreshConfig() {
-  try {
-    currentConfig = await db.getGuildConfig(GUILD_ID);
-    currentFindHelpResponse = buildResponder(currentConfig.helpResponses);
-  } catch (err) {
-    console.error('No se pudo refrescar la configuración desde la base de datos:', err);
+function getTracker(guildId) {
+  if (!trackerByGuild.has(guildId)) {
+    trackerByGuild.set(guildId, new ActivityTracker());
   }
+  return trackerByGuild.get(guildId);
+}
+
+async function refreshGuildConfig(guildId) {
+  try {
+    const config = await db.getGuildConfig(guildId);
+    configByGuild.set(guildId, config);
+    findHelpResponseByGuild.set(guildId, buildResponder(config.helpResponses));
+  } catch (err) {
+    console.error(`No se pudo refrescar la configuración del server ${guildId}:`, err);
+  }
+}
+
+async function refreshAllConfigs() {
+  await Promise.all(Array.from(client.guilds.cache.keys()).map((guildId) => refreshGuildConfig(guildId)));
 }
 
 function formatTemplate(template, member) {
   return template.replace(/\{user\}/g, `<@${member.id}>`);
 }
 
-async function scheduleTip() {
-  await sendTipToMostActiveChannel();
-  const delayMs = Math.max(1, currentConfig?.tipsIntervalMinutes || 20) * 60 * 1000;
-  setTimeout(scheduleTip, delayMs);
+function startTipLoop(guildId) {
+  async function scheduleTip() {
+    await sendTipToMostActiveChannel(guildId);
+    const config = configByGuild.get(guildId);
+    const delayMs = Math.max(1, config?.tipsIntervalMinutes || 20) * 60 * 1000;
+    tipTimerByGuild.set(guildId, setTimeout(scheduleTip, delayMs));
+  }
+  scheduleTip();
 }
 
-async function sendTipToMostActiveChannel() {
+function stopTipLoop(guildId) {
+  const timer = tipTimerByGuild.get(guildId);
+  if (timer) clearTimeout(timer);
+  tipTimerByGuild.delete(guildId);
+}
+
+async function sendTipToMostActiveChannel(guildId) {
+  const tracker = getTracker(guildId);
   const channelId = tracker.getMostActiveChannelId();
   tracker.reset();
 
-  if (!channelId || !currentConfig || !currentConfig.tips.length) return;
+  const config = configByGuild.get(guildId);
+  if (!channelId || !config || !config.tips.length) return;
 
   try {
     const channel = await client.channels.fetch(channelId);
     if (!channel || !channel.isTextBased()) return;
 
-    const tip = currentConfig.tips[Math.floor(Math.random() * currentConfig.tips.length)];
+    const tip = config.tips[Math.floor(Math.random() * config.tips.length)];
     await channel.send(tip);
   } catch (err) {
     console.error('No se pudo mandar el tip:', err);
@@ -80,8 +119,8 @@ function containsInviteLink(content) {
   return /(discord\.gg|discord(app)?\.com\/invite)\/\S+/i.test(content);
 }
 
-async function applyAutomod(message) {
-  const automod = currentConfig?.automod;
+async function applyAutomod(message, config) {
+  const automod = config?.automod;
   if (!automod || !automod.enabled) return false;
 
   const lowerContent = message.content.toLowerCase();
@@ -104,42 +143,65 @@ async function applyAutomod(message) {
   return true;
 }
 
+async function setUpGuild(guild) {
+  await refreshGuildConfig(guild.id);
+  try {
+    await guild.commands.set(ALL_COMMAND_DEFINITIONS);
+  } catch (err) {
+    console.error(`No se pudieron registrar los comandos en ${guild.name}:`, err);
+  }
+  startTipLoop(guild.id);
+}
+
 client.once('ready', async () => {
   console.log(`Bot conectado como ${client.user.tag}`);
 
   await db.connect();
-  await refreshConfig();
-  setInterval(refreshConfig, CONFIG_REFRESH_MS);
 
   for (const guild of client.guilds.cache.values()) {
-    try {
-      await guild.commands.set([announceCommand.definition.toJSON(), ticketCommand.definition.toJSON()]);
-    } catch (err) {
-      console.error(`No se pudieron registrar los comandos en ${guild.name}:`, err);
-    }
+    await setUpGuild(guild);
   }
 
-  scheduleTip();
+  setInterval(refreshAllConfigs, CONFIG_REFRESH_MS);
 
-  const webApp = createApp({ client, guildId: GUILD_ID });
+  const webApp = createApp({ client });
   webApp.listen(process.env.PORT || 3000, () => {
     console.log('Dashboard web arriba.');
   });
+});
+
+client.on('guildCreate', async (guild) => {
+  console.log(`Bot agregado a un nuevo server: ${guild.name}`);
+  await setUpGuild(guild);
+});
+
+client.on('guildDelete', (guild) => {
+  configByGuild.delete(guild.id);
+  findHelpResponseByGuild.delete(guild.id);
+  trackerByGuild.delete(guild.id);
+  stopTipLoop(guild.id);
 });
 
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
   if (message.channel.type !== ChannelType.GuildText) return;
 
+  const guildId = message.guild.id;
+  const config = configByGuild.get(guildId);
+
   if (WHITELIST.length === 0 || WHITELIST.includes(message.channel.id)) {
-    tracker.registerMessage(message.channel.id);
+    getTracker(guildId).registerMessage(message.channel.id);
   }
-  db.incrementMessageStat(message.guild.id, message.channel.id).catch((err) =>
+  db.incrementMessageStat(guildId, message.channel.id).catch((err) =>
     console.error('No se pudo registrar la estadística del mensaje:', err),
   );
 
-  const wasRemoved = await applyAutomod(message);
+  const wasRemoved = await applyAutomod(message, config);
   if (wasRemoved) return;
+
+  if (config) {
+    levelCommands.awardXp(message, config).catch((err) => console.error('No se pudo otorgar XP:', err));
+  }
 
   const directedElsewhere = isDirectedAtAnotherUser({
     mentionsBot: message.mentions.has(client.user.id),
@@ -149,14 +211,36 @@ client.on('messageCreate', async (message) => {
   });
   if (directedElsewhere) return;
 
-  const response = currentFindHelpResponse(message.content);
+  const findHelpResponse = findHelpResponseByGuild.get(guildId) || (() => null);
+  const response = findHelpResponse(message.content);
   if (response) {
     await message.reply(response);
   }
 });
 
+client.on('messageDelete', async (message) => {
+  if (!message.guild) return;
+  await logging.logMessageDelete(client, configByGuild.get(message.guild.id), message);
+});
+
+client.on('messageUpdate', async (oldMessage, newMessage) => {
+  if (!newMessage.guild) return;
+  await logging.logMessageUpdate(client, configByGuild.get(newMessage.guild.id), oldMessage, newMessage);
+});
+
+client.on('messageReactionAdd', async (reaction, user) => {
+  await reactionRoles.handleReactionChange(reaction, user, 'add');
+});
+
+client.on('messageReactionRemove', async (reaction, user) => {
+  await reactionRoles.handleReactionChange(reaction, user, 'remove');
+});
+
 client.on('guildMemberAdd', async (member) => {
-  const welcome = currentConfig?.welcome;
+  const config = configByGuild.get(member.guild.id);
+  await logging.logMemberJoin(client, config, member);
+
+  const welcome = config?.welcome;
   if (!welcome || !welcome.enabled || !welcome.channelId) return;
 
   try {
@@ -170,7 +254,10 @@ client.on('guildMemberAdd', async (member) => {
 });
 
 client.on('guildMemberRemove', async (member) => {
-  const goodbye = currentConfig?.goodbye;
+  const config = configByGuild.get(member.guild.id);
+  await logging.logMemberLeave(client, config, member);
+
+  const goodbye = config?.goodbye;
   if (!goodbye || !goodbye.enabled || !goodbye.channelId) return;
 
   try {
@@ -185,10 +272,38 @@ client.on('guildMemberRemove', async (member) => {
 
 client.on('interactionCreate', async (interaction) => {
   if (interaction.isChatInputCommand()) {
-    if (interaction.commandName === 'anuncio') {
-      await announceCommand.handleAnnounceCommand(interaction);
-    } else if (interaction.commandName === 'ticket') {
-      await ticketCommand.handleTicketCommand(interaction);
+    const config = interaction.guild ? configByGuild.get(interaction.guild.id) : null;
+
+    switch (interaction.commandName) {
+      case 'anuncio':
+        await announceCommand.handleAnnounceCommand(interaction);
+        break;
+      case 'ticket':
+        await ticketCommand.handleTicketCommand(interaction);
+        break;
+      case 'nivel':
+        await levelCommands.handleNivelCommand(interaction);
+        break;
+      case 'ranking':
+        await levelCommands.handleRankingCommand(interaction);
+        break;
+      case 'ban':
+        await moderationCommands.handleBanCommand(interaction, config);
+        break;
+      case 'kick':
+        await moderationCommands.handleKickCommand(interaction, config);
+        break;
+      case 'mute':
+        await moderationCommands.handleMuteCommand(interaction, config);
+        break;
+      case 'warn':
+        await moderationCommands.handleWarnCommand(interaction, config);
+        break;
+      case 'warnings':
+        await moderationCommands.handleWarningsCommand(interaction);
+        break;
+      default:
+        break;
     }
     return;
   }
