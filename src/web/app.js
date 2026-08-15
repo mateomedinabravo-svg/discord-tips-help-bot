@@ -16,6 +16,7 @@ const db = require('../db');
 const reactionRoles = require('../reactionRoles');
 const customCommands = require('../customCommands');
 const commandRegistry = require('../commandRegistry');
+const housesCommand = require('../housesCommand');
 
 // View/Send/History/ManageMessages/ManageChannels/EmbedLinks/AddReactions/Kick/Ban/ManageRoles/ModerateMembers
 const BOT_INVITE_PERMISSIONS = 1099780156502;
@@ -526,7 +527,7 @@ function createApp({ client }) {
         config,
         channels: getTextChannels(req),
         guildName: guildName(req),
-        flash: req.query.saved ? 'Guardado.' : null,
+        flash: req.query.saved ? 'Guardado.' : req.query.published ? 'Mensaje publicado.' : req.query.error || null,
       }),
     );
   });
@@ -538,9 +539,14 @@ function createApp({ client }) {
       .filter(Boolean)
       .slice(0, 5);
 
+    const config = await db.getGuildConfig(req.session.activeGuildId);
     await db.updateGuildConfig(req.session.activeGuildId, {
       houses: {
+        ...config.houses,
         enabled: req.body.enabled === 'on',
+        requestChannelId: req.body.requestChannelId || null,
+        requestTitle: req.body.requestTitle || config.houses.requestTitle,
+        requestDescription: req.body.requestDescription || config.houses.requestDescription,
         reviewChannelId: req.body.reviewChannelId || null,
         formFields,
         acceptMessage: req.body.acceptMessage || '',
@@ -548,6 +554,20 @@ function createApp({ client }) {
       },
     });
     res.redirect('/dashboard/houses?saved=1');
+  });
+
+  app.post('/dashboard/houses/publicar', requireAuth, requireActiveGuild, async (req, res) => {
+    const guild = getGuild(req);
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+
+    try {
+      const messageId = await housesCommand.publishRequestMessage(guild, config);
+      await db.updateGuildConfig(req.session.activeGuildId, { houses: { ...config.houses, requestMessageId: messageId } });
+      res.redirect('/dashboard/houses?published=1');
+    } catch (err) {
+      console.error('No se pudo publicar el mensaje de House:', err);
+      res.redirect(`/dashboard/houses?error=${encodeURIComponent('No se pudo publicar: ' + err.message)}`);
+    }
   });
 
   app.get('/dashboard/moderacion', requireAuth, requireActiveGuild, async (req, res) => {

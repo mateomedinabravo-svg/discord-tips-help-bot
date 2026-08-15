@@ -318,7 +318,13 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     const config = interaction.guild ? configByGuild.get(interaction.guild.id) : null;
-    if (config) await housesCommand.handleDecisionButton(interaction, config);
+    if (!config) return;
+
+    if (interaction.customId === housesCommand.OPEN_BUTTON_ID) {
+      await housesCommand.handleOpenButton(interaction, config);
+    } else {
+      await housesCommand.handleDecisionButton(interaction, config);
+    }
   }
 });
 

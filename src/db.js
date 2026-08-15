@@ -49,6 +49,10 @@ function defaultConfig(guildId) {
     customCommands: [],
     houses: {
       enabled: false,
+      requestChannelId: null,
+      requestTitle: "SOLICITA UNA Artist's House 🚀",
+      requestDescription: 'Si querés tener tu propio espacio para mostrar tu arte, apretá el botón y completá el formulario.',
+      requestMessageId: null,
       reviewChannelId: null,
       formFields: ['Nombre artístico', 'Portafolio (link)', 'Por qué querés tu house'],
       acceptMessage: '🎉 ¡Tu solicitud de House fue aceptada! El staff se va a poner en contacto para darte tu canal.',

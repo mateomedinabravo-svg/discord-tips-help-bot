@@ -14,10 +14,11 @@ const db = require('./db');
 const MODAL_ID = 'house-application';
 const ACCEPT_PREFIX = 'house-accept:';
 const REJECT_PREFIX = 'house-reject:';
+const OPEN_BUTTON_ID = 'house-open-modal';
 
 const definition = new SlashCommandBuilder().setName('casa').setDescription('Solicitá tu propia House para mostrar tu trabajo');
 
-async function handleCasaCommand(interaction, config) {
+async function showApplicationModal(interaction, config) {
   if (!config?.houses?.enabled) {
     await interaction.reply({ content: '⚠️ Las solicitudes de House no están habilitadas en este server.', ephemeral: true });
     return;
@@ -42,6 +43,40 @@ async function handleCasaCommand(interaction, config) {
   });
 
   await interaction.showModal(modal);
+}
+
+async function handleCasaCommand(interaction, config) {
+  await showApplicationModal(interaction, config);
+}
+
+async function handleOpenButton(interaction, config) {
+  if (interaction.customId !== OPEN_BUTTON_ID) return;
+  await showApplicationModal(interaction, config);
+}
+
+async function publishRequestMessage(guild, config) {
+  const houses = config.houses;
+  if (!houses.requestChannelId) throw new Error('No hay canal de solicitud configurado');
+
+  const channel = await guild.channels.fetch(houses.requestChannelId);
+  if (!channel || !channel.isTextBased()) throw new Error('Canal inválido');
+
+  if (houses.requestMessageId) {
+    try {
+      const oldMessage = await channel.messages.fetch(houses.requestMessageId);
+      await oldMessage.delete();
+    } catch {
+      // el mensaje viejo ya no existe, no pasa nada
+    }
+  }
+
+  const embed = new EmbedBuilder().setColor(0x5865f2).setTitle(houses.requestTitle).setDescription(houses.requestDescription);
+  const button = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(OPEN_BUTTON_ID).setLabel('Solicitar aquí').setStyle(ButtonStyle.Primary).setEmoji('🔔'),
+  );
+
+  const message = await channel.send({ embeds: [embed], components: [button] });
+  return message.id;
 }
 
 async function handleModalSubmit(interaction, config) {
@@ -131,7 +166,10 @@ async function handleDecisionButton(interaction, config) {
 module.exports = {
   definition,
   handleCasaCommand,
+  handleOpenButton,
   handleModalSubmit,
   handleDecisionButton,
+  publishRequestMessage,
   MODAL_ID,
+  OPEN_BUTTON_ID,
 };

@@ -468,20 +468,28 @@ function customCommandsPage({ user, config, guildName, flash }) {
 }
 
 function housesPage({ user, config, channels, guildName, flash }) {
-  const channelOptions = channels
-    .map((c) => `<option value="${c.id}" ${c.id === config.houses.reviewChannelId ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`)
-    .join('');
+  const channelOptions = (selected) =>
+    channels.map((c) => `<option value="${c.id}" ${c.id === selected ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`).join('');
 
   const body = `
   <h1>Solicitudes de House</h1>
-  <p class="muted">Los usuarios usan <code>/casa</code> para completar el formulario. Aparece en el canal de revisión con botones de Aceptar/Rechazar (requieren permiso de Gestionar servidor).</p>
+  <p class="muted">Publicá un mensaje con botón en un canal — al apretarlo, el usuario completa el formulario. Las respuestas llegan al canal de revisión con botones de Aceptar/Rechazar (requieren permiso de Gestionar servidor). También funciona con <code>/casa</code>.</p>
 
   <form class="card" method="post" action="/dashboard/houses">
     <div class="checkbox-row"><input type="checkbox" name="enabled" id="h-enabled" ${config.houses.enabled ? 'checked' : ''}>
       <label for="h-enabled" style="margin:0;">Activado</label></div>
 
+    <label>Canal donde va el mensaje con el botón</label>
+    <select name="requestChannelId"><option value="">-- elegir --</option>${channelOptions(config.houses.requestChannelId)}</select>
+
+    <label>Título del mensaje</label>
+    <input type="text" name="requestTitle" value="${escapeHtml(config.houses.requestTitle)}">
+
+    <label>Descripción del mensaje</label>
+    <textarea name="requestDescription">${escapeHtml(config.houses.requestDescription)}</textarea>
+
     <label>Canal de revisión (solo lo debería ver tu staff)</label>
-    <select name="reviewChannelId"><option value="">-- elegir --</option>${channelOptions}</select>
+    <select name="reviewChannelId"><option value="">-- elegir --</option>${channelOptions(config.houses.reviewChannelId)}</select>
 
     <label>Campos del formulario (uno por línea, hasta 5)</label>
     <textarea name="formFields">${escapeHtml((config.houses.formFields || []).join('\n'))}</textarea>
@@ -493,6 +501,12 @@ function housesPage({ user, config, channels, guildName, flash }) {
     <textarea name="rejectMessage">${escapeHtml(config.houses.rejectMessage)}</textarea>
 
     <button type="submit">Guardar</button>
+  </form>
+
+  <form class="card" method="post" action="/dashboard/houses/publicar">
+    <h2>Publicar / actualizar el mensaje con botón</h2>
+    <p class="muted">Guardá los cambios de arriba primero. Esto borra el mensaje anterior (si había) y publica uno nuevo con la config actual.</p>
+    <button type="submit">Publicar mensaje</button>
   </form>`;
   return layout({ title: 'Houses', user, body, flash, guildName });
 }
