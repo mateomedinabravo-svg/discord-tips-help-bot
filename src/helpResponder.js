@@ -1,5 +1,9 @@
 const natural = require('natural');
 
+// se devuelve en vez del mensaje generico cuando hay un trigger pero ningun tema
+// especifico coincide, asi el llamador puede intentar la IA antes de usar el generico
+const NEEDS_FALLBACK = Symbol('needs-fallback');
+
 // "share" del total de probabilidad que se lleva el tema mas probable del clasificador.
 // Con texto ambiguo, todos los temas quedan parejos (~1/cantidad de temas); un tema real
 // se destaca muy por encima de eso.
@@ -129,8 +133,8 @@ function buildResponder(helpData) {
     const classifiedTopic = classifyTopic(classifier, topics, text);
     if (classifiedTopic) return classifiedTopic.response;
 
-    return helpData.fallbackResponse;
+    return NEEDS_FALLBACK;
   };
 }
 
-module.exports = { buildResponder, normalize, fuzzyIncludes };
+module.exports = { buildResponder, normalize, fuzzyIncludes, NEEDS_FALLBACK };

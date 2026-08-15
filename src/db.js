@@ -124,6 +124,11 @@ function defaultConfig(guildId) {
       reward: 30,
       channelId: null,
     },
+    ai: {
+      enabled: false,
+      helpFallback: true,
+      moderation: false,
+    },
     updatedAt: new Date(),
   };
 }
@@ -169,6 +174,7 @@ async function getGuildConfig(guildId) {
   config.starboard = { ...defaults.starboard, ...(config.starboard || {}) };
   config.trivia = { ...defaults.trivia, ...(config.trivia || {}) };
   config.miniEvents = { ...defaults.miniEvents, ...(config.miniEvents || {}) };
+  config.ai = { ...defaults.ai, ...(config.ai || {}) };
 
   return config;
 }

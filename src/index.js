@@ -1,7 +1,8 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, Partials, ChannelType } = require('discord.js');
 const { ActivityTracker } = require('./activityTracker');
-const { buildResponder } = require('./helpResponder');
+const { buildResponder, NEEDS_FALLBACK } = require('./helpResponder');
+const aiHelper = require('./aiHelper');
 const announceCommand = require('./announceCommand');
 const ticketCommand = require('./ticketCommand');
 const levelCommands = require('./levelCommands');
@@ -137,28 +138,44 @@ function containsInviteLink(content) {
   return /(discord\.gg|discord(app)?\.com\/invite)\/\S+/i.test(content);
 }
 
-async function applyAutomod(message, config) {
-  const automod = config?.automod;
-  if (!automod || !automod.enabled) return false;
-
-  const lowerContent = message.content.toLowerCase();
-  const hasBannedWord = automod.bannedWords.some((word) => word && lowerContent.includes(word));
-  const hasInvite = automod.blockInvites && containsInviteLink(message.content);
-  const mentionCount = message.mentions.users.size + message.mentions.roles.size;
-  const isMentionSpam = automod.mentionSpamLimit > 0 && mentionCount > automod.mentionSpamLimit;
-
-  if (!hasBannedWord && !hasInvite && !isMentionSpam) return false;
-
+async function deleteWithWarning(message, reason) {
   try {
     await message.delete();
-    const reason = hasBannedWord ? 'contenido no permitido' : hasInvite ? 'links de invitación' : 'demasiadas menciones';
     const warning = await message.channel.send(`⚠️ <@${message.author.id}>, tu mensaje se borró por: ${reason}.`);
     setTimeout(() => warning.delete().catch(() => {}), 6000);
   } catch (err) {
     console.error('No se pudo aplicar automoderación:', err);
   }
+}
 
-  return true;
+async function applyAutomod(message, config) {
+  const automod = config?.automod;
+
+  if (automod?.enabled) {
+    const lowerContent = message.content.toLowerCase();
+    const hasBannedWord = automod.bannedWords.some((word) => word && lowerContent.includes(word));
+    const hasInvite = automod.blockInvites && containsInviteLink(message.content);
+    const mentionCount = message.mentions.users.size + message.mentions.roles.size;
+    const isMentionSpam = automod.mentionSpamLimit > 0 && mentionCount > automod.mentionSpamLimit;
+
+    if (hasBannedWord || hasInvite || isMentionSpam) {
+      const reason = hasBannedWord ? 'contenido no permitido' : hasInvite ? 'links de invitación' : 'demasiadas menciones';
+      await deleteWithWarning(message, reason);
+      return true;
+    }
+  }
+
+  if (config?.ai?.enabled && config.ai.moderation && aiHelper.isConfigured() && message.content.trim().length > 0) {
+    if (aiHelper.canRunModerationCheck(message.guild.id)) {
+      const isToxic = await aiHelper.checkToxicMessage(message.content);
+      if (isToxic) {
+        await deleteWithWarning(message, 'contenido inapropiado (detectado por IA)');
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 async function setUpGuild(guild) {
@@ -233,7 +250,15 @@ client.on('messageCreate', async (message) => {
 
   const findHelpResponse = findHelpResponseByGuild.get(guildId) || (() => null);
   const response = findHelpResponse(message.content);
-  if (response) {
+
+  if (response === NEEDS_FALLBACK) {
+    let reply = config?.helpResponses?.fallbackResponse;
+    if (config?.ai?.enabled && config.ai.helpFallback && aiHelper.isConfigured()) {
+      const aiReply = await aiHelper.answerHelpQuestion(config, message.content);
+      if (aiReply) reply = aiReply;
+    }
+    if (reply) await message.reply(reply);
+  } else if (response) {
     await message.reply(response);
   }
 });

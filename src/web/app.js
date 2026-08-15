@@ -18,6 +18,7 @@ const customCommands = require('../customCommands');
 const commandRegistry = require('../commandRegistry');
 const housesCommand = require('../housesCommand');
 const ticketCommand = require('../ticketCommand');
+const aiHelper = require('../aiHelper');
 
 // View/Send/History/ManageMessages/ManageChannels/EmbedLinks/AddReactions/Kick/Ban/ManageRoles/ModerateMembers
 const BOT_INVITE_PERMISSIONS = 1099780156502;
@@ -922,6 +923,30 @@ function createApp({ client }) {
       },
     });
     res.redirect('/dashboard/eventos?saved=1');
+  });
+
+  app.get('/dashboard/ia', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    res.send(
+      views.aiPage({
+        user: req.session.user,
+        config,
+        aiConfigured: aiHelper.isConfigured(),
+        guildName: guildName(req),
+        flash: req.query.saved ? 'Guardado.' : null,
+      }),
+    );
+  });
+
+  app.post('/dashboard/ia', requireAuth, requireActiveGuild, async (req, res) => {
+    await db.updateGuildConfig(req.session.activeGuildId, {
+      ai: {
+        enabled: req.body.enabled === 'on',
+        helpFallback: req.body.helpFallback === 'on',
+        moderation: req.body.moderation === 'on',
+      },
+    });
+    res.redirect('/dashboard/ia?saved=1');
   });
 
   return app;

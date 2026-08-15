@@ -133,6 +133,7 @@ ${user ? `<header>
     <div class="nav-group-label">A medida</div>
     <div class="nav-group-links">
       <a href="/dashboard/comandos">Comandos</a>
+      <a href="/dashboard/ia">IA</a>
     </div>
   </div>
 </nav>` : ''}
@@ -787,6 +788,30 @@ function miniEventsPage({ user, config, channels, guildName, flash }) {
   return layout({ title: 'Eventos', user, body, flash, guildName });
 }
 
+function aiPage({ user, config, aiConfigured, guildName, flash }) {
+  const setupWarning = !aiConfigured
+    ? `<div class="warning-banner">⚠️ Todavía no configuraste la clave de IA en el servidor (variable <code>GROQ_API_KEY</code>). Podés activar estas opciones, pero no van a hacer nada hasta que esté configurada.</div>`
+    : '';
+
+  const body = `
+  <h1>IA (gratis, con Groq)</h1>
+  <p class="muted">Usa un modelo de IA gratuito para dos cosas puntuales: responder mejor cuando el sistema normal no entiende, y ayudar a detectar mensajes tóxicos que el filtro de palabras no capta.</p>
+  ${setupWarning}
+  <form class="card" method="post" action="/dashboard/ia">
+    <div class="checkbox-row"><input type="checkbox" name="enabled" id="ai-enabled" ${config.ai.enabled ? 'checked' : ''}>
+      <label for="ai-enabled" style="margin:0;">Activada</label></div>
+
+    <div class="checkbox-row"><input type="checkbox" name="helpFallback" id="ai-help" ${config.ai.helpFallback ? 'checked' : ''}>
+      <label for="ai-help" style="margin:0;">Usar IA cuando no encuentra un tema específico de ayuda</label></div>
+
+    <div class="checkbox-row"><input type="checkbox" name="moderation" id="ai-mod" ${config.ai.moderation ? 'checked' : ''}>
+      <label for="ai-mod" style="margin:0;">Usar IA para detectar mensajes tóxicos (además del filtro de palabras)</label></div>
+
+    <button type="submit">Guardar</button>
+  </form>`;
+  return layout({ title: 'IA', user, body, flash, guildName });
+}
+
 function ticketConfigPage({ user, config, channels, roles, guildName, flash }) {
   const channelOptions = (selected) =>
     channels.map((c) => `<option value="${c.id}" ${c.id === selected ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`).join('');
@@ -882,4 +907,5 @@ module.exports = {
   starboardPage,
   triviaPage,
   miniEventsPage,
+  aiPage,
 };
