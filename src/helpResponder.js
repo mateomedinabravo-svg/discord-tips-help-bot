@@ -116,11 +116,15 @@ function buildResponder(helpData) {
   return function findResponse(messageContent) {
     const text = normalize(messageContent);
 
-    const hasGeneralTrigger = generalTriggers.some((trigger) => fuzzyIncludes(text, trigger));
-    if (!hasGeneralTrigger) return null;
-
+    // una palabra clave de un tema alcanza por si sola (ej. "reglas" a secas),
+    // no hace falta decir "ayuda" antes
     const keywordMatch = topics.find((topic) => topic.keywords.some((keyword) => fuzzyIncludes(text, keyword)));
     if (keywordMatch) return keywordMatch.response;
+
+    // para parafraseos sin keyword exacta (via clasificador) o el mensaje generico
+    // de fallback, sí pedimos una palabra disparadora, para no responder de mas
+    const hasGeneralTrigger = generalTriggers.some((trigger) => fuzzyIncludes(text, trigger));
+    if (!hasGeneralTrigger) return null;
 
     const classifiedTopic = classifyTopic(classifier, topics, text);
     if (classifiedTopic) return classifiedTopic.response;
