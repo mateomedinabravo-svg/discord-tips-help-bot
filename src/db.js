@@ -79,6 +79,28 @@ function defaultConfig(guildId) {
       feedCooldownMinutes: 120,
       playCooldownMinutes: 60,
     },
+    ticketCategories: [
+      {
+        id: 'general',
+        label: 'Soporte general',
+        emoji: '🎫',
+        description: 'Cualquier duda o problema que no entre en otra categoría.',
+        staffRoleIds: [],
+      },
+    ],
+    ticketPanel: {
+      channelId: null,
+      messageId: null,
+      title: '🎫 Centro de soporte',
+      description: 'Elegí abajo el tipo de ticket que necesitás para que el staff te ayude.',
+    },
+    ticketTranscripts: {
+      enabled: false,
+      channelId: null,
+    },
+    ticketFeedback: {
+      enabled: false,
+    },
     updatedAt: new Date(),
   };
 }
@@ -117,6 +139,10 @@ async function getGuildConfig(guildId) {
   config.economy = { ...defaults.economy, ...(config.economy || {}) };
   config.casino = { ...defaults.casino, ...(config.casino || {}) };
   config.pets = { ...defaults.pets, ...(config.pets || {}) };
+  config.ticketCategories = config.ticketCategories || defaults.ticketCategories;
+  config.ticketPanel = { ...defaults.ticketPanel, ...(config.ticketPanel || {}) };
+  config.ticketTranscripts = { ...defaults.ticketTranscripts, ...(config.ticketTranscripts || {}) };
+  config.ticketFeedback = { ...defaults.ticketFeedback, ...(config.ticketFeedback || {}) };
 
   return config;
 }
@@ -160,17 +186,36 @@ async function getStats(guildId) {
   };
 }
 
-async function createTicket({ guildId, channelId, userId }) {
+async function getNextTicketNumber(guildId) {
+  const database = await connect();
+  const result = await database
+    .collection('ticketCounters')
+    .findOneAndUpdate({ guildId }, { $inc: { next: 1 } }, { upsert: true, returnDocument: 'after' });
+  const doc = result && result.value !== undefined ? result.value : result;
+  return doc.next;
+}
+
+async function createTicket({ guildId, channelId, userId, categoryId, categoryLabel, number }) {
   const database = await connect();
   await database.collection('tickets').insertOne({
     guildId,
     channelId,
     userId,
+    categoryId: categoryId || null,
+    categoryLabel: categoryLabel || null,
+    number,
     status: 'open',
+    claimedBy: null,
+    rating: null,
     createdAt: new Date(),
     closedAt: null,
     closedBy: null,
   });
+}
+
+async function claimTicket({ channelId, claimedBy }) {
+  const database = await connect();
+  await database.collection('tickets').updateOne({ channelId, status: 'open' }, { $set: { claimedBy } });
 }
 
 async function closeTicket({ channelId, closedBy }) {
@@ -179,6 +224,17 @@ async function closeTicket({ channelId, closedBy }) {
     { channelId, status: 'open' },
     { $set: { status: 'closed', closedAt: new Date(), closedBy } },
   );
+  return database.collection('tickets').findOne({ channelId });
+}
+
+async function rateTicket(ticketId, rating) {
+  const database = await connect();
+  await database.collection('tickets').updateOne({ _id: new ObjectId(ticketId) }, { $set: { rating } });
+}
+
+async function getTicketByChannelId(channelId) {
+  const database = await connect();
+  return database.collection('tickets').findOne({ channelId });
 }
 
 async function listTickets(guildId, status) {
@@ -431,8 +487,12 @@ module.exports = {
   updateGuildConfig,
   incrementMessageStat,
   getStats,
+  getNextTicketNumber,
   createTicket,
+  claimTicket,
   closeTicket,
+  rateTicket,
+  getTicketByChannelId,
   listTickets,
   defaultConfig,
   levelInfoFromXp,

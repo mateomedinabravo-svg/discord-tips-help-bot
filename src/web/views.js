@@ -82,6 +82,7 @@ ${user ? `<header>
   <a href="/dashboard/anuncio">Anuncios</a>
   <a href="/dashboard/estadisticas">Estadísticas</a>
   <a href="/dashboard/tickets">Tickets</a>
+  <a href="/dashboard/tickets/config">Config. Tickets</a>
   <a href="/dashboard/niveles">Niveles</a>
   <a href="/dashboard/roles-reaccion">Roles por reacción</a>
   <a href="/dashboard/logs">Logs</a>
@@ -271,8 +272,11 @@ function ticketsPage({ user, tickets, guildName }) {
   const rows = tickets
     .map(
       (t) => `<tr>
-        <td>#${escapeHtml(t.channelId)}</td>
+        <td>${t.number ? `#${String(t.number).padStart(4, '0')}` : escapeHtml(t.channelId)}</td>
+        <td>${escapeHtml(t.categoryLabel || '—')}</td>
         <td><span class="pill ${t.status}">${t.status === 'open' ? 'Abierto' : 'Cerrado'}</span></td>
+        <td>${t.claimedBy ? `ID ${escapeHtml(t.claimedBy)}` : '—'}</td>
+        <td>${t.rating ? '⭐'.repeat(t.rating) : '—'}</td>
         <td>${new Date(t.createdAt).toLocaleString('es-AR')}</td>
       </tr>`,
     )
@@ -280,9 +284,10 @@ function ticketsPage({ user, tickets, guildName }) {
 
   const body = `
   <h1>Tickets</h1>
+  <p class="muted">Para configurar categorías, panel, transcripciones y encuesta, andá a <a href="/dashboard/tickets/config">Config. Tickets</a>.</p>
   <div class="card">
-    <table><thead><tr><th>Canal</th><th>Estado</th><th>Creado</th></tr></thead>
-    <tbody>${rows || '<tr><td colspan="3">Todavía no hay tickets</td></tr>'}</tbody></table>
+    <table><thead><tr><th>Número</th><th>Categoría</th><th>Estado</th><th>Reclamado por</th><th>Calificación</th><th>Creado</th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="6">Todavía no hay tickets</td></tr>'}</tbody></table>
   </div>`;
   return layout({ title: 'Tickets', user, body, guildName });
 }
@@ -622,6 +627,77 @@ function petsSettingsPage({ user, config, guildName, flash }) {
   return layout({ title: 'Mascotas', user, body, flash, guildName });
 }
 
+function ticketConfigPage({ user, config, channels, roles, guildName, flash }) {
+  const channelOptions = (selected) =>
+    channels.map((c) => `<option value="${c.id}" ${c.id === selected ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`).join('');
+
+  const roleOptions = (selectedIds) =>
+    roles.map((r) => `<option value="${r.id}" ${selectedIds.includes(r.id) ? 'selected' : ''}>${escapeHtml(r.name)}</option>`).join('');
+
+  const categoryRows = (config.ticketCategories || [])
+    .map(
+      (cat) => `<div class="server-row">
+        <span class="name">${cat.emoji || '🎫'} ${escapeHtml(cat.label)} ${cat.staffRoleIds?.length ? `· ${cat.staffRoleIds.length} rol(es)` : '· sin rol (usa Manage Server)'}</span>
+        <form method="post" action="/dashboard/tickets/config/categoria/eliminar" style="margin:0;">
+          <input type="hidden" name="id" value="${escapeHtml(cat.id)}">
+          <button type="submit" style="margin:0; background:#ed4245;">Eliminar</button>
+        </form>
+      </div>`,
+    )
+    .join('');
+
+  const body = `
+  <h1>Configuración de tickets</h1>
+
+  <div class="card">
+    <h2>Categorías</h2>
+    <p class="muted">Cada categoría aparece como opción en el menú del panel. Si no elegís roles de staff, se usa cualquier rol con "Gestionar servidor".</p>
+    <div class="server-list">${categoryRows || '<p class="muted">Todavía no hay categorías.</p>'}</div>
+  </div>
+
+  <form class="card" method="post" action="/dashboard/tickets/config/categoria">
+    <h2>Nueva categoría</h2>
+    <label>Nombre</label>
+    <input type="text" name="label" required maxlength="80">
+    <label>Emoji</label>
+    <input type="text" name="emoji" placeholder="🎫" maxlength="10">
+    <label>Descripción (se muestra dentro del ticket)</label>
+    <textarea name="description" style="min-height:70px;"></textarea>
+    <label>Roles de staff con acceso (opcional, podés elegir varios)</label>
+    <select name="staffRoleIds" multiple size="5">${roleOptions([])}</select>
+    <button type="submit">Crear categoría</button>
+  </form>
+
+  <form class="card" method="post" action="/dashboard/tickets/config/panel">
+    <h2>Panel</h2>
+    <label>Canal donde va el panel</label>
+    <select name="channelId"><option value="">-- elegir --</option>${channelOptions(config.ticketPanel.channelId)}</select>
+    <label>Título</label>
+    <input type="text" name="title" value="${escapeHtml(config.ticketPanel.title)}">
+    <label>Descripción</label>
+    <textarea name="description">${escapeHtml(config.ticketPanel.description)}</textarea>
+
+    <h2>Transcripciones</h2>
+    <div class="checkbox-row"><input type="checkbox" name="transcriptsEnabled" id="t-enabled" ${config.ticketTranscripts.enabled ? 'checked' : ''}>
+      <label for="t-enabled" style="margin:0;">Activadas</label></div>
+    <label>Canal de transcripciones</label>
+    <select name="transcriptsChannelId"><option value="">-- elegir --</option>${channelOptions(config.ticketTranscripts.channelId)}</select>
+
+    <h2>Encuesta de satisfacción</h2>
+    <div class="checkbox-row"><input type="checkbox" name="feedbackEnabled" id="f-enabled" ${config.ticketFeedback.enabled ? 'checked' : ''}>
+      <label for="f-enabled" style="margin:0;">Activada (se manda por MD al cerrar el ticket)</label></div>
+
+    <button type="submit">Guardar</button>
+  </form>
+
+  <form class="card" method="post" action="/dashboard/tickets/config/panel/publicar">
+    <h2>Publicar / actualizar el panel</h2>
+    <p class="muted">Guardá los cambios de arriba primero. Esto borra el panel anterior (si había) y publica uno nuevo.</p>
+    <button type="submit">Publicar panel</button>
+  </form>`;
+  return layout({ title: 'Config. Tickets', user, body, flash, guildName });
+}
+
 module.exports = {
   layout,
   loginPage,
@@ -642,4 +718,5 @@ module.exports = {
   economyPage,
   casinoSettingsPage,
   petsSettingsPage,
+  ticketConfigPage,
 };

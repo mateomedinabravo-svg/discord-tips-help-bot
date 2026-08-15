@@ -274,7 +274,7 @@ client.on('interactionCreate', async (interaction) => {
         await announceCommand.handleAnnounceCommand(interaction);
         break;
       case 'ticket':
-        await ticketCommand.handleTicketCommand(interaction);
+        await ticketCommand.handleTicketCommand(interaction, config);
         break;
       case 'nivel':
         await levelCommands.handleNivelCommand(interaction);
@@ -333,9 +333,28 @@ client.on('interactionCreate', async (interaction) => {
     return;
   }
 
+  if (interaction.isStringSelectMenu()) {
+    if (interaction.customId === ticketCommand.CATEGORY_SELECT_ID) {
+      const config = interaction.guild ? configByGuild.get(interaction.guild.id) : null;
+      if (config) await ticketCommand.handleCategorySelect(interaction, config);
+    }
+    return;
+  }
+
   if (interaction.isButton()) {
     if (interaction.customId === ticketCommand.CLOSE_BUTTON_ID) {
-      await ticketCommand.handleCloseButton(interaction);
+      const config = interaction.guild ? configByGuild.get(interaction.guild.id) : null;
+      await ticketCommand.handleCloseButton(interaction, config);
+      return;
+    }
+
+    if (interaction.customId === ticketCommand.CLAIM_BUTTON_ID) {
+      await ticketCommand.handleClaimButton(interaction);
+      return;
+    }
+
+    if (interaction.customId.startsWith(ticketCommand.RATE_PREFIX)) {
+      await ticketCommand.handleRatingButton(interaction);
       return;
     }
 

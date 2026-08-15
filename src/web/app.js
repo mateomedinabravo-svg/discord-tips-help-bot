@@ -17,6 +17,7 @@ const reactionRoles = require('../reactionRoles');
 const customCommands = require('../customCommands');
 const commandRegistry = require('../commandRegistry');
 const housesCommand = require('../housesCommand');
+const ticketCommand = require('../ticketCommand');
 
 // View/Send/History/ManageMessages/ManageChannels/EmbedLinks/AddReactions/Kick/Ban/ManageRoles/ModerateMembers
 const BOT_INVITE_PERMISSIONS = 1099780156502;
@@ -365,6 +366,89 @@ function createApp({ client }) {
   app.get('/dashboard/tickets', requireAuth, requireActiveGuild, async (req, res) => {
     const tickets = await db.listTickets(req.session.activeGuildId);
     res.send(views.ticketsPage({ user: req.session.user, tickets, guildName: guildName(req) }));
+  });
+
+  app.get('/dashboard/tickets/config', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    res.send(
+      views.ticketConfigPage({
+        user: req.session.user,
+        config,
+        channels: getTextChannels(req),
+        roles: getAssignableRoles(req),
+        guildName: guildName(req),
+        flash: req.query.saved ? 'Guardado.' : req.query.published ? 'Panel publicado.' : req.query.error || null,
+      }),
+    );
+  });
+
+  app.post('/dashboard/tickets/config/categoria', requireAuth, requireActiveGuild, async (req, res) => {
+    const label = (req.body.label || '').trim();
+    if (!label) {
+      return res.redirect(`/dashboard/tickets/config?error=${encodeURIComponent('Ponele un nombre a la categoría.')}`);
+    }
+
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    const id = slugify(label) || `cat-${Date.now()}`;
+    const staffRoleIds = [].concat(req.body.staffRoleIds || []);
+
+    const category = {
+      id,
+      label,
+      emoji: (req.body.emoji || '🎫').trim(),
+      description: (req.body.description || '').trim(),
+      staffRoleIds,
+    };
+
+    const existing = (config.ticketCategories || []).filter((c) => c.id !== id);
+    await db.updateGuildConfig(req.session.activeGuildId, { ticketCategories: [...existing, category] });
+    res.redirect('/dashboard/tickets/config?saved=1');
+  });
+
+  app.post('/dashboard/tickets/config/categoria/eliminar', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    await db.updateGuildConfig(req.session.activeGuildId, {
+      ticketCategories: (config.ticketCategories || []).filter((c) => c.id !== req.body.id),
+    });
+    res.redirect('/dashboard/tickets/config?saved=1');
+  });
+
+  app.post('/dashboard/tickets/config/panel', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    await db.updateGuildConfig(req.session.activeGuildId, {
+      ticketPanel: {
+        ...config.ticketPanel,
+        channelId: req.body.channelId || null,
+        title: req.body.title || config.ticketPanel.title,
+        description: req.body.description || config.ticketPanel.description,
+      },
+      ticketTranscripts: {
+        enabled: req.body.transcriptsEnabled === 'on',
+        channelId: req.body.transcriptsChannelId || null,
+      },
+      ticketFeedback: {
+        enabled: req.body.feedbackEnabled === 'on',
+      },
+    });
+    res.redirect('/dashboard/tickets/config?saved=1');
+  });
+
+  app.post('/dashboard/tickets/config/panel/publicar', requireAuth, requireActiveGuild, async (req, res) => {
+    const guild = getGuild(req);
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+
+    if (!config.ticketCategories.length) {
+      return res.redirect(`/dashboard/tickets/config?error=${encodeURIComponent('Creá al menos una categoría primero.')}`);
+    }
+
+    try {
+      const messageId = await ticketCommand.publishPanel(guild, config);
+      await db.updateGuildConfig(req.session.activeGuildId, { ticketPanel: { ...config.ticketPanel, messageId } });
+      res.redirect('/dashboard/tickets/config?published=1');
+    } catch (err) {
+      console.error('No se pudo publicar el panel de tickets:', err);
+      res.redirect(`/dashboard/tickets/config?error=${encodeURIComponent('No se pudo publicar: ' + err.message)}`);
+    }
   });
 
   app.get('/dashboard/niveles', requireAuth, requireActiveGuild, async (req, res) => {
