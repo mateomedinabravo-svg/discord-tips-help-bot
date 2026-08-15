@@ -521,14 +521,18 @@ function reactionRolesPage({ user, sets, channels, roles, guildName, flash }) {
 
 function selectRolesPage({ user, sets, channels, roles, guildName, flash }) {
   const channelOptions = channels.map((c) => `<option value="${c.id}">#${escapeHtml(c.name)}</option>`).join('');
-  const roleOptions = `<option value="">--</option>` + roles.map((r) => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
+  const roleOptions =
+    `<option value="">--</option>` +
+    roles
+      .map((r) => `<option value="${r.id}" data-name="${escapeHtml(r.name)}" data-emoji="${escapeHtml(r.emoji || '')}">${escapeHtml(r.name)}</option>`)
+      .join('');
 
   const optionRows = Array.from(
     { length: 10 },
     (_, i) => `<div class="row-grid" style="grid-template-columns: 1.4fr 1fr 0.5fr 1.6fr;">
-      <input type="text" name="label_${i + 1}" placeholder="Nombre (ej: House Roja)">
-      <select name="role_${i + 1}">${roleOptions}</select>
-      <input type="text" name="emoji_${i + 1}" placeholder="Emoji">
+      <input type="text" name="label_${i + 1}" class="role-autofill-label" placeholder="Nombre (ej: House Roja)">
+      <select name="role_${i + 1}" class="role-autofill-select">${roleOptions}</select>
+      <input type="text" name="emoji_${i + 1}" class="role-autofill-emoji" placeholder="Emoji">
       <input type="text" name="desc_${i + 1}" placeholder="Descripción (opcional)">
     </div>`,
   ).join('');
@@ -567,7 +571,20 @@ function selectRolesPage({ user, sets, channels, roles, guildName, flash }) {
     <label>Opciones (hasta 10, dejá vacío lo que no uses)</label>
     ${optionRows}
     <button type="submit">Crear y publicar</button>
-  </form>`;
+  </form>
+  <script>
+    document.querySelectorAll('.role-autofill-select').forEach((select) => {
+      select.addEventListener('change', () => {
+        const opt = select.selectedOptions[0];
+        const row = select.closest('.row-grid');
+        const labelInput = row.querySelector('.role-autofill-label');
+        const emojiInput = row.querySelector('.role-autofill-emoji');
+        if (!opt || !opt.value) return;
+        if (labelInput && !labelInput.value) labelInput.value = opt.dataset.name || '';
+        if (emojiInput && !emojiInput.value && opt.dataset.emoji) emojiInput.value = opt.dataset.emoji;
+      });
+    });
+  </script>`;
   return layout({ title: 'Roles por menú', user, body, flash, guildName });
 }
 

@@ -112,7 +112,7 @@ function createApp({ client }) {
     if (!guild) return [];
     return guild.roles.cache
       .filter((r) => r.id !== guild.id && !r.managed)
-      .map((r) => ({ id: r.id, name: r.name }))
+      .map((r) => ({ id: r.id, name: r.name, emoji: r.unicodeEmoji || '' }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
