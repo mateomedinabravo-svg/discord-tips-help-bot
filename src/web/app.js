@@ -95,6 +95,8 @@ function createApp({ client }) {
   });
 
   app.get('/login', (req, res) => {
+    if (req.session.user) return res.redirect('/servers');
+
     const state = crypto.randomBytes(16).toString('hex');
     req.session.oauthState = state;
     const { clientId, redirectUri } = oauthConfig();
