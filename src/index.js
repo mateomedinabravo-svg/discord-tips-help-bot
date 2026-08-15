@@ -9,6 +9,7 @@ const ticketCommand = require('./ticketCommand');
 const levelCommands = require('./levelCommands');
 const moderationCommands = require('./moderationCommands');
 const reactionRoles = require('./reactionRoles');
+const selectRoles = require('./selectRoles');
 const starboard = require('./starboard');
 const logging = require('./logging');
 const housesCommand = require('./housesCommand');
@@ -549,6 +550,8 @@ async function handleInteraction(interaction) {
     if (interaction.customId === ticketCommand.CATEGORY_SELECT_ID) {
       const config = interaction.guild ? configByGuild.get(interaction.guild.id) : null;
       if (config) await ticketCommand.handleCategorySelect(interaction, config);
+    } else if (interaction.customId === selectRoles.SELECT_MENU_ID) {
+      await selectRoles.handleSelectMenu(interaction);
     }
     return;
   }

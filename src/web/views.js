@@ -125,6 +125,7 @@ ${user ? `<header>
     <div class="nav-group-links">
       <a href="/dashboard/niveles">Niveles</a>
       <a href="/dashboard/roles-reaccion">Roles por reacción</a>
+      <a href="/dashboard/roles-menu">Roles por menú</a>
     </div>
   </div>
   <div class="nav-group">
@@ -516,6 +517,58 @@ function reactionRolesPage({ user, sets, channels, roles, guildName, flash }) {
     <button type="submit">Crear</button>
   </form>`;
   return layout({ title: 'Roles por reacción', user, body, flash, guildName });
+}
+
+function selectRolesPage({ user, sets, channels, roles, guildName, flash }) {
+  const channelOptions = channels.map((c) => `<option value="${c.id}">#${escapeHtml(c.name)}</option>`).join('');
+  const roleOptions = `<option value="">--</option>` + roles.map((r) => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
+
+  const optionRows = Array.from(
+    { length: 10 },
+    (_, i) => `<div class="row-grid" style="grid-template-columns: 1.4fr 1fr 0.5fr 1.6fr;">
+      <input type="text" name="label_${i + 1}" placeholder="Nombre (ej: House Roja)">
+      <select name="role_${i + 1}">${roleOptions}</select>
+      <input type="text" name="emoji_${i + 1}" placeholder="Emoji">
+      <input type="text" name="desc_${i + 1}" placeholder="Descripción (opcional)">
+    </div>`,
+  ).join('');
+
+  const existingRows = sets
+    .map(
+      (s) => `<div class="server-row">
+        <span class="name">${escapeHtml(s.title || 'Sin título')} — #${escapeHtml(channels.find((c) => c.id === s.channelId)?.name || s.channelId)} · ${s.options.length} opción(es)</span>
+        <form method="post" action="/dashboard/roles-menu/eliminar" style="margin:0;">
+          <input type="hidden" name="messageId" value="${escapeHtml(s.messageId)}">
+          <button type="submit" style="margin:0; background:#ed4245;">Eliminar</button>
+        </form>
+      </div>`,
+    )
+    .join('');
+
+  const body = `
+  <h1>Roles por menú desplegable</h1>
+  <p class="muted">Publicá un mensaje con un menú desplegable: cada usuario elige una o varias opciones y se le asignan (o quitan) los roles correspondientes al instante. Ideal para "seguir" houses, equipos o categorías.</p>
+
+  <div class="card">
+    <h2>Menús activos</h2>
+    <div class="server-list">${existingRows || '<p class="muted">Todavía no creaste ninguno.</p>'}</div>
+  </div>
+
+  <form class="card" method="post" action="/dashboard/roles-menu">
+    <h2>Crear menú nuevo</h2>
+    <label>Canal</label>
+    <select name="channelId" required>${channelOptions}</select>
+    <label>Título</label>
+    <input type="text" name="titulo" placeholder="Menú de Artist's houses">
+    <label>Descripción</label>
+    <textarea name="descripcion" style="min-height:70px;" placeholder="Aquí podés seguir la artist house que quieras"></textarea>
+    <label>Texto del menú (placeholder)</label>
+    <input type="text" name="placeholder" placeholder="Click aquí para elegir una house">
+    <label>Opciones (hasta 10, dejá vacío lo que no uses)</label>
+    ${optionRows}
+    <button type="submit">Crear y publicar</button>
+  </form>`;
+  return layout({ title: 'Roles por menú', user, body, flash, guildName });
 }
 
 function logsPage({ user, config, channels, guildName, flash }) {
@@ -1202,4 +1255,5 @@ module.exports = {
   memberCounterPage,
   birthdaysPage,
   inviteTrackerPage,
+  selectRolesPage,
 };

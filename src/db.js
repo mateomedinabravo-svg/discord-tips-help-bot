@@ -421,6 +421,35 @@ async function deleteReactionRoleSet(messageId) {
   await database.collection('reactionRoleSets').deleteOne({ messageId });
 }
 
+async function createSelectRoleSet({ guildId, channelId, messageId, title, description, placeholder, options }) {
+  const database = await connect();
+  await database.collection('selectRoleSets').insertOne({
+    guildId,
+    channelId,
+    messageId,
+    title,
+    description,
+    placeholder,
+    options,
+    createdAt: new Date(),
+  });
+}
+
+async function getSelectRoleSet(messageId) {
+  const database = await connect();
+  return database.collection('selectRoleSets').findOne({ messageId });
+}
+
+async function listSelectRoleSets(guildId) {
+  const database = await connect();
+  return database.collection('selectRoleSets').find({ guildId }).sort({ createdAt: -1 }).toArray();
+}
+
+async function deleteSelectRoleSet(messageId) {
+  const database = await connect();
+  await database.collection('selectRoleSets').deleteOne({ messageId });
+}
+
 // --- Advertencias (warnings) ---
 
 async function addWarning({ guildId, userId, moderatorId, reason }) {
@@ -798,6 +827,10 @@ module.exports = {
   getReactionRoleSet,
   listReactionRoleSets,
   deleteReactionRoleSet,
+  createSelectRoleSet,
+  getSelectRoleSet,
+  listSelectRoleSets,
+  deleteSelectRoleSet,
   addWarning,
   listWarnings,
   createHouseApplication,

@@ -14,6 +14,7 @@ const {
 const views = require('./views');
 const db = require('../db');
 const reactionRoles = require('../reactionRoles');
+const selectRoles = require('../selectRoles');
 const customCommands = require('../customCommands');
 const commandRegistry = require('../commandRegistry');
 const housesCommand = require('../housesCommand');
@@ -612,6 +613,70 @@ function createApp({ client }) {
       await reactionRoles.deleteReactionRoleSet(guild, req.body.messageId);
     }
     res.redirect('/dashboard/roles-reaccion?deleted=1');
+  });
+
+  app.get('/dashboard/roles-menu', requireAuth, requireActiveGuild, async (req, res) => {
+    const sets = await db.listSelectRoleSets(req.session.activeGuildId);
+    res.send(
+      views.selectRolesPage({
+        user: req.session.user,
+        sets,
+        channels: getTextChannels(req),
+        roles: getAssignableRoles(req),
+        guildName: guildName(req),
+        flash: req.query.saved
+          ? 'Menú creado y publicado.'
+          : req.query.deleted
+            ? 'Eliminado.'
+            : req.query.error || null,
+      }),
+    );
+  });
+
+  app.post('/dashboard/roles-menu', requireAuth, requireActiveGuild, async (req, res) => {
+    const options = [];
+    for (let i = 1; i <= 10; i++) {
+      const label = (req.body[`label_${i}`] || '').trim();
+      const roleId = req.body[`role_${i}`];
+      const emoji = (req.body[`emoji_${i}`] || '').trim();
+      const description = (req.body[`desc_${i}`] || '').trim();
+      if (label && roleId) options.push({ id: slugify(label) || `opcion-${i}`, label, roleId, emoji, description });
+    }
+
+    if (!req.body.channelId) {
+      return res.redirect(`/dashboard/roles-menu?error=${encodeURIComponent('Elegí un canal.')}`);
+    }
+    if (!options.length) {
+      return res.redirect(`/dashboard/roles-menu?error=${encodeURIComponent('Completá al menos una opción con nombre y rol.')}`);
+    }
+    if (options.length > 25) {
+      return res.redirect(`/dashboard/roles-menu?error=${encodeURIComponent('Un menú de Discord admite máximo 25 opciones.')}`);
+    }
+
+    const guild = getGuild(req);
+    try {
+      const config = await db.getGuildConfig(req.session.activeGuildId);
+      await selectRoles.postSelectRoleMessage(guild, {
+        channelId: req.body.channelId,
+        title: req.body.titulo,
+        description: req.body.descripcion,
+        placeholder: req.body.placeholder,
+        options,
+        config,
+      });
+      res.redirect('/dashboard/roles-menu?saved=1');
+    } catch (err) {
+      console.error('No se pudo crear el menú de roles:', err);
+      res.redirect(`/dashboard/roles-menu?error=${encodeURIComponent('No se pudo crear el menú: ' + err.message)}`);
+    }
+  });
+
+  app.post('/dashboard/roles-menu/eliminar', requireAuth, requireActiveGuild, async (req, res) => {
+    const guild = getGuild(req);
+    if (guild) {
+      await selectRoles.deleteSelectRoleSet(guild, req.body.messageId);
+    }
+    res.redirect('/dashboard/roles-menu?deleted=1');
   });
 
   app.get('/dashboard/logs', requireAuth, requireActiveGuild, async (req, res) => {
