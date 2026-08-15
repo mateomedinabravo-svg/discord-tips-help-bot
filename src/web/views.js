@@ -84,6 +84,9 @@ ${user ? `<header>
   <a href="/dashboard/niveles">Niveles</a>
   <a href="/dashboard/roles-reaccion">Roles por reacción</a>
   <a href="/dashboard/logs">Logs</a>
+  <a href="/dashboard/comandos">Comandos</a>
+  <a href="/dashboard/houses">Houses</a>
+  <a href="/dashboard/moderacion">Moderación</a>
 </nav>` : ''}
 <main>
 ${flash ? `<div class="flash">${escapeHtml(flash)}</div>` : ''}
@@ -425,6 +428,97 @@ function logsPage({ user, config, channels, guildName, flash }) {
   return layout({ title: 'Logs', user, body, flash, guildName });
 }
 
+function customCommandsPage({ user, config, guildName, flash }) {
+  const rows = (config.customCommands || [])
+    .map(
+      (cmd) => `<div class="server-row">
+        <span class="name">/${escapeHtml(cmd.name)} ${cmd.adminOnly ? '· solo admins' : `· cooldown ${cmd.cooldownSeconds}s`}</span>
+        <form method="post" action="/dashboard/comandos/eliminar" style="margin:0;">
+          <input type="hidden" name="name" value="${escapeHtml(cmd.name)}">
+          <button type="submit" style="margin:0; background:#ed4245;">Eliminar</button>
+        </form>
+      </div>`,
+    )
+    .join('');
+
+  const body = `
+  <h1>Comandos personalizados</h1>
+  <p class="muted">Se registran como comandos de barra /nombre. Puede tardar un minuto en aparecer en Discord.</p>
+
+  <div class="card">
+    <h2>Comandos activos</h2>
+    <div class="server-list">${rows || '<p class="muted">Todavía no creaste ninguno.</p>'}</div>
+  </div>
+
+  <form class="card" method="post" action="/dashboard/comandos">
+    <h2>Crear comando</h2>
+    <label>Nombre (sin "/", minúsculas, sin espacios)</label>
+    <input type="text" name="name" required maxlength="32" pattern="[a-z0-9_-]+">
+    <label>Descripción (se ve en el autocompletado de Discord)</label>
+    <input type="text" name="description" maxlength="100">
+    <label>Respuesta (podés usar <code>{user}</code>)</label>
+    <textarea name="response" required></textarea>
+    <div class="checkbox-row"><input type="checkbox" name="adminOnly" id="cc-admin">
+      <label for="cc-admin" style="margin:0;">Solo para administradores</label></div>
+    <label>Cooldown para usuarios normales (segundos, ignorado si es solo-admin)</label>
+    <input type="number" name="cooldownSeconds" min="0" value="10">
+    <button type="submit">Crear</button>
+  </form>`;
+  return layout({ title: 'Comandos', user, body, flash, guildName });
+}
+
+function housesPage({ user, config, channels, guildName, flash }) {
+  const channelOptions = channels
+    .map((c) => `<option value="${c.id}" ${c.id === config.houses.reviewChannelId ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`)
+    .join('');
+
+  const body = `
+  <h1>Solicitudes de House</h1>
+  <p class="muted">Los usuarios usan <code>/casa</code> para completar el formulario. Aparece en el canal de revisión con botones de Aceptar/Rechazar (requieren permiso de Gestionar servidor).</p>
+
+  <form class="card" method="post" action="/dashboard/houses">
+    <div class="checkbox-row"><input type="checkbox" name="enabled" id="h-enabled" ${config.houses.enabled ? 'checked' : ''}>
+      <label for="h-enabled" style="margin:0;">Activado</label></div>
+
+    <label>Canal de revisión (solo lo debería ver tu staff)</label>
+    <select name="reviewChannelId"><option value="">-- elegir --</option>${channelOptions}</select>
+
+    <label>Campos del formulario (uno por línea, hasta 5)</label>
+    <textarea name="formFields">${escapeHtml((config.houses.formFields || []).join('\n'))}</textarea>
+
+    <label>Mensaje por MD si se acepta</label>
+    <textarea name="acceptMessage">${escapeHtml(config.houses.acceptMessage)}</textarea>
+
+    <label>Mensaje por MD si se rechaza</label>
+    <textarea name="rejectMessage">${escapeHtml(config.houses.rejectMessage)}</textarea>
+
+    <button type="submit">Guardar</button>
+  </form>`;
+  return layout({ title: 'Houses', user, body, flash, guildName });
+}
+
+function moderationSettingsPage({ user, config, roles, guildName, flash }) {
+  const protectedIds = config.protectedRoleIds || [];
+  const roleCheckboxes = roles
+    .map(
+      (r) => `<div class="checkbox-row">
+        <input type="checkbox" name="protectedRoleIds" value="${r.id}" id="role-${r.id}" ${protectedIds.includes(r.id) ? 'checked' : ''}>
+        <label for="role-${r.id}" style="margin:0;">${escapeHtml(r.name)}</label>
+      </div>`,
+    )
+    .join('');
+
+  const body = `
+  <h1>Moderación</h1>
+  <form class="card" method="post" action="/dashboard/moderacion">
+    <h2>Roles protegidos</h2>
+    <p class="muted">/ban, /kick y /mute van a rechazar la acción si el usuario tiene alguno de estos roles.</p>
+    ${roleCheckboxes || '<p class="muted">Este server no tiene roles asignables.</p>'}
+    <button type="submit">Guardar</button>
+  </form>`;
+  return layout({ title: 'Moderación', user, body, flash, guildName });
+}
+
 module.exports = {
   layout,
   loginPage,
@@ -439,4 +533,7 @@ module.exports = {
   levelsPage,
   reactionRolesPage,
   logsPage,
+  customCommandsPage,
+  housesPage,
+  moderationSettingsPage,
 };

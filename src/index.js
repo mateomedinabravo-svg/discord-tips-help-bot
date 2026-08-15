@@ -8,6 +8,9 @@ const levelCommands = require('./levelCommands');
 const moderationCommands = require('./moderationCommands');
 const reactionRoles = require('./reactionRoles');
 const logging = require('./logging');
+const housesCommand = require('./housesCommand');
+const customCommands = require('./customCommands');
+const commandRegistry = require('./commandRegistry');
 const { isDirectedAtAnotherUser } = require('./messageDirection');
 const db = require('./db');
 const { createApp } = require('./web/app');
@@ -24,18 +27,6 @@ const WHITELIST = (process.env.TIPS_CHANNEL_WHITELIST || '')
   .split(',')
   .map((id) => id.trim())
   .filter(Boolean);
-
-const ALL_COMMAND_DEFINITIONS = [
-  announceCommand.definition,
-  ticketCommand.definition,
-  levelCommands.nivelDefinition,
-  levelCommands.rankingDefinition,
-  moderationCommands.banDefinition,
-  moderationCommands.kickDefinition,
-  moderationCommands.muteDefinition,
-  moderationCommands.warnDefinition,
-  moderationCommands.warningsDefinition,
-].map((def) => def.toJSON());
 
 // estado por servidor: cada guild tiene su propia config, su propio buscador
 // de respuestas de ayuda, su propio tracker de actividad y su propio timer de tips
@@ -146,7 +137,7 @@ async function applyAutomod(message, config) {
 async function setUpGuild(guild) {
   await refreshGuildConfig(guild.id);
   try {
-    await guild.commands.set(ALL_COMMAND_DEFINITIONS);
+    await commandRegistry.registerGuildCommands(guild, configByGuild.get(guild.id));
   } catch (err) {
     console.error(`No se pudieron registrar los comandos en ${guild.name}:`, err);
   }
@@ -302,14 +293,32 @@ client.on('interactionCreate', async (interaction) => {
       case 'warnings':
         await moderationCommands.handleWarningsCommand(interaction);
         break;
-      default:
+      case 'casa':
+        await housesCommand.handleCasaCommand(interaction, config);
         break;
+      default: {
+        const custom = config ? customCommands.findCustomCommand(config, interaction.commandName) : null;
+        if (custom) await customCommands.handleCustomCommand(interaction, config, custom);
+        break;
+      }
     }
     return;
   }
 
-  if (interaction.isButton() && interaction.customId === ticketCommand.CLOSE_BUTTON_ID) {
-    await ticketCommand.handleCloseButton(interaction);
+  if (interaction.isModalSubmit()) {
+    const config = interaction.guild ? configByGuild.get(interaction.guild.id) : null;
+    if (config) await housesCommand.handleModalSubmit(interaction, config);
+    return;
+  }
+
+  if (interaction.isButton()) {
+    if (interaction.customId === ticketCommand.CLOSE_BUTTON_ID) {
+      await ticketCommand.handleCloseButton(interaction);
+      return;
+    }
+
+    const config = interaction.guild ? configByGuild.get(interaction.guild.id) : null;
+    if (config) await housesCommand.handleDecisionButton(interaction, config);
   }
 });
 

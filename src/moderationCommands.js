@@ -38,6 +38,12 @@ const warningsDefinition = new SlashCommandBuilder()
   .addUserOption((opt) => opt.setName('usuario').setDescription('Usuario a consultar').setRequired(true))
   .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers);
 
+function isProtected(config, member) {
+  const protectedRoleIds = config?.protectedRoleIds || [];
+  if (!protectedRoleIds.length || !member) return false;
+  return member.roles.cache.some((role) => protectedRoleIds.includes(role.id));
+}
+
 async function logModerationAction(client, config, { action, moderator, target, reason }) {
   const logging = config?.logging;
   if (!logging || !logging.enabled || !logging.logModeration || !logging.channelId) return;
@@ -66,6 +72,12 @@ async function handleBanCommand(interaction, config) {
   const user = interaction.options.getUser('usuario', true);
   const reason = interaction.options.getString('razon') || 'Sin especificar';
 
+  const existingMember = await interaction.guild.members.fetch(user.id).catch(() => null);
+  if (isProtected(config, existingMember)) {
+    await interaction.reply({ content: '🛡️ Ese usuario tiene un rol protegido, no se puede banear.', ephemeral: true });
+    return;
+  }
+
   try {
     await interaction.guild.members.ban(user.id, { reason });
     await interaction.reply(`🔨 <@${user.id}> fue baneado. Motivo: ${reason}`);
@@ -81,6 +93,10 @@ async function handleKickCommand(interaction, config) {
 
   try {
     const member = await interaction.guild.members.fetch(user.id);
+    if (isProtected(config, member)) {
+      await interaction.reply({ content: '🛡️ Ese usuario tiene un rol protegido, no se puede expulsar.', ephemeral: true });
+      return;
+    }
     await member.kick(reason);
     await interaction.reply(`👢 <@${user.id}> fue expulsado. Motivo: ${reason}`);
     await logModerationAction(interaction.client, config, { action: 'Kick', moderator: interaction.user, target: user, reason });
@@ -96,6 +112,10 @@ async function handleMuteCommand(interaction, config) {
 
   try {
     const member = await interaction.guild.members.fetch(user.id);
+    if (isProtected(config, member)) {
+      await interaction.reply({ content: '🛡️ Ese usuario tiene un rol protegido, no se puede silenciar.', ephemeral: true });
+      return;
+    }
     await member.timeout(minutes * 60 * 1000, reason);
     await interaction.reply(`🔇 <@${user.id}> fue silenciado por ${minutes} min. Motivo: ${reason}`);
     await logModerationAction(interaction.client, config, {

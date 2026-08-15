@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const dns = require('dns');
-const { MongoClient } = require('mongodb');
+const { MongoClient, ObjectId } = require('mongodb');
 
 // algunos routers/ISPs no resuelven bien los registros SRV que necesita
 // "mongodb+srv://"; forzamos un DNS publico solo para esta resolucion
@@ -46,6 +46,15 @@ function defaultConfig(guildId) {
       logJoins: true,
       logModeration: true,
     },
+    customCommands: [],
+    houses: {
+      enabled: false,
+      reviewChannelId: null,
+      formFields: ['Nombre artístico', 'Portafolio (link)', 'Por qué querés tu house'],
+      acceptMessage: '🎉 ¡Tu solicitud de House fue aceptada! El staff se va a poner en contacto para darte tu canal.',
+      rejectMessage: '😕 Tu solicitud de House no fue aceptada esta vez. Podés volver a intentarlo más adelante.',
+    },
+    protectedRoleIds: [],
     updatedAt: new Date(),
   };
 }
@@ -78,6 +87,9 @@ async function getGuildConfig(guildId) {
   const defaults = defaultConfig(guildId);
   config.leveling = { ...defaults.leveling, ...(config.leveling || {}) };
   config.logging = { ...defaults.logging, ...(config.logging || {}) };
+  config.houses = { ...defaults.houses, ...(config.houses || {}) };
+  config.customCommands = config.customCommands || [];
+  config.protectedRoleIds = config.protectedRoleIds || [];
 
   return config;
 }
@@ -242,6 +254,34 @@ async function listWarnings(guildId, userId) {
   return database.collection('warnings').find({ guildId, userId }).sort({ createdAt: -1 }).toArray();
 }
 
+// --- Solicitudes de House ---
+
+async function createHouseApplication({ guildId, userId, answers }) {
+  const database = await connect();
+  const result = await database.collection('houseApplications').insertOne({
+    guildId,
+    userId,
+    answers,
+    status: 'pending',
+    createdAt: new Date(),
+    decidedAt: null,
+    decidedBy: null,
+  });
+  return result.insertedId;
+}
+
+async function decideHouseApplication(applicationId, { status, decidedBy }) {
+  const database = await connect();
+  await database
+    .collection('houseApplications')
+    .updateOne({ _id: new ObjectId(applicationId) }, { $set: { status, decidedAt: new Date(), decidedBy } });
+}
+
+async function getHouseApplication(applicationId) {
+  const database = await connect();
+  return database.collection('houseApplications').findOne({ _id: new ObjectId(applicationId) });
+}
+
 module.exports = {
   connect,
   getGuildConfig,
@@ -262,4 +302,7 @@ module.exports = {
   deleteReactionRoleSet,
   addWarning,
   listWarnings,
+  createHouseApplication,
+  decideHouseApplication,
+  getHouseApplication,
 };

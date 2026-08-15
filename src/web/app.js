@@ -14,6 +14,8 @@ const {
 const views = require('./views');
 const db = require('../db');
 const reactionRoles = require('../reactionRoles');
+const customCommands = require('../customCommands');
+const commandRegistry = require('../commandRegistry');
 
 // View/Send/History/ManageMessages/ManageChannels/EmbedLinks/AddReactions/Kick/Ban/ManageRoles/ModerateMembers
 const BOT_INVITE_PERMISSIONS = 1099780156502;
@@ -466,6 +468,105 @@ function createApp({ client }) {
       },
     });
     res.redirect('/dashboard/logs?saved=1');
+  });
+
+  app.get('/dashboard/comandos', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    res.send(
+      views.customCommandsPage({
+        user: req.session.user,
+        config,
+        guildName: guildName(req),
+        flash: req.query.saved ? 'Guardado.' : req.query.error || null,
+      }),
+    );
+  });
+
+  app.post('/dashboard/comandos', requireAuth, requireActiveGuild, async (req, res) => {
+    const name = (req.body.name || '').trim().toLowerCase();
+    const description = (req.body.description || '').trim() || 'Comando personalizado';
+    const response = (req.body.response || '').trim();
+    const adminOnly = req.body.adminOnly === 'on';
+    const cooldownSeconds = Math.max(0, Number(req.body.cooldownSeconds) || 0);
+
+    const validationError = customCommands.validateCommandName(name);
+    if (validationError || !response) {
+      return res.redirect(`/dashboard/comandos?error=${encodeURIComponent(validationError || 'La respuesta no puede estar vacía.')}`);
+    }
+
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    const existing = (config.customCommands || []).filter((cmd) => cmd.name !== name);
+    const updatedConfig = await db.updateGuildConfig(req.session.activeGuildId, {
+      customCommands: [...existing, { name, description, response, adminOnly, cooldownSeconds }],
+    });
+
+    const guild = getGuild(req);
+    if (guild) await commandRegistry.registerGuildCommands(guild, updatedConfig);
+
+    res.redirect('/dashboard/comandos?saved=1');
+  });
+
+  app.post('/dashboard/comandos/eliminar', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    const updatedConfig = await db.updateGuildConfig(req.session.activeGuildId, {
+      customCommands: (config.customCommands || []).filter((cmd) => cmd.name !== req.body.name),
+    });
+
+    const guild = getGuild(req);
+    if (guild) await commandRegistry.registerGuildCommands(guild, updatedConfig);
+
+    res.redirect('/dashboard/comandos?saved=1');
+  });
+
+  app.get('/dashboard/houses', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    res.send(
+      views.housesPage({
+        user: req.session.user,
+        config,
+        channels: getTextChannels(req),
+        guildName: guildName(req),
+        flash: req.query.saved ? 'Guardado.' : null,
+      }),
+    );
+  });
+
+  app.post('/dashboard/houses', requireAuth, requireActiveGuild, async (req, res) => {
+    const formFields = (req.body.formFields || '')
+      .split('\n')
+      .map((f) => f.trim())
+      .filter(Boolean)
+      .slice(0, 5);
+
+    await db.updateGuildConfig(req.session.activeGuildId, {
+      houses: {
+        enabled: req.body.enabled === 'on',
+        reviewChannelId: req.body.reviewChannelId || null,
+        formFields,
+        acceptMessage: req.body.acceptMessage || '',
+        rejectMessage: req.body.rejectMessage || '',
+      },
+    });
+    res.redirect('/dashboard/houses?saved=1');
+  });
+
+  app.get('/dashboard/moderacion', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    res.send(
+      views.moderationSettingsPage({
+        user: req.session.user,
+        config,
+        roles: getAssignableRoles(req),
+        guildName: guildName(req),
+        flash: req.query.saved ? 'Guardado.' : null,
+      }),
+    );
+  });
+
+  app.post('/dashboard/moderacion', requireAuth, requireActiveGuild, async (req, res) => {
+    const protectedRoleIds = [].concat(req.body.protectedRoleIds || []);
+    await db.updateGuildConfig(req.session.activeGuildId, { protectedRoleIds });
+    res.redirect('/dashboard/moderacion?saved=1');
   });
 
   return app;
