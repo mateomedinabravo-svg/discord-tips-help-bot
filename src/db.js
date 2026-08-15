@@ -571,6 +571,47 @@ async function updateStarboardPostCount(guildId, originalMessageId, starCount) {
   await database.collection('starboardPosts').updateOne({ guildId, originalMessageId }, { $set: { starCount } });
 }
 
+async function createGiveaway({ guildId, channelId, messageId, prize, winnerCount, hostId, endsAt }) {
+  const database = await connect();
+  await database.collection('giveaways').insertOne({
+    guildId,
+    channelId,
+    messageId,
+    prize,
+    winnerCount,
+    hostId,
+    endsAt,
+    entries: [],
+    ended: false,
+    createdAt: new Date(),
+  });
+}
+
+async function getGiveaway(messageId) {
+  const database = await connect();
+  return database.collection('giveaways').findOne({ messageId });
+}
+
+async function addGiveawayEntry(messageId, userId) {
+  const database = await connect();
+  const giveaway = await database.collection('giveaways').findOne({ messageId });
+  if (!giveaway || giveaway.ended) return null;
+  if (giveaway.entries.includes(userId)) return giveaway;
+
+  await database.collection('giveaways').updateOne({ messageId }, { $addToSet: { entries: userId } });
+  return { ...giveaway, entries: [...giveaway.entries, userId] };
+}
+
+async function getExpiredGiveaways() {
+  const database = await connect();
+  return database.collection('giveaways').find({ ended: false, endsAt: { $lte: new Date() } }).toArray();
+}
+
+async function endGiveaway(messageId, winnerIds) {
+  const database = await connect();
+  await database.collection('giveaways').updateOne({ messageId }, { $set: { ended: true, winnerIds } });
+}
+
 module.exports = {
   connect,
   getGuildConfig,
@@ -614,4 +655,9 @@ module.exports = {
   getStarboardPost,
   createStarboardPost,
   updateStarboardPostCount,
+  createGiveaway,
+  getGiveaway,
+  addGiveawayEntry,
+  getExpiredGiveaways,
+  endGiveaway,
 };

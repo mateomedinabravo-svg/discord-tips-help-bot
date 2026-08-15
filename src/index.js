@@ -23,6 +23,7 @@ const memeCommand = require('./memeCommand');
 const miniEvents = require('./miniEvents');
 const serverGuide = require('./serverGuide');
 const debugCommand = require('./debugCommand');
+const giveawayCommand = require('./giveawayCommand');
 const errorReporter = require('./errorReporter');
 const { isDirectedAtAnotherUser } = require('./messageDirection');
 const db = require('./db');
@@ -36,6 +37,7 @@ if (!TOKEN) {
 }
 
 const CONFIG_REFRESH_MS = 60 * 1000;
+const GIVEAWAY_CHECK_MS = 30 * 1000;
 const WHITELIST = (process.env.TIPS_CHANNEL_WHITELIST || '')
   .split(',')
   .map((id) => id.trim())
@@ -207,6 +209,12 @@ client.once('ready', async () => {
   }
 
   setInterval(refreshAllConfigs, CONFIG_REFRESH_MS);
+  setInterval(() => {
+    giveawayCommand.checkExpiredGiveaways(client).catch((err) => {
+      console.error('Error revisando sorteos vencidos:', err);
+      errorReporter.reportError(client, null, 'giveawayCommand.checkExpiredGiveaways', err);
+    });
+  }, GIVEAWAY_CHECK_MS);
 
   const webApp = createApp({ client });
   webApp.listen(process.env.PORT || 3000, () => {
@@ -437,6 +445,9 @@ async function handleInteraction(interaction) {
       case 'debug':
         await debugCommand.handleDebugCommand(interaction);
         break;
+      case 'sorteo':
+        await giveawayCommand.handleGiveawayCommand(interaction);
+        break;
       default: {
         const custom = config ? customCommands.findCustomCommand(config, interaction.commandName) : null;
         if (custom) await customCommands.handleCustomCommand(interaction, config, custom);
@@ -491,6 +502,11 @@ async function handleInteraction(interaction) {
 
     if (interaction.customId.startsWith('marry-accept:') || interaction.customId.startsWith('marry-reject:')) {
       await marriageCommands.handleMarriageButton(interaction);
+      return;
+    }
+
+    if (interaction.customId.startsWith(giveawayCommand.ENTER_BUTTON_PREFIX)) {
+      await giveawayCommand.handleEnterButton(interaction);
       return;
     }
 

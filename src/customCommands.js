@@ -20,6 +20,7 @@ const RESERVED_NAMES = [
   'trivia',
   'meme',
   'debug',
+  'sorteo',
 ];
 const NAME_PATTERN = /^[a-z0-9_-]{1,32}$/;
 
