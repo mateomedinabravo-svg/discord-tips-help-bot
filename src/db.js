@@ -22,8 +22,19 @@ function defaultConfig(guildId) {
     tipsIntervalMinutes: 20,
     tips: defaultTips,
     helpResponses: defaultHelpData,
-    welcome: { enabled: false, channelId: null, message: '👋 ¡Bienvenido/a {user} al server!' },
-    goodbye: { enabled: false, channelId: null, message: '👋 {user} se fue del server.' },
+    welcome: {
+      enabled: false,
+      channelId: null,
+      message: '👋 ¡Bienvenido/a {user} al server! Ya somos {membercount} en {server}.',
+      roleId: null,
+      useEmbed: false,
+    },
+    goodbye: {
+      enabled: false,
+      channelId: null,
+      message: '👋 {username} se fue de {server}.',
+      useEmbed: false,
+    },
     automod: {
       enabled: false,
       bannedWords: [],
@@ -139,8 +150,13 @@ function defaultConfig(guildId) {
       sections: [
         { id: 'canales', label: 'Uso de canales', emoji: '✅', content: 'Contame para qué sirve cada canal de tu server.' },
         { id: 'comandos', label: 'Comandos', emoji: '🤖', content: 'Lista los comandos más importantes del bot acá.' },
+        { id: 'publicar', label: 'Publicar y promocionar', emoji: '📢', content: 'Contame dónde y cómo se puede publicar o promocionar contenido en tu server.' },
         { id: 'staff', label: 'Staff', emoji: '🔴', content: 'Contame quién es el staff y cómo contactarlo.' },
       ],
+    },
+    debug: {
+      enabled: false,
+      errorChannelId: null,
     },
     updatedAt: new Date(),
   };
@@ -189,6 +205,9 @@ async function getGuildConfig(guildId) {
   config.miniEvents = { ...defaults.miniEvents, ...(config.miniEvents || {}) };
   config.ai = { ...defaults.ai, ...(config.ai || {}) };
   config.serverGuide = { ...defaults.serverGuide, ...(config.serverGuide || {}) };
+  config.welcome = { ...defaults.welcome, ...(config.welcome || {}) };
+  config.goodbye = { ...defaults.goodbye, ...(config.goodbye || {}) };
+  config.debug = { ...defaults.debug, ...(config.debug || {}) };
 
   return config;
 }

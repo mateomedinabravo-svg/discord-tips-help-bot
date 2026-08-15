@@ -186,16 +186,18 @@ function generalPage({ user, config, guildName, flash }) {
   return layout({ title: 'General', user, body, flash, guildName });
 }
 
-function welcomePage({ user, config, channels, guildName, flash }) {
+function welcomePage({ user, config, channels, roles, guildName, flash }) {
   const channelOptions = (selected) =>
     channels.map((c) => `<option value="${c.id}" ${c.id === selected ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`).join('');
+  const roleOptions = (selected) =>
+    (roles || []).map((r) => `<option value="${r.id}" ${r.id === selected ? 'selected' : ''}>${escapeHtml(r.name)}</option>`).join('');
 
   const welcomeMismatch = config.welcome.enabled && !config.welcome.channelId;
   const goodbyeMismatch = config.goodbye.enabled && !config.goodbye.channelId;
 
   const body = `
   <h1>Bienvenida y despedida</h1>
-  <p class="muted">Usá <code>{user}</code> en el mensaje para mencionar al usuario.</p>
+  <p class="muted">Variables disponibles: <code>{user}</code> (menciona al usuario), <code>{username}</code>, <code>{server}</code>, <code>{membercount}</code>.</p>
 
   <form class="card" method="post" action="/dashboard/bienvenida/welcome">
     <h2>Mensaje de bienvenida</h2>
@@ -206,6 +208,10 @@ function welcomePage({ user, config, channels, guildName, flash }) {
     <select name="channelId"><option value="">-- elegir --</option>${channelOptions(config.welcome.channelId)}</select>
     <label>Mensaje</label>
     <textarea name="message">${escapeHtml(config.welcome.message)}</textarea>
+    <div class="checkbox-row"><input type="checkbox" name="useEmbed" id="w-embed" ${config.welcome.useEmbed ? 'checked' : ''}>
+      <label for="w-embed" style="margin:0;">Mandar como embed (con foto de perfil del usuario)</label></div>
+    <label>Rol automático al unirse (opcional)</label>
+    <select name="roleId"><option value="">-- ninguno --</option>${roleOptions(config.welcome.roleId)}</select>
     <button type="submit">Guardar bienvenida</button>
   </form>
 
@@ -218,6 +224,8 @@ function welcomePage({ user, config, channels, guildName, flash }) {
     <select name="channelId"><option value="">-- elegir --</option>${channelOptions(config.goodbye.channelId)}</select>
     <label>Mensaje</label>
     <textarea name="message">${escapeHtml(config.goodbye.message)}</textarea>
+    <div class="checkbox-row"><input type="checkbox" name="useEmbed" id="g-embed" ${config.goodbye.useEmbed ? 'checked' : ''}>
+      <label for="g-embed" style="margin:0;">Mandar como embed (con foto de perfil del usuario)</label></div>
     <button type="submit">Guardar despedida</button>
   </form>`;
   return layout({ title: 'Bienvenida / Despedida', user, body, flash, guildName });

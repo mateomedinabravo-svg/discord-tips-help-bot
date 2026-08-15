@@ -228,6 +228,7 @@ function createApp({ client }) {
         user: req.session.user,
         config,
         channels: getTextChannels(req),
+        roles: getAssignableRoles(req),
         guildName: guildName(req),
         flash: req.query.saved ? 'Guardado.' : null,
       }),
@@ -241,6 +242,8 @@ function createApp({ client }) {
         enabled: req.body.enabled === 'on',
         channelId: req.body.channelId || null,
         message: req.body.message || config.welcome.message,
+        useEmbed: req.body.useEmbed === 'on',
+        roleId: req.body.roleId || null,
       },
     });
     res.redirect('/dashboard/bienvenida?saved=1');
@@ -253,6 +256,7 @@ function createApp({ client }) {
         enabled: req.body.enabled === 'on',
         channelId: req.body.channelId || null,
         message: req.body.message || config.goodbye.message,
+        useEmbed: req.body.useEmbed === 'on',
       },
     });
     res.redirect('/dashboard/bienvenida?saved=1');

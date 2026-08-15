@@ -1,6 +1,7 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, Partials, ChannelType } = require('discord.js');
 const { ActivityTracker } = require('./activityTracker');
+const { buildEmbed } = require('./embedStyle');
 const { buildResponder, NEEDS_FALLBACK } = require('./helpResponder');
 const aiHelper = require('./aiHelper');
 const announceCommand = require('./announceCommand');
@@ -79,7 +80,11 @@ async function refreshAllConfigs() {
 }
 
 function formatTemplate(template, member) {
-  return template.replace(/\{user\}/g, `<@${member.id}>`);
+  return template
+    .replace(/\{user\}/g, `<@${member.id}>`)
+    .replace(/\{username\}/g, member.user.username)
+    .replace(/\{server\}/g, member.guild.name)
+    .replace(/\{membercount\}/g, String(member.guild.memberCount));
 }
 
 function startTipLoop(guildId) {
@@ -298,12 +303,26 @@ client.on('guildMemberAdd', async (member) => {
   await logging.logMemberJoin(client, config, member);
 
   const welcome = config?.welcome;
+  if (welcome?.roleId) {
+    try {
+      await member.roles.add(welcome.roleId);
+    } catch (err) {
+      console.error('No se pudo asignar el autorole:', err);
+    }
+  }
+
   if (!welcome || !welcome.enabled || !welcome.channelId) return;
 
   try {
     const channel = await client.channels.fetch(welcome.channelId);
     if (channel && channel.isTextBased()) {
-      await channel.send(formatTemplate(welcome.message, member));
+      const text = formatTemplate(welcome.message, member);
+      if (welcome.useEmbed) {
+        const embed = buildEmbed({ type: 'success', title: '👋 ¡Nuevo miembro!', description: text, thumbnail: member.user.displayAvatarURL() });
+        await channel.send({ embeds: [embed] });
+      } else {
+        await channel.send(text);
+      }
     }
   } catch (err) {
     console.error('No se pudo mandar el mensaje de bienvenida:', err);
@@ -320,7 +339,13 @@ client.on('guildMemberRemove', async (member) => {
   try {
     const channel = await client.channels.fetch(goodbye.channelId);
     if (channel && channel.isTextBased()) {
-      await channel.send(formatTemplate(goodbye.message, member));
+      const text = formatTemplate(goodbye.message, member);
+      if (goodbye.useEmbed) {
+        const embed = buildEmbed({ type: 'warning', title: '👋 Se fue un miembro', description: text, thumbnail: member.user.displayAvatarURL() });
+        await channel.send({ embeds: [embed] });
+      } else {
+        await channel.send(text);
+      }
     }
   } catch (err) {
     console.error('No se pudo mandar el mensaje de despedida:', err);
