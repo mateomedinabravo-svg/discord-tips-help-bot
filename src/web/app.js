@@ -992,11 +992,18 @@ function createApp({ client }) {
   });
 
   app.post('/dashboard/comandos', requireAuth, requireActiveGuild, async (req, res) => {
-    const name = (req.body.name || '').trim().toLowerCase();
+    // se normaliza el nombre en vez de rechazar el formato (minusculas, tildes
+    // sacadas, espacios/simbolos convertidos a "-"): asi cualquier texto que
+    // escriba el admin termina en un nombre valido en vez de mostrar un error
+    const name = slugify(req.body.name).slice(0, 32);
     const description = (req.body.description || '').trim() || 'Comando personalizado';
     const response = (req.body.response || '').trim();
     const adminOnly = req.body.adminOnly === 'on';
     const cooldownSeconds = Math.max(0, Number(req.body.cooldownSeconds) || 0);
+
+    if (!name) {
+      return res.redirect(`/dashboard/comandos?error=${encodeURIComponent('Ponele un nombre al comando.')}`);
+    }
 
     const validationError = customCommands.validateCommandName(name);
     if (validationError || !response) {

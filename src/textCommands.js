@@ -35,6 +35,7 @@ const moderationCommands = require('./moderationCommands');
 const announceCommand = require('./announceCommand');
 const pollCommand = require('./pollCommand');
 const housesCommand = require('./housesCommand');
+const customCommands = require('./customCommands');
 const { buildEmbed } = require('./embedStyle');
 
 class TextCommandError extends Error {}
@@ -261,6 +262,7 @@ function buildTextInteraction(message, { subcommand, args, restStringOptions, ch
     user: message.author,
     guild: message.guild,
     member: message.member,
+    memberPermissions: message.member?.permissions,
     channel: message.channel,
     client: message.client,
     options: {
@@ -459,7 +461,17 @@ async function handleTextCommand(message, config) {
 
   const restWordTokens = rest.length ? rest.split(/\s+/) : [];
   const resolved = resolveCommand(commandName, restWordTokens);
-  if (!resolved) return false;
+  if (!resolved) {
+    // ningun comando propio del bot coincide: se prueba contra los comandos
+    // personalizados que haya creado el server (siempre despues de los del
+    // bot, para que un custom nunca pueda tapar a uno ya existente)
+    const custom = customCommands.findCustomCommand(config, commandName);
+    if (!custom) return false;
+
+    const interaction = buildTextInteraction(message, { subcommand: null, args: [], restStringOptions: new Set(), choices: {} });
+    await customCommands.handleCustomCommand(interaction, config, custom);
+    return true;
+  }
 
   if (!resolved.subcommand && GROUPED_COMMANDS[commandName]) {
     // grupo reconocido pero sin subaccion valida ni default (ej "!sorteo" solo)

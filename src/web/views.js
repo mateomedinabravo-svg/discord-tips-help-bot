@@ -788,8 +788,8 @@ function customCommandsPage({ user, config, guildName, flash }) {
 
   <form class="card" method="post" action="/dashboard/comandos">
     <h2>Crear comando</h2>
-    <label>Nombre (sin "/", minúsculas, sin espacios)</label>
-    <input type="text" name="name" required maxlength="32" pattern="[a-z0-9_-]+">
+    <label>Nombre (se ajusta automáticamente a minúsculas y sin espacios)</label>
+    <input type="text" name="name" required maxlength="32">
     <label>Descripción (se ve en el autocompletado de Discord)</label>
     <input type="text" name="description" maxlength="100">
     <label>Respuesta (podés usar <code>{user}</code>)</label>
