@@ -234,7 +234,7 @@ function createApp({ client }) {
             .send(views.loginPage({ authorizeUrl: '/login', error: 'Ocurrió un error al iniciar sesión, probá de nuevo.' }));
         }
 
-        req.session.user = { id: discordUser.id, username: discordUser.username };
+        req.session.user = { id: discordUser.id, username: discordUser.username, avatar: discordUser.avatar || null };
         req.session.accessToken = token.access_token;
         req.session.manageableGuilds = manageableGuilds;
         res.redirect('/servers');
@@ -295,6 +295,11 @@ function createApp({ client }) {
 
   app.get('/dashboard', requireAuth, requireActiveGuild, async (req, res) => {
     const config = await db.getGuildConfig(req.session.activeGuildId);
+    res.send(views.dashboardHomePage({ user: req.session.user, config, guildName: guildName(req) }));
+  });
+
+  app.get('/dashboard/general', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
     res.send(
       views.generalPage({ user: req.session.user, config, guildName: guildName(req), flash: req.query.saved ? 'Guardado.' : null }),
     );
@@ -305,7 +310,7 @@ function createApp({ client }) {
       language: req.body.language === 'en' ? 'en' : 'es',
       tipsIntervalMinutes: Math.max(1, Number(req.body.tipsIntervalMinutes) || 20),
     });
-    res.redirect('/dashboard?saved=1');
+    res.redirect('/dashboard/general?saved=1');
   });
 
   app.get('/dashboard/bienvenida', requireAuth, requireActiveGuild, async (req, res) => {

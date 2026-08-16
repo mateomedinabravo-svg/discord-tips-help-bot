@@ -8,79 +8,101 @@ function escapeHtml(value) {
   }[ch]));
 }
 
+// enabledPath: ruta punteada dentro de config para saber si esa funcion esta
+// activada (se usa en la tarjeta de la pantalla de inicio). Se omite cuando
+// la pagina no tiene un unico interruptor "activado/desactivado" claro
 const NAV_GROUPS = [
   {
     label: 'General',
     icon: '🏠',
     links: [
-      { href: '/dashboard', label: 'General' },
-      { href: '/dashboard/estadisticas', label: 'Estadísticas' },
-      { href: '/dashboard/contador', label: 'Contador de miembros' },
-      { href: '/dashboard/debug', label: 'Estado / Debug' },
+      { href: '/dashboard/general', label: 'General', icon: '⚙️' },
+      { href: '/dashboard/estadisticas', label: 'Estadísticas', icon: '📊' },
+      { href: '/dashboard/contador', label: 'Contador de miembros', icon: '🔢', enabledPath: 'memberCounter.enabled' },
+      { href: '/dashboard/debug', label: 'Estado / Debug', icon: '🩺', enabledPath: 'debug.enabled' },
     ],
   },
   {
     label: 'Comunidad',
     icon: '💬',
     links: [
-      { href: '/dashboard/bienvenida', label: 'Bienvenida/Despedida' },
-      { href: '/dashboard/mensajes', label: 'Tips y ayuda' },
-      { href: '/dashboard/anuncio', label: 'Anuncios' },
-      { href: '/dashboard/houses', label: 'Houses' },
-      { href: '/dashboard/starboard', label: 'Starboard' },
-      { href: '/dashboard/sugerencias', label: 'Sugerencias' },
-      { href: '/dashboard/cumpleanos', label: 'Cumpleaños' },
-      { href: '/dashboard/invitaciones', label: 'Invite Tracker' },
+      { href: '/dashboard/bienvenida', label: 'Bienvenida/Despedida', icon: '👋', enabledPath: 'welcome.enabled' },
+      { href: '/dashboard/mensajes', label: 'Tips y ayuda', icon: '💡' },
+      { href: '/dashboard/anuncio', label: 'Anuncios', icon: '📢' },
+      { href: '/dashboard/houses', label: 'Houses', icon: '🏰', enabledPath: 'houses.enabled' },
+      { href: '/dashboard/starboard', label: 'Starboard', icon: '⭐', enabledPath: 'starboard.enabled' },
+      { href: '/dashboard/sugerencias', label: 'Sugerencias', icon: '📝', enabledPath: 'suggestions.enabled' },
+      { href: '/dashboard/cumpleanos', label: 'Cumpleaños', icon: '🎂', enabledPath: 'birthdays.enabled' },
+      { href: '/dashboard/invitaciones', label: 'Invite Tracker', icon: '🔗', enabledPath: 'inviteTracker.enabled' },
     ],
   },
   {
     label: 'Moderación',
     icon: '🛡️',
     links: [
-      { href: '/dashboard/automoderacion', label: 'Automoderación' },
-      { href: '/dashboard/logs', label: 'Logs' },
-      { href: '/dashboard/moderacion', label: 'Roles protegidos' },
+      { href: '/dashboard/automoderacion', label: 'Automoderación', icon: '🚫', enabledPath: 'automod.enabled' },
+      { href: '/dashboard/logs', label: 'Logs', icon: '📜', enabledPath: 'logging.enabled' },
+      { href: '/dashboard/moderacion', label: 'Roles protegidos', icon: '🛡️' },
     ],
   },
   {
     label: 'Tickets',
     icon: '🎫',
     links: [
-      { href: '/dashboard/tickets', label: 'Tickets' },
-      { href: '/dashboard/tickets/config', label: 'Configurar' },
+      { href: '/dashboard/tickets', label: 'Tickets', icon: '🎫' },
+      { href: '/dashboard/tickets/config', label: 'Configurar', icon: '🔧' },
     ],
   },
   {
     label: 'Progresión',
     icon: '📈',
     links: [
-      { href: '/dashboard/niveles', label: 'Niveles' },
-      { href: '/dashboard/roles-reaccion', label: 'Roles por reacción' },
-      { href: '/dashboard/roles-menu', label: 'Roles por menú' },
+      { href: '/dashboard/niveles', label: 'Niveles', icon: '🏆', enabledPath: 'leveling.enabled' },
+      { href: '/dashboard/roles-reaccion', label: 'Roles por reacción', icon: '🎭' },
+      { href: '/dashboard/roles-menu', label: 'Roles por menú', icon: '📋' },
     ],
   },
   {
     label: 'Economía y juegos',
     icon: '🎮',
     links: [
-      { href: '/dashboard/economia', label: 'Economía' },
-      { href: '/dashboard/casino', label: 'Casino' },
-      { href: '/dashboard/mascotas', label: 'Mascotas' },
-      { href: '/dashboard/trivia', label: 'Trivia' },
-      { href: '/dashboard/eventos', label: 'Eventos' },
+      { href: '/dashboard/economia', label: 'Economía', icon: '💰', enabledPath: 'economy.enabled' },
+      { href: '/dashboard/casino', label: 'Casino', icon: '🎰', enabledPath: 'casino.enabled' },
+      { href: '/dashboard/mascotas', label: 'Mascotas', icon: '🐾', enabledPath: 'pets.enabled' },
+      { href: '/dashboard/trivia', label: 'Trivia', icon: '🧠', enabledPath: 'trivia.enabled' },
+      { href: '/dashboard/eventos', label: 'Eventos', icon: '🎉', enabledPath: 'miniEvents.enabled' },
     ],
   },
   {
     label: 'A medida',
     icon: '🎨',
     links: [
-      { href: '/dashboard/comandos', label: 'Comandos' },
-      { href: '/dashboard/ia', label: 'IA' },
-      { href: '/dashboard/guia', label: 'Guía' },
-      { href: '/dashboard/apariencia', label: 'Apariencia' },
+      { href: '/dashboard/comandos', label: 'Comandos', icon: '⌨️', enabledPath: 'textCommands.enabled' },
+      { href: '/dashboard/ia', label: 'IA', icon: '🤖', enabledPath: 'ai.enabled' },
+      { href: '/dashboard/guia', label: 'Guía', icon: '📖', enabledPath: 'serverGuide.enabled' },
+      { href: '/dashboard/apariencia', label: 'Apariencia', icon: '🎨' },
     ],
   },
 ];
+
+function getConfigValue(config, path) {
+  return path.split('.').reduce((obj, key) => (obj == null ? obj : obj[key]), config);
+}
+
+function discordAvatarUrl(user) {
+  if (!user) return null;
+  if (user.avatar) {
+    const ext = user.avatar.startsWith('a_') ? 'gif' : 'png';
+    return `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.${ext}?size=64`;
+  }
+  // avatar por defecto de discord (sistema nuevo sin discriminador, basado en el ID)
+  try {
+    const index = Number((BigInt(user.id) >> 22n) % 6n);
+    return `https://cdn.discordapp.com/embed/avatars/${index}.png`;
+  } catch {
+    return 'https://cdn.discordapp.com/embed/avatars/0.png';
+  }
+}
 
 // motor de sonido: tonos generados con Web Audio API (sin archivos externos).
 // Se guarda la preferencia de silencio en localStorage. Nada de esto es
@@ -167,6 +189,29 @@ const APP_SCRIPT = `
     });
   }
 
+  var userMenuBtn = document.getElementById('user-menu-btn');
+  var userMenu = document.getElementById('user-menu');
+  if (userMenuBtn && userMenu) {
+    function closeUserMenu() {
+      userMenu.hidden = true;
+      userMenuBtn.setAttribute('aria-expanded', 'false');
+    }
+    userMenuBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var isOpen = !userMenu.hidden;
+      if (isOpen) { closeUserMenu(); } else {
+        userMenu.hidden = false;
+        userMenuBtn.setAttribute('aria-expanded', 'true');
+      }
+    });
+    document.addEventListener('click', function (e) {
+      if (!userMenu.hidden && !userMenu.contains(e.target) && e.target !== userMenuBtn) closeUserMenu();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') closeUserMenu();
+    });
+  }
+
   function isInternalLink(a) {
     if (!a || a.target === '_blank' || a.hasAttribute('download')) return false;
     var href = a.getAttribute('href');
@@ -247,17 +292,58 @@ function layout({ title, user, body, flash, guildName }) {
   }
   header a.brand { color: #fff; font-weight: 700; text-decoration: none; font-size: 18px; display: flex; align-items: center; gap: 8px; transition: opacity 0.15s; }
   header a.brand:hover { opacity: 0.8; }
-  header .user { display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--text-muted); }
-  header .user a { color: #f2b8b5; text-decoration: none; transition: color 0.15s; }
-  header .user a:hover { color: #ff9a96; }
-  header .guild-badge { color: var(--text-muted); }
-  header .guild-badge a { color: var(--text); }
+  header .user { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text-muted); }
   #sound-toggle {
     background: none; border: 1px solid var(--border); color: var(--text-muted); margin: 0; padding: 5px 9px;
     border-radius: 8px; cursor: pointer; font-size: 14px; line-height: 1; transition: transform 0.15s, border-color 0.15s, color 0.15s;
   }
   #sound-toggle:hover { border-color: var(--brand); color: var(--text); transform: scale(1.08); }
   #sound-toggle:active { transform: scale(0.94); }
+  .avatar { border-radius: 50%; display: block; background: var(--bg-sunken); }
+  .user-menu-wrap { position: relative; }
+  .user-menu-btn {
+    display: flex; align-items: center; gap: 8px; background: none; border: 1px solid transparent; color: var(--text);
+    padding: 4px 8px 4px 4px; margin: 0; border-radius: 20px; font-size: 14px; font-family: inherit; font-weight: 400;
+    cursor: pointer; box-shadow: none; transition: background 0.15s, border-color 0.15s;
+  }
+  .user-menu-btn:hover { background: var(--bg-raised); border-color: var(--border); transform: none; box-shadow: none; }
+  .user-menu-btn .chevron { color: var(--text-muted); font-size: 11px; transition: transform 0.15s; }
+  .user-menu-btn[aria-expanded="true"] .chevron { transform: rotate(180deg); }
+  .user-menu {
+    position: absolute; right: 0; top: calc(100% + 8px); background: var(--bg-raised); border: 1px solid var(--border);
+    border-radius: 10px; padding: 6px; min-width: 190px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    display: flex; flex-direction: column; gap: 1px; animation: fadeInUp 140ms ease both; z-index: 20;
+  }
+  .user-menu a {
+    display: block; padding: 8px 10px; border-radius: 6px; font-size: 13.5px; text-decoration: none; color: var(--text);
+    transition: background 0.15s;
+  }
+  .user-menu a:hover { background: var(--bg-raised-hover); }
+  .user-menu a.danger { color: #f2a0a0; }
+  .server-switcher {
+    display: flex; align-items: center; gap: 10px; text-decoration: none; padding: 10px; margin: 2px 0 14px;
+    background: var(--bg-raised); border: 1px solid var(--border); border-radius: 10px; transition: border-color 0.15s, transform 0.15s;
+  }
+  .server-switcher:hover { border-color: var(--brand); transform: translateY(-1px); }
+  .server-switcher-icon { font-size: 18px; line-height: 1; }
+  .server-switcher-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .server-switcher-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+  .server-switcher-name { font-size: 13.5px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .server-switcher .chevron { color: var(--text-muted); font-size: 11px; }
+  .nav-icon { display: inline-block; width: 20px; text-align: center; margin-right: 2px; }
+  .module-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
+  .module-card {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 8px; text-decoration: none;
+    background: var(--bg-raised); border: 1px solid var(--border); border-radius: 14px; padding: 18px;
+    transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+  }
+  .module-card:hover { border-color: var(--brand); transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25); }
+  .module-card:active { transform: translateY(-1px) scale(0.98); }
+  .module-icon {
+    font-size: 22px; line-height: 1; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+    background: var(--bg-sunken); border-radius: 10px; border: 1px solid var(--border);
+  }
+  .module-name { font-weight: 600; font-size: 14.5px; color: #fff; }
   .app-layout { display: flex; align-items: flex-start; }
   .server-list { display: flex; flex-direction: column; gap: 10px; }
   .server-row {
@@ -371,18 +457,39 @@ ${
     ? `<header>
   <a class="brand" href="/dashboard">🤖 Panel del bot</a>
   <div class="user">
-    ${guildName ? `<span class="guild-badge">${escapeHtml(guildName)} · <a href="/servers">cambiar de server</a> ·</span>` : ''}
-    ${escapeHtml(user.username)} · <a href="/logout">salir</a>
     <button id="sound-toggle" type="button">🔊</button>
+    <div class="user-menu-wrap">
+      <button id="user-menu-btn" type="button" class="user-menu-btn" aria-expanded="false" aria-haspopup="true">
+        <img class="avatar" src="${discordAvatarUrl(user)}" alt="" width="28" height="28">
+        <span>${escapeHtml(user.username)}</span>
+        <span class="chevron">▾</span>
+      </button>
+      <div id="user-menu" class="user-menu" hidden>
+        ${guildName ? `<a href="/servers">🔀 Cambiar de servidor</a>` : ''}
+        <a href="/logout" class="danger">🚪 Salir</a>
+      </div>
+    </div>
   </div>
 </header>
 <div class="app-layout">
 <nav class="sidebar">
+${
+  guildName
+    ? `  <a class="server-switcher" href="/servers">
+    <span class="server-switcher-icon">🖥️</span>
+    <span class="server-switcher-info">
+      <span class="server-switcher-label">Servidor</span>
+      <span class="server-switcher-name">${escapeHtml(guildName)}</span>
+    </span>
+    <span class="chevron">▾</span>
+  </a>`
+    : ''
+}
 ${NAV_GROUPS.map(
   (group) => `  <div class="nav-group">
     <div class="nav-group-label">${group.icon} ${group.label}</div>
     <div class="nav-group-links">
-${group.links.map((link) => `      <a href="${link.href}">${escapeHtml(link.label)}</a>`).join('\n')}
+${group.links.map((link) => `      <a href="${link.href}">${link.icon ? `<span class="nav-icon">${link.icon}</span>` : ''}${escapeHtml(link.label)}</a>`).join('\n')}
     </div>
   </div>`,
 ).join('\n')}
@@ -552,6 +659,30 @@ function privacyPage() {
     <p>Para cualquier consulta sobre privacidad, escribinos a <a href="mailto:mateo.bravo.medina@gmail.com">mateo.bravo.medina@gmail.com</a>.</p>
   </div>`;
   return layout({ title: 'Política de Privacidad', user: null, body });
+}
+
+// pantalla de inicio del dashboard: grilla de tarjetas, una por funcion del
+// bot (se arma reusando NAV_GROUPS para no duplicar la lista de paginas)
+function dashboardHomePage({ user, config, guildName }) {
+  const modules = NAV_GROUPS.flatMap((group) => group.links);
+
+  const cards = modules
+    .map((m) => {
+      const enabled = m.enabledPath ? getConfigValue(config, m.enabledPath) : null;
+      const badge = m.enabledPath ? `<span class="pill ${enabled ? 'open' : 'closed'}">${enabled ? 'Activado' : 'Desactivado'}</span>` : '';
+      return `<a class="module-card" href="${m.href}">
+        <span class="module-icon">${m.icon || '🔹'}</span>
+        <span class="module-name">${escapeHtml(m.label)}</span>
+        ${badge}
+      </a>`;
+    })
+    .join('');
+
+  const body = `
+  <h1>Hola${user?.username ? `, ${escapeHtml(user.username)}` : ''} 👋</h1>
+  <p class="muted">Elegí qué querés configurar en ${guildName ? `<strong>${escapeHtml(guildName)}</strong>` : 'tu servidor'}.</p>
+  <div class="module-grid">${cards}</div>`;
+  return layout({ title: 'Panel', user, body, guildName });
 }
 
 function generalPage({ user, config, guildName, flash }) {
@@ -1863,6 +1994,7 @@ module.exports = {
   loginPage,
   termsPage,
   privacyPage,
+  dashboardHomePage,
   generalPage,
   welcomePage,
   automodPage,
