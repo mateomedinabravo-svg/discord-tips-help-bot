@@ -109,7 +109,7 @@ const FLAT_COMMANDS = {
     module: 'decir',
     permission: PermissionFlagsBits.ManageGuild,
     restStringOptions: ['mensaje'],
-    usage: '!decir [#canal] <mensaje>',
+    usage: '!decir [#canal] <mensaje> (podés adjuntar una imagen al mensaje)',
     category: CAT.STAFF,
   },
   anuncio: {
@@ -274,6 +274,7 @@ function buildTextInteraction(message, { subcommand, args, restStringOptions, ch
         return user || null;
       },
       getChannel: (name) => message.mentions.channels.first() || null,
+      getAttachment: (name) => message.attachments.first() || null,
       getInteger: (name, required) => {
         const raw = args.shift();
         if (raw === undefined || raw === '') {

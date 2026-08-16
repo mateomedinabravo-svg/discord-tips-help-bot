@@ -6,14 +6,21 @@ const decirDefinition = new SlashCommandBuilder()
   .setName('decir')
   .setDescription('El bot manda un mensaje como si fuera él (solo staff)')
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-  .addStringOption((opt) => opt.setName('mensaje').setDescription('Qué decir').setRequired(true))
+  .addStringOption((opt) => opt.setName('mensaje').setDescription('Qué decir (opcional si adjuntás una imagen)'))
+  .addAttachmentOption((opt) => opt.setName('imagen').setDescription('Imagen o archivo para adjuntar (opcional)'))
   .addChannelOption((opt) =>
     opt.setName('canal').setDescription('Canal (default: este canal)').addChannelTypes(ChannelType.GuildText),
   );
 
 async function handleDecirCommand(interaction) {
-  const message = interaction.options.getString('mensaje', true);
+  const message = interaction.options.getString('mensaje');
+  const attachment = interaction.options.getAttachment('imagen');
   const channel = interaction.options.getChannel('canal') || interaction.channel;
+
+  if (!message && !attachment) {
+    await interaction.reply({ content: '⚠️ Escribí un mensaje, adjuntá una imagen, o los dos.', ephemeral: true });
+    return;
+  }
 
   if (!channel.isTextBased()) {
     await interaction.reply({ content: '⚠️ Ese canal no admite mensajes de texto.', ephemeral: true });
@@ -21,7 +28,7 @@ async function handleDecirCommand(interaction) {
   }
 
   try {
-    await channel.send(message);
+    await channel.send({ content: message || undefined, files: attachment ? [attachment.url] : [] });
     await interaction.reply({ content: `✅ Mensaje enviado en ${channel}.`, ephemeral: true });
   } catch (err) {
     await interaction.reply({ content: `❌ No pude mandar el mensaje: ${err.message}`, ephemeral: true });

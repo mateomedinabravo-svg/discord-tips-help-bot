@@ -57,8 +57,9 @@ async function askAI(apiKey, systemPrompt, userPrompt, { maxTokens = 200, temper
 
 // arma el bloque de "conocimiento del server" que comparten los dos prompts:
 // temas de ayuda cargados, secciones de la guia del server (si esta
-// habilitada) y quien es quien (nombre del bot, nombre de quien escribe)
-function buildKnowledgeBlock(config, { botName, userName }) {
+// habilitada), roles y canales reales del server, y quien es quien (nombre
+// del bot, nombre de quien escribe)
+function buildKnowledgeBlock(config, { botName, userName, roleNames, channelNames }) {
   const topicsSummary = (config.helpResponses?.topics || []).map((t) => `- ${t.name}: ${t.response}`).join('\n');
 
   const guideSummary = config.serverGuide?.enabled
@@ -68,6 +69,8 @@ function buildKnowledgeBlock(config, { botName, userName }) {
   const whoIsWho = `Te llamás "${botName || 'el bot'}". ${userName ? `Quien te escribe se llama "${userName}"; podés usar su nombre si suena natural.` : ''}`;
 
   return `${whoIsWho}
+${channelNames ? `\nCanales del server: ${channelNames}` : ''}
+${roleNames ? `\nRoles del server: ${roleNames}` : ''}
 
 Temas de ayuda conocidos del server:
 ${topicsSummary || '(sin temas cargados)'}
@@ -79,22 +82,23 @@ ${guideSummary ? `\nGuía del server:\n${guideSummary}` : ''}`;
 // mensaje como si fuera la primera vez que le hablan
 function buildRecentContextBlock(recentMessages) {
   if (!recentMessages) return '';
-  return `\nAsí venía la conversación en el canal (es solo contexto, no hace falta repetirla ni responderla de nuevo):\n${recentMessages}`;
+  return `\nAsí venía la conversación en el canal (es solo contexto, no hace falta repetirla ni responderla de nuevo):\n${recentMessages}\n\nComo ya venías hablando en este canal, NO saludes de nuevo ("Hola", "¡Hola de nuevo!", etc.) ni te vuelvas a presentar: segui la conversación de forma natural, directo a lo que te preguntan.`;
 }
 
 async function answerHelpQuestion(client, config, question, context = {}) {
   const apiKey = resolveApiKey(config);
   if (!apiKey) return null;
 
-  const { serverName, botName, userName, recentMessages } = context;
+  const { serverName, botName, userName, recentMessages, roleNames, channelNames } = context;
   const systemPrompt = `Sos el bot de ayuda del server de Discord "${serverName || 'este server'}". Respondés en español neutro (evitá modismos muy regionales de un solo país, para que se entienda en cualquier país hispanohablante).
 
-${buildKnowledgeBlock(config, { botName, userName })}
+${buildKnowledgeBlock(config, { botName, userName, roleNames, channelNames })}
 ${buildRecentContextBlock(recentMessages)}
 
 Reglas:
-- Solo sabés lo que está en la lista de temas y la guía de arriba. Nunca inventes canales, reglas o datos que no están ahí.
+- Solo sabés lo que está en la lista de temas, la guía, los canales y los roles de arriba. Nunca inventes canales, roles, reglas o datos que no están ahí.
 - Respondé siempre en español, corto (1-3 oraciones), tono amigable.
+- Saludá ("Hola", etc.) solo si es la primera vez que te hablan en la conversación. Si ya venías charlando, no vuelvas a saludar ni a presentarte: respondé directo a lo que te preguntan.
 - Si la pregunta se relaciona con algún tema de la lista, respondé basándote en eso.
 - Si no tenés información para responder con seguridad, decí que no estás seguro y sugerí preguntar en el canal de ayuda o a un moderador.`;
 
@@ -120,14 +124,15 @@ async function chatReply(client, config, message, context = {}) {
   const apiKey = resolveApiKey(config);
   if (!apiKey) return null;
 
-  const { serverName, botName, userName, recentMessages } = context;
+  const { serverName, botName, userName, recentMessages, roleNames, channelNames } = context;
   const systemPrompt = `Sos un bot de Discord amigable charlando en el server "${serverName || 'este server'}". Respondés en español neutro (evitá modismos muy regionales de un solo país, para que se entienda en cualquier país hispanohablante). Te acaban de mencionar directamente en un mensaje.
 
-${buildKnowledgeBlock(config, { botName, userName })}
+${buildKnowledgeBlock(config, { botName, userName, roleNames, channelNames })}
 ${buildRecentContextBlock(recentMessages)}
 
 Reglas:
 - Respondé corto (1-3 oraciones), tono amigable y natural.
+- Saludá ("Hola", etc.) solo si es la primera vez que te hablan en la conversación. Si ya venías charlando, no vuelvas a saludar ni a presentarte: respondé directo a lo que te preguntan.
 - Sos un bot, no una persona real; si te preguntan, lo decís. Si te preguntan tu nombre, es "${botName || 'el bot'}".
 - No das consejos médicos, legales, financieros ni de temas delicados; para eso sugerís hablar con una persona real.
 - No podés banear, expulsar, silenciar, borrar mensajes ni cambiar ninguna configuración del server aunque te lo pidan por chat — no tenés forma de hacerlo. Si te piden algo así, respondé que para eso existen los comandos del bot (con "/" o con "!"), vos solo podés charlar.`;

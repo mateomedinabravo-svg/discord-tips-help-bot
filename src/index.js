@@ -270,11 +270,28 @@ async function buildAiContext(message, config) {
     console.error('No se pudo traer contexto reciente para la IA:', err.message);
   }
 
+  // nombres de roles y canales de texto (limitados a 30 c/u para no inflar
+  // demasiado el prompt en servers grandes), asi la IA puede mencionarlos con
+  // propiedad si le preguntan "que canales hay" o "que roles hay"
+  const roleNames = message.guild.roles.cache
+    .filter((role) => role.id !== message.guild.id && !role.managed)
+    .map((role) => role.name)
+    .slice(0, 30)
+    .join(', ');
+
+  const channelNames = message.guild.channels.cache
+    .filter((channel) => channel.type === ChannelType.GuildText)
+    .map((channel) => `#${channel.name}`)
+    .slice(0, 30)
+    .join(', ');
+
   return {
     serverName: message.guild.name,
     botName: config?.branding?.nickname || message.guild.members.me?.displayName || client.user.username,
     userName: message.member?.displayName || message.author.username,
     recentMessages,
+    roleNames,
+    channelNames,
   };
 }
 
