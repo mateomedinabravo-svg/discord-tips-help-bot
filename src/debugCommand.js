@@ -1,6 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { buildEmbed } = require('./embedStyle');
-const db = require('./db');
 const pkg = require('../package.json');
 
 const definition = new SlashCommandBuilder()
@@ -20,10 +19,9 @@ function formatUptime(ms) {
   return parts.join(' ');
 }
 
-async function handleDebugCommand(interaction) {
+async function handleDebugCommand(interaction, config) {
   const client = interaction.client;
   const mem = process.memoryUsage();
-  const config = await db.getGuildConfig(interaction.guild.id);
 
   const embed = buildEmbed({
     type: 'brand',

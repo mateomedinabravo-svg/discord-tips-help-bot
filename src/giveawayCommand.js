@@ -112,7 +112,7 @@ async function checkExpiredGiveaways(client) {
   }
 }
 
-async function handleCreate(interaction) {
+async function handleCreate(interaction, config) {
   const prize = interaction.options.getString('premio');
   const durationInput = interaction.options.getString('duracion');
   const winnerCount = interaction.options.getInteger('ganadores') || 1;
@@ -125,7 +125,6 @@ async function handleCreate(interaction) {
   }
 
   const endsAt = new Date(Date.now() + durationMs);
-  const config = await db.getGuildConfig(interaction.guild.id);
   const embed = buildGiveawayEmbed({ prize, winnerCount, endsAt, hostId: interaction.user.id, entryCount: 0, config });
   const pendingRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('giveaway-enter-pending').setLabel('🎉 Participar').setStyle(ButtonStyle.Primary),
@@ -168,13 +167,13 @@ async function handleEndEarly(interaction) {
   await interaction.reply({ content: '✅ Sorteo terminado y ganador(es) elegido(s).', ephemeral: true });
 }
 
-async function handleGiveawayCommand(interaction) {
+async function handleGiveawayCommand(interaction, config) {
   const sub = interaction.options.getSubcommand();
-  if (sub === 'crear') return handleCreate(interaction);
+  if (sub === 'crear') return handleCreate(interaction, config);
   if (sub === 'terminar') return handleEndEarly(interaction);
 }
 
-async function handleEnterButton(interaction) {
+async function handleEnterButton(interaction, config) {
   const messageId = interaction.customId.slice(ENTER_BUTTON_PREFIX.length);
   const giveaway = await db.getGiveaway(messageId);
 
@@ -191,7 +190,6 @@ async function handleEnterButton(interaction) {
   await interaction.reply({ content: '✅ ¡Entraste al sorteo! Buena suerte.', ephemeral: true });
 
   try {
-    const config = await db.getGuildConfig(interaction.guild.id);
     const embed = buildGiveawayEmbed({
       prize: updated.prize,
       winnerCount: updated.winnerCount,

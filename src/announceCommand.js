@@ -1,6 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
 const { resolveColor } = require('./embedStyle');
-const db = require('./db');
 
 const HEX_COLOR_PATTERN = /^#?[0-9a-fA-F]{6}$/;
 
@@ -36,7 +35,7 @@ function isValidHttpUrl(value) {
   }
 }
 
-async function handleAnnounceCommand(interaction) {
+async function handleAnnounceCommand(interaction, config) {
   const mensaje = interaction.options.getString('mensaje', true);
   const canal = interaction.options.getChannel('canal') || interaction.channel;
   const titulo = interaction.options.getString('titulo');
@@ -48,7 +47,6 @@ async function handleAnnounceCommand(interaction) {
     return;
   }
 
-  const config = interaction.guild ? await db.getGuildConfig(interaction.guild.id) : null;
   const embed = new EmbedBuilder().setDescription(mensaje).setColor(parseColor(color, config)).setTimestamp();
   if (titulo) embed.setTitle(titulo);
   if (imagen && isValidHttpUrl(imagen)) embed.setImage(imagen);

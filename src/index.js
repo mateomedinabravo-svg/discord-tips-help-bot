@@ -491,16 +491,16 @@ async function handleInteraction(interaction) {
 
     switch (interaction.commandName) {
       case 'anuncio':
-        await announceCommand.handleAnnounceCommand(interaction);
+        await announceCommand.handleAnnounceCommand(interaction, config);
         break;
       case 'ticket':
         await ticketCommand.handleTicketCommand(interaction, config);
         break;
       case 'nivel':
-        await levelCommands.handleNivelCommand(interaction);
+        await levelCommands.handleNivelCommand(interaction, config);
         break;
       case 'ranking':
-        await levelCommands.handleRankingCommand(interaction);
+        await levelCommands.handleRankingCommand(interaction, config);
         break;
       case 'ban':
         await moderationCommands.handleBanCommand(interaction, config);
@@ -542,16 +542,16 @@ async function handleInteraction(interaction) {
         await triviaCommand.handleTriviaCommand(interaction, config);
         break;
       case 'meme':
-        await memeCommand.handleMemeCommand(interaction);
+        await memeCommand.handleMemeCommand(interaction, config);
         break;
       case 'debug':
-        await debugCommand.handleDebugCommand(interaction);
+        await debugCommand.handleDebugCommand(interaction, config);
         break;
       case 'sorteo':
-        await giveawayCommand.handleGiveawayCommand(interaction);
+        await giveawayCommand.handleGiveawayCommand(interaction, config);
         break;
       case 'encuesta':
-        await pollCommand.handlePollCommand(interaction);
+        await pollCommand.handlePollCommand(interaction, config);
         break;
       case 'afk':
         await afkCommand.handleAfkCommand(interaction);
@@ -622,12 +622,12 @@ async function handleInteraction(interaction) {
     }
 
     if (interaction.customId.startsWith(giveawayCommand.ENTER_BUTTON_PREFIX)) {
-      await giveawayCommand.handleEnterButton(interaction);
+      await giveawayCommand.handleEnterButton(interaction, interaction.guild ? configByGuild.get(interaction.guild.id) : null);
       return;
     }
 
     if (interaction.customId.startsWith(pollCommand.VOTE_BUTTON_PREFIX)) {
-      await pollCommand.handleVoteButton(interaction);
+      await pollCommand.handleVoteButton(interaction, interaction.guild ? configByGuild.get(interaction.guild.id) : null);
       return;
     }
 

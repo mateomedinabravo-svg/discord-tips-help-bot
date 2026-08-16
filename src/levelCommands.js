@@ -57,10 +57,9 @@ async function awardXp(message, config) {
   }
 }
 
-async function handleNivelCommand(interaction) {
+async function handleNivelCommand(interaction, config) {
   const targetUser = interaction.options.getUser('usuario') || interaction.user;
   const info = await db.getUserLevel(interaction.guild.id, targetUser.id);
-  const config = await db.getGuildConfig(interaction.guild.id);
 
   const embed = new EmbedBuilder()
     .setColor(resolveColor(config, 'brand'))
@@ -71,7 +70,7 @@ async function handleNivelCommand(interaction) {
   await interaction.reply({ embeds: [embed] });
 }
 
-async function handleRankingCommand(interaction) {
+async function handleRankingCommand(interaction, config) {
   const top = await db.getLeaderboard(interaction.guild.id, 10);
 
   if (!top.length) {
@@ -86,7 +85,6 @@ async function handleRankingCommand(interaction) {
     return `${prefix} <@${entry.userId}> — nivel ${info.level} (${entry.xp} XP)`;
   });
 
-  const config = await db.getGuildConfig(interaction.guild.id);
   const embed = new EmbedBuilder().setColor(resolveColor(config, 'brand')).setTitle('🏆 Ranking de experiencia').setDescription(lines.join('\n'));
 
   await interaction.reply({ embeds: [embed] });

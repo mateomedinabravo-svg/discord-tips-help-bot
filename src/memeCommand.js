@@ -1,6 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { buildEmbed } = require('./embedStyle');
-const db = require('./db');
 
 const MEME_API_URL = 'https://meme-api.com/gimme';
 const MAX_ATTEMPTS = 3;
@@ -17,7 +16,7 @@ async function fetchSafeMeme() {
   return null;
 }
 
-async function handleMemeCommand(interaction) {
+async function handleMemeCommand(interaction, config) {
   await interaction.deferReply();
 
   try {
@@ -27,7 +26,6 @@ async function handleMemeCommand(interaction) {
       return;
     }
 
-    const config = interaction.guild ? await db.getGuildConfig(interaction.guild.id) : null;
     const embed = buildEmbed({
       type: 'brand',
       title: meme.title.slice(0, 256),

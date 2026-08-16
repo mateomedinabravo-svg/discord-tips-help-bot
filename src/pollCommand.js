@@ -52,7 +52,7 @@ function buildOptionButtons(options) {
   );
 }
 
-async function handlePollCommand(interaction) {
+async function handlePollCommand(interaction, config) {
   const question = interaction.options.getString('pregunta', true);
   const options = [];
   for (let i = 1; i <= 5; i++) {
@@ -60,7 +60,6 @@ async function handlePollCommand(interaction) {
     if (opt) options.push(opt);
   }
 
-  const config = await db.getGuildConfig(interaction.guild.id);
   const draft = { question, options, votes: {}, hostId: interaction.user.id };
 
   await interaction.reply({ embeds: [buildPollEmbed(draft, config)], components: [buildOptionButtons(options)] });
@@ -76,7 +75,7 @@ async function handlePollCommand(interaction) {
   });
 }
 
-async function handleVoteButton(interaction) {
+async function handleVoteButton(interaction, config) {
   if (!interaction.customId.startsWith(VOTE_BUTTON_PREFIX)) return;
 
   const optionIndex = Number(interaction.customId.slice(VOTE_BUTTON_PREFIX.length));
@@ -87,7 +86,6 @@ async function handleVoteButton(interaction) {
     return;
   }
 
-  const config = await db.getGuildConfig(interaction.guild.id);
   await interaction.update({ embeds: [buildPollEmbed(poll, config)] });
 }
 
