@@ -771,7 +771,7 @@ function customCommandsPage({ user, config, guildName, flash }) {
 
   <form class="card" method="post" action="/dashboard/comandos/prefijo">
     <h2>Comandos con prefijo</h2>
-    <p class="muted">La mayoría de los comandos también funcionan escribiéndolos en el chat con este prefijo (ej. "!balance", "!mute @usuario 30 spam"). Quedan afuera los que necesitan un formulario emergente (/casa) o mezclan varios textos libres en un mismo comando (/anuncio, /encuesta, /programar, /sorteo crear) — para esos seguí usando la barra "/". Los de moderación y configuración piden el mismo permiso de Discord que su versión "/".</p>
+    <p class="muted">Todos los comandos también funcionan escribiéndolos en el chat con este prefijo. La mayoría van con espacios (ej. "!balance", "!mute @usuario 30 spam"). Los que tienen más de un campo de texto libre (/anuncio, /encuesta, /programar, /sorteo crear, /casa) van separados por "|" en vez de espacios, ej. "!anuncio Mensaje del anuncio | #canal | Título". Los de moderación y configuración piden el mismo permiso de Discord que su versión "/".</p>
     <div class="checkbox-row"><input type="checkbox" name="enabled" id="tc-enabled" ${config.textCommands.enabled ? 'checked' : ''}>
       <label for="tc-enabled" style="margin:0;">Activado</label></div>
     <label>Prefijo</label>

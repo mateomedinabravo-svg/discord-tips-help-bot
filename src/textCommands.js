@@ -3,10 +3,18 @@
 // "interaction" compatible con el subconjunto de la API que usan
 // (options.getUser/getInteger/getString/getChannel/getSubcommand,
 // reply/deferReply/editReply/fetchReply), en vez de duplicar logica de
-// negocio. Los que necesitan varios campos de texto libre mezclados con
-// otras opciones (/anuncio, /encuesta, /programar, /sorteo crear) o un
-// formulario emergente (/casa) no tienen version con prefijo: no hay forma
-// no ambigua de escribirlos como texto plano.
+// negocio.
+//
+// La mayoria de los comandos usan tokens separados por espacios (modo
+// "words"), igual que se escribiria una frase. Los que tienen mas de un
+// campo de texto libre (/anuncio, /encuesta, /programar, /sorteo crear) no
+// se pueden separar por espacios sin ambiguedad (¿donde termina el mensaje y
+// empieza el titulo?), asi que usan modo "pipes": los campos van separados
+// por "|", ej. "!anuncio Mensaje | Titulo | #ff0000". /casa tampoco entra en
+// ese esquema (la cantidad de campos es dinamica, configurada por server) y
+// normalmente abre un modal de Discord, algo que no se puede disparar desde
+// un mensaje de texto: para el modo texto se responde directo con las
+// respuestas en orden, sin el modal.
 
 const { PermissionFlagsBits } = require('discord.js');
 const economyCommands = require('./economyCommands');
@@ -24,11 +32,18 @@ const afkCommand = require('./afkCommand');
 const debugCommand = require('./debugCommand');
 const sayCommand = require('./sayCommand');
 const moderationCommands = require('./moderationCommands');
+const announceCommand = require('./announceCommand');
+const pollCommand = require('./pollCommand');
+const housesCommand = require('./housesCommand');
 
 class TextCommandError extends Error {}
 
 const USER_MENTION_TOKEN = /^<@!?\d+>$/;
 const CHANNEL_MENTION_TOKEN = /^<#\d+>$/;
+
+function isMentionToken(token) {
+  return USER_MENTION_TOKEN.test(token) || CHANNEL_MENTION_TOKEN.test(token);
+}
 
 // comandos de una sola palabra -> un modulo/subcomando especifico
 const FLAT_COMMANDS = {
@@ -65,6 +80,11 @@ const FLAT_COMMANDS = {
   meme: { module: 'meme' },
   trivia: { module: 'trivia' },
   afk: { module: 'afk', restStringOptions: ['motivo'] },
+  casa: {
+    module: 'casa',
+    mode: 'pipes',
+    usage: '!casa <respuesta 1> | <respuesta 2> | ... (un campo por cada pregunta del formulario, en orden)',
+  },
 
   debug: { module: 'debug', permission: PermissionFlagsBits.ManageGuild },
   decir: {
@@ -72,6 +92,26 @@ const FLAT_COMMANDS = {
     permission: PermissionFlagsBits.ManageGuild,
     restStringOptions: ['mensaje'],
     usage: '!decir [#canal] <mensaje>',
+  },
+  anuncio: {
+    module: 'anuncio',
+    permission: PermissionFlagsBits.ManageGuild,
+    mode: 'pipes',
+    minSegments: 1,
+    usage: '!anuncio <mensaje> [| #canal] [| <titulo>] [| <color hex>] [| <url imagen>]',
+  },
+  encuesta: {
+    module: 'encuesta',
+    mode: 'pipes',
+    minSegments: 3,
+    usage: '!encuesta <pregunta> | <opcion1> | <opcion2> [| <opcion3>] [| <opcion4>] [| <opcion5>]',
+  },
+  programar: {
+    module: 'programar',
+    permission: PermissionFlagsBits.ManageGuild,
+    mode: 'pipes',
+    minSegments: 2,
+    usage: '!programar <mensaje> | <cuando, ej 2h> [| #canal]',
   },
 
   ban: { module: 'moderacion', subcommand: 'ban', permission: PermissionFlagsBits.BanMembers, restStringOptions: ['razon'], usage: '!ban @usuario [razon]' },
@@ -88,34 +128,42 @@ const FLAT_COMMANDS = {
 };
 
 // comandos de dos palabras ("!mascota ver"): el primer token es el nombre del
-// grupo, el segundo (si coincide con una de las acciones conocidas) elige la
-// subaccion; si no aparece ninguna reconocida se usa defaultSubcommand
+// grupo, el segundo (si coincide con una de las subacciones conocidas) elige
+// cual usar; si no aparece ninguna reconocida se usa defaultSubcommand (o,
+// si no hay default, se responde con el uso correcto)
 const GROUPED_COMMANDS = {
   mascota: {
     module: 'mascota',
-    subcommands: ['ver', 'adoptar', 'alimentar', 'jugar'],
     defaultSubcommand: 'ver',
     usage: '!mascota ver|adoptar|alimentar|jugar',
-    choices: { especie: ['perro', 'gato', 'dragon', 'conejo', 'pajaro'] },
+    subcommands: {
+      ver: {},
+      adoptar: { choices: { especie: ['perro', 'gato', 'dragon', 'conejo', 'pajaro'] }, usage: '!mascota adoptar <nombre> <perro|gato|dragon|conejo|pajaro>' },
+      alimentar: {},
+      jugar: {},
+    },
   },
   invitaciones: {
     module: 'invitaciones',
-    subcommands: ['ver', 'ranking'],
     defaultSubcommand: 'ver',
     usage: '!invitaciones ver|ranking',
+    subcommands: { ver: {}, ranking: {} },
   },
   cumpleanos: {
     module: 'cumpleanos',
-    subcommands: ['ver', 'configurar'],
     defaultSubcommand: 'ver',
     usage: '!cumpleanos ver|configurar <dia> <mes>',
+    subcommands: { ver: {}, configurar: { usage: '!cumpleanos configurar <dia (1-31)> <mes (1-12)>' } },
   },
   sorteo: {
     module: 'sorteo',
-    subcommands: ['terminar'],
     defaultSubcommand: null,
     permission: PermissionFlagsBits.ManageGuild,
-    usage: '!sorteo terminar <mensaje_id> (para crear uno nuevo usá /sorteo crear)',
+    usage: '!sorteo terminar <mensaje_id>  o  !sorteo crear <premio> | <duracion>',
+    subcommands: {
+      terminar: { usage: '!sorteo terminar <mensaje_id>' },
+      crear: { mode: 'pipes', minSegments: 2, usage: '!sorteo crear <premio> | <duracion, ej 2h> [| <ganadores>] [| #canal]' },
+    },
   },
 };
 
@@ -152,7 +200,7 @@ function buildTextInteraction(message, { subcommand, args, restStringOptions, ch
       getChannel: (name) => message.mentions.channels.first() || null,
       getInteger: (name, required) => {
         const raw = args.shift();
-        if (raw === undefined) {
+        if (raw === undefined || raw === '') {
           if (required) throw new TextCommandError('Te faltó un número.');
           return null;
         }
@@ -172,7 +220,7 @@ function buildTextInteraction(message, { subcommand, args, restStringOptions, ch
         }
 
         const raw = args.shift();
-        if (raw === undefined) {
+        if (raw === undefined || raw === '') {
           if (required) throw new TextCommandError('Te faltó un valor.');
           return null;
         }
@@ -199,6 +247,34 @@ function buildTextInteraction(message, { subcommand, args, restStringOptions, ch
   };
 }
 
+// /casa normalmente abre un modal de Discord (imposible desde un mensaje de
+// texto): la version con prefijo salta el modal y arma las respuestas
+// directo desde los segmentos separados por "|", en el mismo orden que las
+// preguntas configuradas en el dashboard
+async function handleCasaText(interaction, config, segments) {
+  if (!config?.houses?.enabled) {
+    await interaction.reply('⚠️ Las solicitudes de House no están habilitadas en este server.');
+    return;
+  }
+
+  const fields = (config.houses.formFields || []).slice(0, 5);
+  if (!fields.length) {
+    await interaction.reply('⚠️ El formulario no tiene campos configurados todavía.');
+    return;
+  }
+
+  if (segments.length < fields.length || segments.some((s) => !s)) {
+    throw new TextCommandError(`Te faltan respuestas. Campos del formulario: ${fields.join(' | ')}`);
+  }
+
+  const answers = {};
+  fields.forEach((label, index) => {
+    answers[label] = segments[index].slice(0, 1000);
+  });
+
+  await housesCommand.submitHouseApplication(interaction, config, answers);
+}
+
 async function dispatchModeracion(subcommand, interaction, config) {
   switch (subcommand) {
     case 'ban':
@@ -216,7 +292,7 @@ async function dispatchModeracion(subcommand, interaction, config) {
   }
 }
 
-async function dispatch(resolved, interaction, config) {
+async function dispatch(resolved, interaction, config, segments) {
   switch (resolved.module) {
     case 'economia':
       return economyCommands.handleEconomyCommand(interaction, config);
@@ -248,10 +324,18 @@ async function dispatch(resolved, interaction, config) {
       return triviaCommand.handleTriviaCommand(interaction, config);
     case 'afk':
       return afkCommand.handleAfkCommand(interaction);
+    case 'casa':
+      return handleCasaText(interaction, config, segments);
     case 'debug':
       return debugCommand.handleDebugCommand(interaction, config);
     case 'decir':
       return sayCommand.handleDecirCommand(interaction);
+    case 'anuncio':
+      return announceCommand.handleAnnounceCommand(interaction, config);
+    case 'encuesta':
+      return pollCommand.handlePollCommand(interaction, config);
+    case 'programar':
+      return sayCommand.handleProgramarCommand(interaction);
     case 'moderacion':
       return dispatchModeracion(resolved.subcommand, interaction, config);
     default:
@@ -259,22 +343,25 @@ async function dispatch(resolved, interaction, config) {
   }
 }
 
-// resuelve el nombre de comando (y, para los agrupados, muta `tokens`
-// sacandole el token de subcomando si aparece) a {module, subcommand,
-// permission, restStringOptions, choices, usage} o null si no es reconocido
-function resolveCommand(commandName, tokens) {
+// resuelve el nombre de comando a {module, subcommand, permission, mode,
+// minSegments, restStringOptions, choices, usage} o null si no es
+// reconocido. Para los agrupados, tambien consume de `restTokens` el token
+// de subcomando si encuentra uno valido
+function resolveCommand(commandName, restTokens) {
   const flat = FLAT_COMMANDS[commandName];
   if (flat) return flat;
 
   const group = GROUPED_COMMANDS[commandName];
   if (!group) return null;
 
-  let subcommand = group.defaultSubcommand;
-  if (tokens.length && group.subcommands.includes(tokens[0].toLowerCase())) {
-    subcommand = tokens.shift().toLowerCase();
+  let subcommandName = group.defaultSubcommand;
+  if (restTokens.length && Object.prototype.hasOwnProperty.call(group.subcommands, restTokens[0].toLowerCase())) {
+    subcommandName = restTokens.shift().toLowerCase();
   }
+  if (!subcommandName) return { module: group.module, subcommand: null, usage: group.usage };
 
-  return { module: group.module, subcommand, permission: group.permission, usage: group.usage, choices: group.choices };
+  const subConfig = group.subcommands[subcommandName] || {};
+  return { module: group.module, subcommand: subcommandName, permission: group.permission, usage: group.usage, ...subConfig };
 }
 
 // devuelve true si el mensaje era un comando con prefijo reconocido (se haya
@@ -290,9 +377,12 @@ async function handleTextCommand(message, config) {
   const withoutPrefix = message.content.slice(prefix.length).trim();
   if (!withoutPrefix) return false;
 
-  const tokens = withoutPrefix.split(/\s+/);
-  const commandName = tokens.shift().toLowerCase();
-  const resolved = resolveCommand(commandName, tokens);
+  const firstSpace = withoutPrefix.search(/\s/);
+  const commandName = (firstSpace === -1 ? withoutPrefix : withoutPrefix.slice(0, firstSpace)).toLowerCase();
+  const rest = firstSpace === -1 ? '' : withoutPrefix.slice(firstSpace + 1).trim();
+
+  const restWordTokens = rest.length ? rest.split(/\s+/) : [];
+  const resolved = resolveCommand(commandName, restWordTokens);
   if (!resolved) return false;
 
   if (!resolved.subcommand && GROUPED_COMMANDS[commandName]) {
@@ -306,10 +396,26 @@ async function handleTextCommand(message, config) {
     return true;
   }
 
+  // modo "pipes": el texto restante (ya sin el token de subcomando, si lo
+  // consumio resolveCommand) se separa por "|" en vez de por espacios, para
+  // permitir campos de texto libre con varias palabras cada uno
+  let segments;
+  if (resolved.mode === 'pipes') {
+    const pipesText = restWordTokens.join(' ');
+    segments = pipesText.length ? pipesText.split('|').map((s) => s.trim()) : [];
+  } else {
+    segments = restWordTokens;
+  }
   // las menciones (de usuario o canal) se sacan de message.mentions, no de
-  // los tokens de texto (si no, "100" en "!pay @user 100" quedaria mezclado
-  // con el "<@..>", o el canal se colaria dentro de un mensaje libre)
-  const args = tokens.filter((t) => !USER_MENTION_TOKEN.test(t) && !CHANNEL_MENTION_TOKEN.test(t));
+  // los segmentos de texto (si no, "100" en "!pay @user 100" quedaria
+  // mezclado con el "<@..>", o el canal se colaria dentro de un mensaje libre)
+  const args = segments.filter((s) => !isMentionToken(s));
+
+  if (resolved.minSegments && args.length < resolved.minSegments) {
+    await message.reply(`❌ Uso: ${resolved.usage}`);
+    return true;
+  }
+
   const interaction = buildTextInteraction(message, {
     subcommand: resolved.subcommand,
     args,
@@ -318,7 +424,7 @@ async function handleTextCommand(message, config) {
   });
 
   try {
-    await dispatch(resolved, interaction, config);
+    await dispatch(resolved, interaction, config, args);
   } catch (err) {
     if (err instanceof TextCommandError) {
       await message.reply(`❌ ${err.message}${resolved.usage ? `\nUso: ${resolved.usage}` : ''}`);

@@ -80,15 +80,10 @@ async function publishRequestMessage(guild, config) {
   return message.id;
 }
 
-async function handleModalSubmit(interaction, config) {
-  if (interaction.customId !== MODAL_ID) return;
-
-  const fields = config.houses.formFields || [];
-  const answers = {};
-  fields.forEach((label, index) => {
-    answers[label] = interaction.fields.getTextInputValue(`field_${index}`);
-  });
-
+// separado de handleModalSubmit para poder crear una solicitud tambien desde
+// un comando de texto (!casa), que no puede abrir un modal de Discord: ahi
+// las respuestas se arman a mano en vez de leerse de interaction.fields
+async function submitHouseApplication(interaction, config, answers) {
   const applicationId = await db.createHouseApplication({
     guildId: interaction.guild.id,
     userId: interaction.user.id,
@@ -120,6 +115,18 @@ async function handleModalSubmit(interaction, config) {
   }
 
   await interaction.reply({ content: '✅ Tu solicitud fue enviada, te vamos a avisar por MD cuando se revise.', ephemeral: true });
+}
+
+async function handleModalSubmit(interaction, config) {
+  if (interaction.customId !== MODAL_ID) return;
+
+  const fields = config.houses.formFields || [];
+  const answers = {};
+  fields.forEach((label, index) => {
+    answers[label] = interaction.fields.getTextInputValue(`field_${index}`);
+  });
+
+  await submitHouseApplication(interaction, config, answers);
 }
 
 async function handleDecisionButton(interaction, config) {
@@ -175,6 +182,7 @@ module.exports = {
   handleModalSubmit,
   handleDecisionButton,
   publishRequestMessage,
+  submitHouseApplication,
   MODAL_ID,
   OPEN_BUTTON_ID,
 };
