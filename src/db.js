@@ -106,6 +106,7 @@ function defaultConfig(guildId) {
       messageId: null,
       title: '🎫 Centro de soporte',
       description: 'Elegí abajo el tipo de ticket que necesitás para que el staff te ayude.',
+      categoryChannelId: null,
     },
     ticketTranscripts: {
       enabled: false,

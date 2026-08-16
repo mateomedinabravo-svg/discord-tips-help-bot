@@ -107,6 +107,15 @@ function createApp({ client }) {
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
+  function getCategoryChannels(req) {
+    const guild = getGuild(req);
+    if (!guild) return [];
+    return guild.channels.cache
+      .filter((c) => c.type === ChannelType.GuildCategory)
+      .map((c) => ({ id: c.id, name: c.name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
   function getAssignableRoles(req) {
     const guild = getGuild(req);
     if (!guild) return [];
@@ -467,6 +476,7 @@ function createApp({ client }) {
         user: req.session.user,
         config,
         channels: getTextChannels(req),
+        categoryChannels: getCategoryChannels(req),
         roles: getAssignableRoles(req),
         guildName: guildName(req),
         flash: req.query.saved ? 'Guardado.' : req.query.published ? 'Panel publicado.' : req.query.error || null,
@@ -513,6 +523,7 @@ function createApp({ client }) {
         channelId: req.body.channelId || null,
         title: req.body.title || config.ticketPanel.title,
         description: req.body.description || config.ticketPanel.description,
+        categoryChannelId: req.body.categoryChannelId || null,
       },
       ticketTranscripts: {
         enabled: req.body.transcriptsEnabled === 'on',

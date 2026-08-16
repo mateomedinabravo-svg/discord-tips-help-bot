@@ -1121,9 +1121,14 @@ function serverGuidePage({ user, config, channels, guildName, flash, editingSect
   return layout({ title: 'Guía', user, body, flash, guildName });
 }
 
-function ticketConfigPage({ user, config, channels, roles, guildName, flash }) {
+function ticketConfigPage({ user, config, channels, categoryChannels, roles, guildName, flash }) {
   const channelOptions = (selected) =>
     channels.map((c) => `<option value="${c.id}" ${c.id === selected ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`).join('');
+
+  const categoryChannelOptions = (selected) =>
+    (categoryChannels || [])
+      .map((c) => `<option value="${c.id}" ${c.id === selected ? 'selected' : ''}>${escapeHtml(c.name)}</option>`)
+      .join('');
 
   const roleOptions = (selectedIds) =>
     roles.map((r) => `<option value="${r.id}" ${selectedIds.includes(r.id) ? 'selected' : ''}>${escapeHtml(r.name)}</option>`).join('');
@@ -1170,6 +1175,8 @@ function ticketConfigPage({ user, config, channels, roles, guildName, flash }) {
     <input type="text" name="title" value="${escapeHtml(config.ticketPanel.title)}">
     <label>Descripción</label>
     <textarea name="description">${escapeHtml(config.ticketPanel.description)}</textarea>
+    <label>Categoría de Discord donde se crean los canales de ticket</label>
+    <select name="categoryChannelId"><option value="">-- Auto (crea/usa una categoría "Tickets") --</option>${categoryChannelOptions(config.ticketPanel.categoryChannelId)}</select>
 
     <h2>Transcripciones</h2>
     <div class="checkbox-row"><input type="checkbox" name="transcriptsEnabled" id="t-enabled" ${config.ticketTranscripts.enabled ? 'checked' : ''}>

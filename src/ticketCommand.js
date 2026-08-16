@@ -42,6 +42,18 @@ async function findOrCreateTicketsCategory(guild) {
   return guild.channels.create({ name: TICKETS_CATEGORY_NAME, type: ChannelType.GuildCategory });
 }
 
+// si el admin eligio una categoria de Discord desde el dashboard se usa esa;
+// si no existe mas (borrada) o no eligio ninguna, se cae al comportamiento
+// original de buscar/crear una categoria llamada "Tickets"
+async function resolveTicketParentCategory(guild, config) {
+  const categoryChannelId = config.ticketPanel?.categoryChannelId;
+  if (categoryChannelId) {
+    const chosen = await guild.channels.fetch(categoryChannelId).catch(() => null);
+    if (chosen && chosen.type === ChannelType.GuildCategory) return chosen;
+  }
+  return findOrCreateTicketsCategory(guild);
+}
+
 function staffRoles(guild) {
   return guild.roles.cache.filter(
     (role) =>
@@ -108,7 +120,7 @@ async function createTicketChannel(interaction, config, categoryId) {
 
   await interaction.deferReply({ ephemeral: true });
 
-  const parent = await findOrCreateTicketsCategory(guild);
+  const parent = await resolveTicketParentCategory(guild, config);
   const staffRoleIds = category.staffRoleIds && category.staffRoleIds.length ? category.staffRoleIds : staffRoles(guild).map((r) => r.id);
 
   const permissionOverwrites = [
@@ -294,4 +306,5 @@ module.exports = {
   CLAIM_BUTTON_ID,
   CATEGORY_SELECT_ID,
   RATE_PREFIX,
+  resolveTicketParentCategory,
 };
