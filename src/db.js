@@ -931,11 +931,16 @@ async function setSuggestionStatus(messageId, status, staffId, staffTag) {
   return result?.value !== undefined ? result.value : result;
 }
 
-async function setAfk(guildId, userId, reason) {
+// previousNickname solo se guarda la primera vez (setOnInsert): si el usuario
+// vuelve a marcarse AFK mientras ya lo estaba (para cambiar el motivo), no
+// queremos pisarlo con el apodo actual, que para entonces ya tiene el prefijo "[AFK]"
+async function setAfk(guildId, userId, reason, previousNickname) {
   const database = await connect();
-  await database
-    .collection('afk')
-    .updateOne({ guildId, userId }, { $set: { reason, since: new Date() } }, { upsert: true });
+  await database.collection('afk').updateOne(
+    { guildId, userId },
+    { $set: { reason, since: new Date() }, $setOnInsert: { previousNickname: previousNickname ?? null } },
+    { upsert: true },
+  );
 }
 
 async function getAfk(guildId, userId) {

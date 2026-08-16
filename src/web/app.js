@@ -26,8 +26,8 @@ const inviteTracker = require('../inviteTracker');
 const { resolveColor } = require('../embedStyle');
 const pkg = require('../../package.json');
 
-// View/Send/History/ManageMessages/ManageChannels/EmbedLinks/AddReactions/Kick/Ban/ManageRoles/ModerateMembers/ManageGuild
-const BOT_INVITE_PERMISSIONS = 1099780156534;
+// View/Send/History/ManageMessages/ManageChannels/EmbedLinks/AddReactions/Kick/Ban/ManageRoles/ModerateMembers/ManageGuild/ManageNicknames
+const BOT_INVITE_PERMISSIONS = 1099914374262;
 
 function slugify(text) {
   return (text || '')
