@@ -1032,7 +1032,7 @@ function aiPage({ user, config, aiConfigured, guildName, flash }) {
 
   const body = `
   <h1>IA (gratis, con Groq)</h1>
-  <p class="muted">Usa un modelo de IA gratuito para dos cosas puntuales: responder mejor cuando el sistema normal no entiende, y ayudar a detectar mensajes tóxicos que el filtro de palabras no capta.</p>
+  <p class="muted">Usa un modelo de IA gratuito para charlar: responde mejor cuando el sistema normal de ayuda no entiende la pregunta, y también contesta si te mencionan directamente. Solo contesta texto — nunca borra mensajes, banea, ni toma ninguna acción de moderación ni de configuración, aunque se lo pidan por chat.</p>
   ${setupWarning}
 
   <div class="card">
@@ -1049,10 +1049,7 @@ function aiPage({ user, config, aiConfigured, guildName, flash }) {
       <label for="ai-enabled" style="margin:0;">Activada</label></div>
 
     <div class="checkbox-row"><input type="checkbox" name="helpFallback" id="ai-help" ${config.ai.helpFallback ? 'checked' : ''}>
-      <label for="ai-help" style="margin:0;">Usar IA cuando no encuentra un tema específico de ayuda</label></div>
-
-    <div class="checkbox-row"><input type="checkbox" name="moderation" id="ai-mod" ${config.ai.moderation ? 'checked' : ''}>
-      <label for="ai-mod" style="margin:0;">Usar IA para detectar mensajes tóxicos (además del filtro de palabras)</label></div>
+      <label for="ai-help" style="margin:0;">Usar IA cuando no encuentra un tema específico de ayuda, y cuando lo mencionan directamente</label></div>
 
     <label>Clave de Groq ${hasOwnKey ? '(ya tenés una guardada — dejá esto vacío para no cambiarla)' : ''}</label>
     <input type="password" name="apiKey" placeholder="${hasOwnKey ? '••••••••••••••••' : 'gsk_...'}" autocomplete="off">

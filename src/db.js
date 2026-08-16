@@ -144,7 +144,6 @@ function defaultConfig(guildId) {
     ai: {
       enabled: false,
       helpFallback: true,
-      moderation: false,
       apiKey: '',
     },
     serverGuide: {

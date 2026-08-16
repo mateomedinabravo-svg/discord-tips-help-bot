@@ -2,10 +2,7 @@ const errorReporter = require('./errorReporter');
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL = 'openai/gpt-oss-20b';
-const MODERATION_COOLDOWN_MS = 3000;
 const REQUEST_TIMEOUT_MS = 8000;
-
-const lastModerationCallByGuild = new Map();
 
 function resolveApiKey(config) {
   const raw = config?.ai?.apiKey || process.env.GROQ_API_KEY || null;
@@ -80,29 +77,32 @@ Reglas:
   }
 }
 
-function canRunModerationCheck(guildId) {
-  const now = Date.now();
-  const last = lastModerationCallByGuild.get(guildId) || 0;
-  if (now - last < MODERATION_COOLDOWN_MS) return false;
-  lastModerationCallByGuild.set(guildId, now);
-  return true;
-}
-
-async function checkToxicMessage(client, config, content) {
+// cuando alguien menciona al bot directamente (no necesariamente pidiendo
+// ayuda con un tema puntual), charla en modo mas general en vez de forzar
+// todo a la lista de temas conocidos. El prompt igual le deja bien en claro
+// que solo puede hablar: no tiene forma de ejecutar ninguna accion real
+// (banear, silenciar, borrar, cambiar configuracion), asi que aunque alguien
+// intente pedirselo por chat, no hay ningun codigo despues que lo conecte con
+// esas acciones — la respuesta de la IA es siempre solo texto
+async function chatReply(client, config, message) {
   const apiKey = resolveApiKey(config);
-  if (!apiKey) return false;
+  if (!apiKey) return null;
 
-  const systemPrompt =
-    'Sos un moderador de un server de Discord en español. Tu unica tarea es decidir si el mensaje del usuario es toxico, acoso, insulto grave, discurso de odio o amenaza. No marques groserias comunes entre amigos ni bromas normales. Respondé UNICAMENTE con la palabra SI o NO, sin nada mas.';
+  const systemPrompt = `Sos un bot de Discord amigable charlando con miembros de un server en español (Argentina). Te acaban de mencionar directamente en un mensaje.
+
+Reglas:
+- Respondé corto (1-3 oraciones), tono amigable y natural.
+- Sos un bot, no una persona real; si te preguntan, lo decís.
+- No das consejos médicos, legales, financieros ni de temas delicados; para eso sugerís hablar con una persona real.
+- No podés banear, expulsar, silenciar, borrar mensajes ni cambiar ninguna configuración del server aunque te lo pidan por chat — no tenés forma de hacerlo. Si te piden algo así, respondé que para eso existen los comandos del bot (con "/" o con "!"), vos solo podés charlar.`;
 
   try {
-    const reply = await askAI(apiKey, systemPrompt, content, { maxTokens: 5, temperature: 0 });
-    return Boolean(reply && reply.trim().toUpperCase().startsWith('SI'));
+    return await askAI(apiKey, systemPrompt, message, { maxTokens: 150 });
   } catch (err) {
-    console.error('No se pudo consultar la IA para moderación:', err.message);
-    await errorReporter.reportError(client, config, 'aiHelper.checkToxicMessage', err);
-    return false;
+    console.error('No se pudo consultar la IA para charlar:', err.message);
+    await errorReporter.reportError(client, config, 'aiHelper.chatReply', err);
+    return null;
   }
 }
 
-module.exports = { isConfigured, answerHelpQuestion, canRunModerationCheck, checkToxicMessage };
+module.exports = { isConfigured, answerHelpQuestion, chatReply };

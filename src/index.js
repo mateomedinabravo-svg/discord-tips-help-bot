@@ -247,16 +247,6 @@ async function applyAutomod(message, config) {
     }
   }
 
-  if (config?.ai?.enabled && config.ai.moderation && aiHelper.isConfigured(config) && message.content.trim().length > 0) {
-    if (aiHelper.canRunModerationCheck(message.guild.id)) {
-      const isToxic = await aiHelper.checkToxicMessage(client, config, message.content);
-      if (isToxic) {
-        await deleteWithWarning(message, 'contenido inapropiado (detectado por IA)');
-        return true;
-      }
-    }
-  }
-
   return false;
 }
 
@@ -356,8 +346,9 @@ client.on('messageCreate', async (message) => {
       levelCommands.awardXp(message, config).catch((err) => console.error('No se pudo otorgar XP:', err));
     }
 
+    const mentionsBot = message.mentions.has(client.user.id);
     const directedElsewhere = isDirectedAtAnotherUser({
-      mentionsBot: message.mentions.has(client.user.id),
+      mentionsBot,
       repliedUserId: message.mentions.repliedUser ? message.mentions.repliedUser.id : null,
       mentionedUserIds: message.mentions.users.map((user) => user.id),
       botId: client.user.id,
@@ -376,6 +367,14 @@ client.on('messageCreate', async (message) => {
       if (reply) await message.reply(reply);
     } else if (response) {
       await message.reply(response);
+    } else if (mentionsBot && config?.ai?.enabled && config.ai.helpFallback && aiHelper.isConfigured(config)) {
+      // lo mencionaron directo y no matcheo ningun tema de ayuda: charla en
+      // modo mas general en vez de quedarse callado
+      const cleanedContent = message.content.replace(/<@!?\d+>/g, '').trim();
+      if (cleanedContent) {
+        const chatReply = await aiHelper.chatReply(client, config, cleanedContent);
+        if (chatReply) await message.reply(chatReply);
+      }
     }
   } catch (err) {
     console.error('Error en messageCreate:', err);

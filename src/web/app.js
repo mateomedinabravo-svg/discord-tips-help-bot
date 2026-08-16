@@ -1333,7 +1333,6 @@ function createApp({ client }) {
       ai: {
         enabled: req.body.enabled === 'on',
         helpFallback: req.body.helpFallback === 'on',
-        moderation: req.body.moderation === 'on',
         // si el campo llega vacio, mantenemos la clave que ya estaba guardada (no la borramos por error),
         // salvo que se tilde explicitamente "quitar clave"
         apiKey: req.body.removeApiKey === 'on' ? '' : cleanedInput || config.ai.apiKey,
