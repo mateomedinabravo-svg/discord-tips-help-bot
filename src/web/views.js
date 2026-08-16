@@ -1121,7 +1121,7 @@ function serverGuidePage({ user, config, channels, guildName, flash, editingSect
   return layout({ title: 'Guía', user, body, flash, guildName });
 }
 
-function ticketConfigPage({ user, config, channels, categoryChannels, roles, guildName, flash }) {
+function ticketConfigPage({ user, config, editingPanel, channels, categoryChannels, roles, guildName, flash }) {
   const channelOptions = (selected) =>
     channels.map((c) => `<option value="${c.id}" ${c.id === selected ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`).join('');
 
@@ -1133,9 +1133,12 @@ function ticketConfigPage({ user, config, channels, categoryChannels, roles, gui
   const roleOptions = (selectedIds) =>
     roles.map((r) => `<option value="${r.id}" ${selectedIds.includes(r.id) ? 'selected' : ''}>${escapeHtml(r.name)}</option>`).join('');
 
-  const categoryCheckOptions = () =>
+  const categoryCheckOptions = (selectedIds) =>
     (config.ticketCategories || [])
-      .map((cat) => `<option value="${escapeHtml(cat.id)}">${escapeHtml(cat.emoji || '🎫')} ${escapeHtml(cat.label)}</option>`)
+      .map(
+        (cat) =>
+          `<option value="${escapeHtml(cat.id)}" ${(selectedIds || []).includes(cat.id) ? 'selected' : ''}>${escapeHtml(cat.emoji || '🎫')} ${escapeHtml(cat.label)}</option>`,
+      )
       .join('');
 
   const categoryRows = (config.ticketCategories || [])
@@ -1162,6 +1165,7 @@ function ticketConfigPage({ user, config, channels, categoryChannels, roles, gui
       return `<div class="server-row">
         <span class="name">${escapeHtml(panel.title)} · canal: ${channel ? '#' + escapeHtml(channel.name) : '(sin canal)'} · ${escapeHtml(categoriesText)} · ${styleText} ${panel.messageId ? '· publicado' : '· sin publicar'}</span>
         <div style="display:flex; gap:8px;">
+          <a class="btn" href="/dashboard/tickets/config?editarPanel=${encodeURIComponent(panel.id)}">Editar</a>
           <form method="post" action="/dashboard/tickets/config/panel/publicar" style="margin:0;">
             <input type="hidden" name="id" value="${escapeHtml(panel.id)}">
             <button type="submit" style="margin:0;">${panel.messageId ? 'Actualizar' : 'Publicar'}</button>
@@ -1204,23 +1208,25 @@ function ticketConfigPage({ user, config, channels, categoryChannels, roles, gui
   </div>
 
   <form class="card" method="post" action="/dashboard/tickets/config/panel">
-    <h2>Nuevo panel</h2>
+    <h2>${editingPanel ? `Editando: ${escapeHtml(editingPanel.title)}` : 'Nuevo panel'}</h2>
+    ${editingPanel ? `<input type="hidden" name="originalId" value="${escapeHtml(editingPanel.id)}">` : ''}
     <label>Canal donde va el panel</label>
-    <select name="channelId" required><option value="">-- elegir --</option>${channelOptions(null)}</select>
+    <select name="channelId" required><option value="">-- elegir --</option>${channelOptions(editingPanel ? editingPanel.channelId : null)}</select>
     <label>Título</label>
-    <input type="text" name="title" value="🎫 Centro de soporte">
+    <input type="text" name="title" value="${escapeHtml(editingPanel ? editingPanel.title : '🎫 Centro de soporte')}">
     <label>Descripción</label>
-    <textarea name="description">Elegí abajo el tipo de ticket que necesitás para que el staff te ayude.</textarea>
+    <textarea name="description">${escapeHtml(editingPanel ? editingPanel.description : 'Elegí abajo el tipo de ticket que necesitás para que el staff te ayude.')}</textarea>
     <label>Categorías que muestra este panel (dejá vacío para mostrar todas)</label>
-    <select name="categoryIds" multiple size="5">${categoryCheckOptions()}</select>
+    <select name="categoryIds" multiple size="5">${categoryCheckOptions(editingPanel ? editingPanel.categoryIds : [])}</select>
     <label>Categoría de Discord donde se crean los canales de ticket</label>
-    <select name="categoryChannelId"><option value="">-- Auto (crea/usa una categoría "Tickets") --</option>${categoryChannelOptions(null)}</select>
+    <select name="categoryChannelId"><option value="">-- Auto (crea/usa una categoría "Tickets") --</option>${categoryChannelOptions(editingPanel ? editingPanel.categoryChannelId : null)}</select>
     <label>Estilo</label>
-    <div class="checkbox-row"><input type="radio" name="style" value="select" id="style-select" checked>
+    <div class="checkbox-row"><input type="radio" name="style" value="select" id="style-select" ${!editingPanel || editingPanel.style !== 'button' ? 'checked' : ''}>
       <label for="style-select" style="margin:0;">Menú desplegable</label></div>
-    <div class="checkbox-row"><input type="radio" name="style" value="button" id="style-button">
+    <div class="checkbox-row"><input type="radio" name="style" value="button" id="style-button" ${editingPanel && editingPanel.style === 'button' ? 'checked' : ''}>
       <label for="style-button" style="margin:0;">Botones (uno por categoría)</label></div>
-    <button type="submit">Crear panel</button>
+    <button type="submit">${editingPanel ? 'Guardar cambios' : 'Crear panel'}</button>
+    ${editingPanel ? '<a class="btn" href="/dashboard/tickets/config" style="margin-left:8px;">Cancelar</a>' : ''}
   </form>
 
   <form class="card" method="post" action="/dashboard/tickets/config/transcripciones">

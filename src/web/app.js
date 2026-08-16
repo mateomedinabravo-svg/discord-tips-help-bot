@@ -471,10 +471,14 @@ function createApp({ client }) {
 
   app.get('/dashboard/tickets/config', requireAuth, requireActiveGuild, async (req, res) => {
     const config = await db.getGuildConfig(req.session.activeGuildId);
+    const editingPanel = req.query.editarPanel
+      ? (config.ticketPanels || []).find((p) => p.id === req.query.editarPanel) || null
+      : null;
     res.send(
       views.ticketConfigPage({
         user: req.session.user,
         config,
+        editingPanel,
         channels: getTextChannels(req),
         categoryChannels: getCategoryChannels(req),
         roles: getAssignableRoles(req),
@@ -534,10 +538,16 @@ function createApp({ client }) {
     }
 
     const config = await db.getGuildConfig(req.session.activeGuildId);
+    const originalId = (req.body.originalId || '').trim();
+    const original = originalId ? (config.ticketPanels || []).find((p) => p.id === originalId) : null;
+
     const panel = {
-      id: `panel-${Date.now()}`,
+      id: original ? original.id : `panel-${Date.now()}`,
       channelId: req.body.channelId,
-      messageId: null,
+      // si cambio de canal el mensaje viejo queda en otro canal: se descarta el
+      // messageId para que el proximo "Actualizar" publique uno nuevo en vez de
+      // intentar editar un mensaje que ya no esta ahi
+      messageId: original && original.channelId === req.body.channelId ? original.messageId : null,
       title: (req.body.title || '🎫 Centro de soporte').trim(),
       description: (req.body.description || '').trim(),
       categoryChannelId: req.body.categoryChannelId || null,
@@ -545,9 +555,11 @@ function createApp({ client }) {
       style: req.body.style === 'button' ? 'button' : 'select',
     };
 
-    await db.updateGuildConfig(req.session.activeGuildId, {
-      ticketPanels: [...(config.ticketPanels || []), panel],
-    });
+    const ticketPanels = original
+      ? (config.ticketPanels || []).map((p) => (p.id === panel.id ? panel : p))
+      : [...(config.ticketPanels || []), panel];
+
+    await db.updateGuildConfig(req.session.activeGuildId, { ticketPanels });
     res.redirect('/dashboard/tickets/config?saved=1');
   });
 
