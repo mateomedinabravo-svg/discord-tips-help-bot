@@ -16,6 +16,7 @@ const pollCommand = require('./pollCommand');
 const afkCommand = require('./afkCommand');
 const birthdayCommand = require('./birthdayCommand');
 const inviteCommand = require('./inviteCommand');
+const sayCommand = require('./sayCommand');
 
 const STATIC_DEFINITIONS = [
   announceCommand.definition,
@@ -42,6 +43,8 @@ const STATIC_DEFINITIONS = [
   afkCommand.definition,
   birthdayCommand.definition,
   inviteCommand.definition,
+  sayCommand.decirDefinition,
+  sayCommand.programarDefinition,
 ].map((def) => def.toJSON());
 
 async function registerGuildCommands(guild, config) {

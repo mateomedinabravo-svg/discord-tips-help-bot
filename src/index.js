@@ -31,6 +31,8 @@ const afkCommand = require('./afkCommand');
 const birthdayCommand = require('./birthdayCommand');
 const inviteCommand = require('./inviteCommand');
 const inviteTracker = require('./inviteTracker');
+const sayCommand = require('./sayCommand');
+const voiceXp = require('./voiceXp');
 const errorReporter = require('./errorReporter');
 const { isDirectedAtAnotherUser } = require('./messageDirection');
 const db = require('./db');
@@ -45,6 +47,7 @@ if (!TOKEN) {
 
 const CONFIG_REFRESH_MS = 60 * 1000;
 const GIVEAWAY_CHECK_MS = 30 * 1000;
+const SCHEDULED_ANNOUNCEMENT_CHECK_MS = 60 * 1000;
 const MEMBER_COUNTER_INTERVAL_MS = 10 * 60 * 1000;
 const BIRTHDAY_CHECK_MS = 60 * 60 * 1000;
 const WHITELIST = (process.env.TIPS_CHANNEL_WHITELIST || '')
@@ -68,6 +71,7 @@ const client = new Client({
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessageReactions,
     GatewayIntentBits.GuildInvites,
+    GatewayIntentBits.GuildVoiceStates,
   ],
   partials: [Partials.Channel, Partials.Message, Partials.Reaction, Partials.User],
 });
@@ -284,6 +288,12 @@ client.once('ready', async () => {
       errorReporter.reportError(client, null, 'giveawayCommand.checkExpiredGiveaways', err);
     });
   }, GIVEAWAY_CHECK_MS);
+  setInterval(() => {
+    sayCommand.checkScheduledAnnouncements(client).catch((err) => {
+      console.error('Error revisando anuncios programados:', err);
+      errorReporter.reportError(client, null, 'sayCommand.checkScheduledAnnouncements', err);
+    });
+  }, SCHEDULED_ANNOUNCEMENT_CHECK_MS);
   setInterval(updateAllMemberCounters, MEMBER_COUNTER_INTERVAL_MS);
   setInterval(() => {
     birthdayCommand.checkBirthdaysToday(client, configByGuild).catch((err) => {
@@ -411,6 +421,17 @@ client.on('messageReactionRemove', async (reaction, user) => {
   } catch (err) {
     console.error('Error en messageReactionRemove:', err);
     await errorReporter.reportError(client, config, 'messageReactionRemove', err);
+  }
+});
+
+client.on('voiceStateUpdate', async (oldState, newState) => {
+  const guild = newState.guild || oldState.guild;
+  const config = guild ? configByGuild.get(guild.id) : null;
+  try {
+    await voiceXp.handleVoiceStateUpdate(oldState, newState, config);
+  } catch (err) {
+    console.error('Error en voiceStateUpdate:', err);
+    await errorReporter.reportError(client, config, 'voiceStateUpdate', err);
   }
 });
 
@@ -561,6 +582,12 @@ async function handleInteraction(interaction) {
         break;
       case 'invitaciones':
         await inviteCommand.handleInviteCommand(interaction, config);
+        break;
+      case 'decir':
+        await sayCommand.handleDecirCommand(interaction);
+        break;
+      case 'programar':
+        await sayCommand.handleProgramarCommand(interaction);
         break;
       default: {
         const custom = config ? customCommands.findCustomCommand(config, interaction.commandName) : null;

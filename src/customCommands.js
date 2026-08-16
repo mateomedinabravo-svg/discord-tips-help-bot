@@ -25,6 +25,8 @@ const RESERVED_NAMES = [
   'afk',
   'cumpleanos',
   'invitaciones',
+  'decir',
+  'programar',
 ];
 const NAME_PATTERN = /^[a-z0-9_-]{1,32}$/;
 

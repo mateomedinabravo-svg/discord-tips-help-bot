@@ -48,6 +48,8 @@ function defaultConfig(guildId) {
       cooldownSeconds: 60,
       levelUpChannelId: null,
       levelRoles: [],
+      voiceXpEnabled: false,
+      voiceXpPerMinute: 2,
     },
     logging: {
       enabled: false,
@@ -427,6 +429,15 @@ async function getUserLevel(guildId, userId) {
 async function getLeaderboard(guildId, limit = 10) {
   const database = await connect();
   return database.collection('levels').find({ guildId }).sort({ xp: -1 }).limit(limit).toArray();
+}
+
+async function getUserRank(guildId, userId) {
+  const database = await connect();
+  const levels = database.collection('levels');
+  const doc = await levels.findOne({ guildId, userId });
+  if (!doc || !doc.xp) return null;
+  const higherCount = await levels.countDocuments({ guildId, xp: { $gt: doc.xp } });
+  return higherCount + 1;
 }
 
 // --- Roles por reaccion ---
@@ -936,6 +947,32 @@ async function getInviteLeaderboard(guildId, limit = 10) {
     .toArray();
 }
 
+async function createScheduledAnnouncement({ guildId, channelId, message, hostId, sendAt }) {
+  const database = await connect();
+  await database.collection('scheduledAnnouncements').insertOne({
+    guildId,
+    channelId,
+    message,
+    hostId,
+    sendAt,
+    sent: false,
+    createdAt: new Date(),
+  });
+}
+
+async function getDueScheduledAnnouncements() {
+  const database = await connect();
+  return database
+    .collection('scheduledAnnouncements')
+    .find({ sent: false, sendAt: { $lte: new Date() } })
+    .toArray();
+}
+
+async function markScheduledAnnouncementSent(id) {
+  const database = await connect();
+  await database.collection('scheduledAnnouncements').updateOne({ _id: id }, { $set: { sent: true } });
+}
+
 module.exports = {
   connect,
   getGuildConfig,
@@ -954,6 +991,7 @@ module.exports = {
   addXp,
   getUserLevel,
   getLeaderboard,
+  getUserRank,
   createReactionRoleSet,
   getReactionRoleSet,
   listReactionRoleSets,
@@ -1009,4 +1047,7 @@ module.exports = {
   recordInviteJoin,
   countInvitesByUser,
   getInviteLeaderboard,
+  createScheduledAnnouncement,
+  getDueScheduledAnnouncements,
+  markScheduledAnnouncementSent,
 };

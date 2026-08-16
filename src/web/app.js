@@ -575,6 +575,8 @@ function createApp({ client }) {
         cooldownSeconds: Math.max(0, Number(req.body.cooldownSeconds) || 60),
         levelUpChannelId: req.body.levelUpChannelId || null,
         levelRoles,
+        voiceXpEnabled: req.body.voiceXpEnabled === 'on',
+        voiceXpPerMinute: Math.max(0, Number(req.body.voiceXpPerMinute) || 0),
       },
     });
     res.redirect('/dashboard/niveles?saved=1');

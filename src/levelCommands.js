@@ -1,6 +1,7 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const db = require('./db');
 const { resolveColor } = require('./embedStyle');
+const { generateRankCard } = require('./rankCard');
 
 const nivelDefinition = new SlashCommandBuilder()
   .setName('nivel')
@@ -19,6 +20,38 @@ function progressBar(current, total, length = 12) {
   return '🟩'.repeat(filled) + '⬜'.repeat(length - filled);
 }
 
+// comun a XP por mensaje y XP por voz: aplica el incremento, y si subio de
+// nivel, avisa en el canal correspondiente y asigna el rol de ese nivel
+async function grantXpAndAnnounce(client, guild, userId, amount, config, fallbackChannelId) {
+  const leveling = config.leveling;
+  const result = await db.addXp(guild.id, userId, amount);
+  if (!result.leveledUp) return result;
+
+  const channelId = leveling.levelUpChannelId || fallbackChannelId;
+  if (channelId) {
+    try {
+      const channel = await client.channels.fetch(channelId);
+      if (channel && channel.isTextBased()) {
+        await channel.send(`🎉 <@${userId}> subió a **nivel ${result.level}**!`);
+      }
+    } catch (err) {
+      console.error('No se pudo mandar el mensaje de subida de nivel:', err);
+    }
+  }
+
+  const roleForLevel = (leveling.levelRoles || []).find((entry) => entry.level === result.level);
+  if (roleForLevel) {
+    try {
+      const member = await guild.members.fetch(userId);
+      await member.roles.add(roleForLevel.roleId);
+    } catch (err) {
+      console.error('No se pudo asignar el rol de nivel:', err);
+    }
+  }
+
+  return result;
+}
+
 async function awardXp(message, config) {
   const leveling = config.leveling;
   if (!leveling || !leveling.enabled) return;
@@ -33,41 +66,37 @@ async function awardXp(message, config) {
   const max = Math.max(leveling.xpMin, leveling.xpMax);
   const amount = Math.floor(Math.random() * (max - min + 1)) + min;
 
-  const result = await db.addXp(message.guild.id, message.author.id, amount);
-  if (!result.leveledUp) return;
-
-  const channelId = leveling.levelUpChannelId || message.channel.id;
-  try {
-    const channel = await message.client.channels.fetch(channelId);
-    if (channel && channel.isTextBased()) {
-      await channel.send(`🎉 <@${message.author.id}> subió a **nivel ${result.level}**!`);
-    }
-  } catch (err) {
-    console.error('No se pudo mandar el mensaje de subida de nivel:', err);
-  }
-
-  const roleForLevel = (leveling.levelRoles || []).find((entry) => entry.level === result.level);
-  if (roleForLevel) {
-    try {
-      const member = await message.guild.members.fetch(message.author.id);
-      await member.roles.add(roleForLevel.roleId);
-    } catch (err) {
-      console.error('No se pudo asignar el rol de nivel:', err);
-    }
-  }
+  await grantXpAndAnnounce(message.client, message.guild, message.author.id, amount, config, message.channel.id);
 }
 
 async function handleNivelCommand(interaction, config) {
   const targetUser = interaction.options.getUser('usuario') || interaction.user;
   const info = await db.getUserLevel(interaction.guild.id, targetUser.id);
 
-  const embed = new EmbedBuilder()
-    .setColor(resolveColor(config, 'brand'))
-    .setAuthor({ name: targetUser.username, iconURL: targetUser.displayAvatarURL() })
-    .setTitle(`Nivel ${info.level}`)
-    .setDescription(`${progressBar(info.xpIntoLevel, info.xpForNextLevel)}\n${info.xpIntoLevel} / ${info.xpForNextLevel} XP`);
-
-  await interaction.reply({ embeds: [embed] });
+  try {
+    const rank = await db.getUserRank(interaction.guild.id, targetUser.id);
+    const card = await generateRankCard({
+      username: targetUser.username,
+      avatarURL: targetUser.displayAvatarURL({ extension: 'png', size: 256 }),
+      level: info.level,
+      xpIntoLevel: info.xpIntoLevel,
+      xpForNextLevel: info.xpForNextLevel,
+      rank,
+      brandColor: config?.branding?.colors?.brand,
+    });
+    const attachment = new AttachmentBuilder(card, { name: 'rank.png' });
+    await interaction.reply({ files: [attachment] });
+  } catch (err) {
+    // si la generacion de imagen falla por cualquier motivo (fuente, canvas
+    // nativo, etc.), no se pierde el comando: se cae al embed de texto
+    console.error('No se pudo generar la tarjeta de rango, usando embed de respaldo:', err);
+    const embed = new EmbedBuilder()
+      .setColor(resolveColor(config, 'brand'))
+      .setAuthor({ name: targetUser.username, iconURL: targetUser.displayAvatarURL() })
+      .setTitle(`Nivel ${info.level}`)
+      .setDescription(`${progressBar(info.xpIntoLevel, info.xpForNextLevel)}\n${info.xpIntoLevel} / ${info.xpForNextLevel} XP`);
+    await interaction.reply({ embeds: [embed] });
+  }
 }
 
 async function handleRankingCommand(interaction, config) {
@@ -94,6 +123,7 @@ module.exports = {
   nivelDefinition,
   rankingDefinition,
   awardXp,
+  grantXpAndAnnounce,
   handleNivelCommand,
   handleRankingCommand,
 };

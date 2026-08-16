@@ -594,6 +594,11 @@ function levelsPage({ user, config, roles, channels, guildName, flash }) {
     <label>Canal para avisos de subida de nivel (vacío = el mismo canal donde escribió)</label>
     <select name="levelUpChannelId"><option value="">-- mismo canal --</option>${channelOptions}</select>
 
+    <div class="checkbox-row"><input type="checkbox" name="voiceXpEnabled" id="l-voice" ${config.leveling.voiceXpEnabled ? 'checked' : ''}>
+      <label for="l-voice" style="margin:0;">Dar XP también por tiempo en canales de voz</label></div>
+    <label>XP por minuto conectado a voz</label>
+    <input type="number" name="voiceXpPerMinute" min="0" value="${escapeHtml(config.leveling.voiceXpPerMinute)}">
+
     <label>Roles por nivel (hasta 5)</label>
     <p class="muted">Cuando alguien llega a ese nivel, se le asigna el rol automáticamente.</p>
     ${roleRows}
