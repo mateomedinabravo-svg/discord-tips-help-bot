@@ -230,6 +230,16 @@ async function deleteWithWarning(message, reason) {
   }
 }
 
+// si el server eligio un canal exclusivo para la IA, solo responde ahi (ni
+// por mencion ni como respaldo de ayuda); sin canal elegido, funciona en
+// todos los canales como antes. Esto NO afecta comandos, respuestas
+// pre-guardadas de ayuda, tips ni advertencias de automoderacion — nada de
+// eso pasa por la IA
+function isAiChannelAllowed(config, channelId) {
+  const restrictedTo = config?.ai?.channelId;
+  return !restrictedTo || restrictedTo === channelId;
+}
+
 // reemplaza las menciones de OTROS usuarios por su nombre visible (para que
 // la IA entienda "hablale a Juan" en vez de ver un id crudo) y saca la
 // mencion al propio bot, que ya se maneja aparte
@@ -398,7 +408,7 @@ client.on('messageCreate', async (message) => {
 
     if (response === NEEDS_FALLBACK) {
       let reply = config?.helpResponses?.fallbackResponse;
-      if (config?.ai?.enabled && config.ai.helpFallback && aiHelper.isConfigured(config)) {
+      if (config?.ai?.enabled && config.ai.helpFallback && aiHelper.isConfigured(config) && isAiChannelAllowed(config, message.channel.id)) {
         const aiContext = await buildAiContext(message, config);
         const aiReply = await aiHelper.answerHelpQuestion(client, config, prepareAiText(message), aiContext);
         if (aiReply) reply = aiReply;
@@ -406,7 +416,13 @@ client.on('messageCreate', async (message) => {
       if (reply) await message.reply(reply);
     } else if (response) {
       await message.reply(response);
-    } else if (mentionsBot && config?.ai?.enabled && config.ai.helpFallback && aiHelper.isConfigured(config)) {
+    } else if (
+      mentionsBot &&
+      config?.ai?.enabled &&
+      config.ai.helpFallback &&
+      aiHelper.isConfigured(config) &&
+      isAiChannelAllowed(config, message.channel.id)
+    ) {
       // lo mencionaron directo y no matcheo ningun tema de ayuda: charla en
       // modo mas general en vez de quedarse callado
       const cleanedContent = prepareAiText(message);

@@ -1024,11 +1024,15 @@ function miniEventsPage({ user, config, channels, guildName, flash }) {
   return layout({ title: 'Eventos', user, body, flash, guildName });
 }
 
-function aiPage({ user, config, aiConfigured, guildName, flash }) {
+function aiPage({ user, config, channels, aiConfigured, guildName, flash }) {
   const hasOwnKey = Boolean(config.ai.apiKey);
   const setupWarning = !aiConfigured
     ? `<div class="warning-banner">⚠️ Todavía no configuraste una clave de Groq. Podés activar estas opciones, pero no van a hacer nada hasta que pongas una clave abajo.</div>`
     : '';
+
+  const channelOptions = channels
+    .map((c) => `<option value="${c.id}" ${c.id === config.ai.channelId ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`)
+    .join('');
 
   const body = `
   <h1>IA (gratis, con Groq)</h1>
@@ -1050,6 +1054,10 @@ function aiPage({ user, config, aiConfigured, guildName, flash }) {
 
     <div class="checkbox-row"><input type="checkbox" name="helpFallback" id="ai-help" ${config.ai.helpFallback ? 'checked' : ''}>
       <label for="ai-help" style="margin:0;">Usar IA cuando no encuentra un tema específico de ayuda, y cuando lo mencionan directamente</label></div>
+
+    <label>Canal exclusivo de la IA (opcional)</label>
+    <select name="channelId"><option value="">-- Sin restricción: responde en todos los canales --</option>${channelOptions}</select>
+    <p class="muted" style="margin-top:-8px;">Si elegís un canal, la IA solo va a responder ahí (ni por mención ni como respaldo de ayuda). En el resto del server siguen funcionando igual los comandos, las respuestas pre-guardadas de ayuda, los tips y las advertencias de automoderación — nada de eso depende de la IA.</p>
 
     <label>Clave de Groq ${hasOwnKey ? '(ya tenés una guardada — dejá esto vacío para no cambiarla)' : ''}</label>
     <input type="password" name="apiKey" placeholder="${hasOwnKey ? '••••••••••••••••' : 'gsk_...'}" autocomplete="off">

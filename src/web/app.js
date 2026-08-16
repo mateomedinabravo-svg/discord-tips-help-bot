@@ -1317,6 +1317,7 @@ function createApp({ client }) {
       views.aiPage({
         user: req.session.user,
         config,
+        channels: getTextChannels(req),
         aiConfigured: aiHelper.isConfigured(config),
         guildName: guildName(req),
         flash: req.query.saved ? 'Guardado.' : null,
@@ -1333,6 +1334,7 @@ function createApp({ client }) {
       ai: {
         enabled: req.body.enabled === 'on',
         helpFallback: req.body.helpFallback === 'on',
+        channelId: req.body.channelId || null,
         // si el campo llega vacio, mantenemos la clave que ya estaba guardada (no la borramos por error),
         // salvo que se tilde explicitamente "quitar clave"
         apiKey: req.body.removeApiKey === 'on' ? '' : cleanedInput || config.ai.apiKey,

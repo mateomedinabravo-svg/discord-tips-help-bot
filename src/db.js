@@ -145,6 +145,11 @@ function defaultConfig(guildId) {
       enabled: false,
       helpFallback: true,
       apiKey: '',
+      // si esta seteado, la IA (respuesta de ayuda con IA + charla al
+      // mencionarla) solo funciona en ese canal; en el resto del server no
+      // responde nada de IA (los comandos, respuestas pre-guardadas, tips y
+      // advertencias siguen andando en todos los canales igual)
+      channelId: null,
     },
     serverGuide: {
       enabled: false,

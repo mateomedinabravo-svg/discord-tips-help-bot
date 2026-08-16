@@ -87,7 +87,7 @@ async function answerHelpQuestion(client, config, question, context = {}) {
   if (!apiKey) return null;
 
   const { serverName, botName, userName, recentMessages } = context;
-  const systemPrompt = `Sos el bot de ayuda del server de Discord "${serverName || 'este server'}", en español (Argentina).
+  const systemPrompt = `Sos el bot de ayuda del server de Discord "${serverName || 'este server'}". Respondés en español neutro (evitá modismos muy regionales de un solo país, para que se entienda en cualquier país hispanohablante).
 
 ${buildKnowledgeBlock(config, { botName, userName })}
 ${buildRecentContextBlock(recentMessages)}
@@ -121,7 +121,7 @@ async function chatReply(client, config, message, context = {}) {
   if (!apiKey) return null;
 
   const { serverName, botName, userName, recentMessages } = context;
-  const systemPrompt = `Sos un bot de Discord amigable charlando en el server "${serverName || 'este server'}", en español (Argentina). Te acaban de mencionar directamente en un mensaje.
+  const systemPrompt = `Sos un bot de Discord amigable charlando en el server "${serverName || 'este server'}". Respondés en español neutro (evitá modismos muy regionales de un solo país, para que se entienda en cualquier país hispanohablante). Te acaban de mencionar directamente en un mensaje.
 
 ${buildKnowledgeBlock(config, { botName, userName })}
 ${buildRecentContextBlock(recentMessages)}
