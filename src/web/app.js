@@ -1442,12 +1442,23 @@ function createApp({ client }) {
       .split('\n')
       .map((id) => id.trim())
       .filter(Boolean);
+    // el <select multiple> manda un string si eligieron uno solo, array si eligieron varios, nada si ninguno
+    const channelIds = [].concat(req.body.channelIds || []).filter(Boolean);
+    const forbiddenTopics = (req.body.forbiddenTopics || '')
+      .split('\n')
+      .map((topic) => topic.trim())
+      .filter(Boolean);
+    const cooldownSeconds = Math.min(120, Math.max(1, parseInt(req.body.cooldownSeconds, 10) || 8));
     await db.updateGuildConfig(req.session.activeGuildId, {
       ai: {
         enabled: req.body.enabled === 'on',
         helpFallback: req.body.helpFallback === 'on',
-        channelId: req.body.channelId || null,
+        channelId: null, // deprecado a favor de channelIds; se limpia para no confundir con lo nuevo
+        channelIds,
         tone: ['formal', 'gracioso'].includes(req.body.tone) ? req.body.tone : 'amigable',
+        customPersonality: (req.body.customPersonality || '').trim().slice(0, 500),
+        forbiddenTopics,
+        cooldownSeconds,
         staffUserIds,
         // si el campo llega vacio, mantenemos la clave que ya estaba guardada (no la borramos por error),
         // salvo que se tilde explicitamente "quitar clave"

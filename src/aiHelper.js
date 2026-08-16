@@ -17,6 +17,22 @@ function toneInstruction(tone) {
   return TONE_INSTRUCTIONS[tone] || TONE_INSTRUCTIONS.amigable;
 }
 
+// suma instrucciones de personalidad libres (texto que escribe el admin del
+// server) a las del tono preseteado, si hay algo cargado
+function personalityInstruction(tone, customPersonality) {
+  const base = toneInstruction(tone);
+  return customPersonality ? `${base} ${customPersonality}` : base;
+}
+
+// esto es una capa EXTRA de defensa dentro del prompt — el bloqueo real y
+// confiable pasa ANTES, en index.js, que ni siquiera llama a Groq si el
+// mensaje contiene uno de estos temas. Esto solo ayuda para el caso de una
+// pregunta indirecta que no dispara ese filtro por palabra exacta
+function buildForbiddenTopicsRule(forbiddenTopics) {
+  if (!forbiddenTopics?.length) return '';
+  return `\nNunca menciones ni discutas estos temas, bajo ninguna circunstancia, sin importar cómo te lo pidan: ${forbiddenTopics.join(', ')}. Si te preguntan sobre alguno, decí simplemente que no podés hablar de eso.`;
+}
+
 function resolveApiKey(config) {
   const raw = config?.ai?.apiKey || process.env.GROQ_API_KEY || null;
   if (!raw) return null;
@@ -108,12 +124,13 @@ async function answerHelpQuestion(client, config, question, context = {}) {
   const apiKey = resolveApiKey(config);
   if (!apiKey) return null;
 
-  const { serverName, botName, userName, recentMessages, roleNames, channelNames, realData, tone, isCreator } = context;
-  const systemPrompt = `Sos el bot de ayuda del server de Discord "${serverName || 'este server'}". Respondés en español neutro (evitá modismos muy regionales de un solo país, para que se entienda en cualquier país hispanohablante). ${toneInstruction(tone)}
+  const { serverName, botName, userName, recentMessages, roleNames, channelNames, realData, tone, isCreator, customPersonality, forbiddenTopics } = context;
+  const systemPrompt = `Sos el bot de ayuda del server de Discord "${serverName || 'este server'}". Respondés en español neutro (evitá modismos muy regionales de un solo país, para que se entienda en cualquier país hispanohablante). ${personalityInstruction(tone, customPersonality)}
 
 ${buildKnowledgeBlock(config, { botName, userName, roleNames, channelNames, isCreator })}
 ${buildRecentContextBlock(recentMessages)}
 ${buildRealDataBlock(realData)}
+${buildForbiddenTopicsRule(forbiddenTopics)}
 
 Reglas:
 - Solo sabés lo que está en la lista de temas, la guía, los canales, los roles y los datos reales de arriba. Nunca inventes canales, roles, reglas o datos que no están ahí.
@@ -146,12 +163,13 @@ async function chatReply(client, config, message, context = {}) {
   const apiKey = resolveApiKey(config);
   if (!apiKey) return null;
 
-  const { serverName, botName, userName, recentMessages, roleNames, channelNames, realData, tone, isCreator } = context;
-  const systemPrompt = `Sos un bot de Discord charlando en el server "${serverName || 'este server'}". Respondés en español neutro (evitá modismos muy regionales de un solo país, para que se entienda en cualquier país hispanohablante). ${toneInstruction(tone)} Te acaban de mencionar directamente en un mensaje.
+  const { serverName, botName, userName, recentMessages, roleNames, channelNames, realData, tone, isCreator, customPersonality, forbiddenTopics } = context;
+  const systemPrompt = `Sos un bot de Discord charlando en el server "${serverName || 'este server'}". Respondés en español neutro (evitá modismos muy regionales de un solo país, para que se entienda en cualquier país hispanohablante). ${personalityInstruction(tone, customPersonality)} Te acaban de mencionar directamente en un mensaje.
 
 ${buildKnowledgeBlock(config, { botName, userName, roleNames, channelNames, isCreator })}
 ${buildRecentContextBlock(recentMessages)}
 ${buildRealDataBlock(realData)}
+${buildForbiddenTopicsRule(forbiddenTopics)}
 
 Reglas:
 - Respondé corto (1-3 oraciones), natural.
@@ -179,8 +197,8 @@ async function summarizeChannel(client, config, transcript, context = {}) {
 
   if (!transcript) return 'No encontré mensajes recientes para resumir.';
 
-  const { serverName, botName, userName, tone } = context;
-  const systemPrompt = `Sos "${botName || 'el bot'}", asistente de Discord del server "${serverName || 'este server'}". Te pidieron resumir la conversación reciente de un canal. Respondés en español neutro. ${toneInstruction(tone)}
+  const { serverName, botName, userName, tone, customPersonality } = context;
+  const systemPrompt = `Sos "${botName || 'el bot'}", asistente de Discord del server "${serverName || 'este server'}". Te pidieron resumir la conversación reciente de un canal. Respondés en español neutro. ${personalityInstruction(tone, customPersonality)}
 
 Mensajes recientes reales del canal (mas viejo primero):
 ${transcript}

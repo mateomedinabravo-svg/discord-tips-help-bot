@@ -145,13 +145,26 @@ function defaultConfig(guildId) {
       enabled: false,
       helpFallback: true,
       apiKey: '',
-      // si esta seteado, la IA (respuesta de ayuda con IA + charla al
-      // mencionarla) solo funciona en ese canal; en el resto del server no
-      // responde nada de IA (los comandos, respuestas pre-guardadas, tips y
-      // advertencias siguen andando en todos los canales igual)
+      // legacy: un solo canal. Se mantiene por compatibilidad con configs
+      // viejas, pero el dashboard ahora escribe en channelIds (multiple).
+      // Si channelIds tiene algo, channelId se ignora.
       channelId: null,
+      // si tiene algo, la IA (respuesta de ayuda con IA + charla al
+      // mencionarla) solo funciona en esos canales; en el resto del server
+      // no responde nada de IA (los comandos, respuestas pre-guardadas, tips
+      // y advertencias siguen andando en todos los canales igual). Vacio =
+      // sin restriccion, responde en todos los canales
+      channelIds: [],
       // amigable (default), formal o gracioso — se inyecta en el prompt
       tone: 'amigable',
+      // texto libre opcional que se suma a las instrucciones de tono (ej:
+      // "sos sarcastico pero nunca ofensivo", "hablá como pirata")
+      customPersonality: '',
+      // temas/palabras que la IA nunca debe tocar. Se bloquean ANTES de
+      // llamar a Groq (no depende de que el modelo respete la instruccion)
+      forbiddenTopics: [],
+      // segundos de cooldown por usuario entre pedidos a la IA
+      cooldownSeconds: 8,
       // IDs de Discord de quienes pueden pedirle a la IA por chat que
       // banee/expulse/silencie/advierta (ademas del creador del bot via
       // CREATOR_USER_ID). Vacio = nadie puede usar esto por chat todavia

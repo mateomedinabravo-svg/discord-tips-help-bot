@@ -236,14 +236,18 @@ async function deleteWithWarning(message, reason) {
   }
 }
 
-// si el server eligio un canal exclusivo para la IA, solo responde ahi (ni
-// por mencion ni como respaldo de ayuda); sin canal elegido, funciona en
-// todos los canales como antes. Esto NO afecta comandos, respuestas
-// pre-guardadas de ayuda, tips ni advertencias de automoderacion — nada de
-// eso pasa por la IA
+// si el server eligio uno o varios canales exclusivos para la IA, solo
+// responde ahi (ni por mencion ni como respaldo de ayuda); sin canal elegido,
+// funciona en todos los canales como antes. Esto NO afecta comandos,
+// respuestas pre-guardadas de ayuda, tips ni advertencias de automoderacion
+// — nada de eso pasa por la IA
 function isAiChannelAllowed(config, channelId) {
-  const restrictedTo = config?.ai?.channelId;
-  return !restrictedTo || restrictedTo === channelId;
+  const allowedChannels = config?.ai?.channelIds?.length
+    ? config.ai.channelIds
+    : config?.ai?.channelId
+      ? [config.ai.channelId] // config vieja, un solo canal (legacy)
+      : [];
+  return !allowedChannels.length || allowedChannels.includes(channelId);
 }
 
 // reemplaza las menciones de OTROS usuarios por su nombre visible (para que
@@ -299,22 +303,50 @@ async function buildAiContext(message, config) {
     roleNames,
     channelNames,
     tone: config?.ai?.tone,
+    customPersonality: config?.ai?.customPersonality,
+    forbiddenTopics: config?.ai?.forbiddenTopics,
     isCreator: Boolean(CREATOR_USER_ID) && message.author.id === CREATOR_USER_ID,
   };
 }
 
-const AI_COOLDOWN_MS = 8000;
+const DEFAULT_AI_COOLDOWN_MS = 8000;
 const lastAiReplyByUser = new Map();
 
 // evita que un usuario spamee menciones a la IA (cuida el limite gratis de
 // Groq y evita abuso); un solo Map global de userId alcanza porque el
-// cooldown es "por usuario", no por servidor ni por canal
-function canUseAiNow(userId) {
+// cooldown es "por usuario", no por servidor ni por canal. cooldownMs es
+// configurable por server (config.ai.cooldownSeconds), con el default de
+// arriba como respaldo si no esta seteado
+function canUseAiNow(userId, cooldownMs = DEFAULT_AI_COOLDOWN_MS) {
   const now = Date.now();
   const last = lastAiReplyByUser.get(userId) || 0;
-  if (now - last < AI_COOLDOWN_MS) return false;
+  if (now - last < cooldownMs) return false;
   lastAiReplyByUser.set(userId, now);
   return true;
+}
+
+function aiCooldownMs(config) {
+  const seconds = Number(config?.ai?.cooldownSeconds);
+  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : DEFAULT_AI_COOLDOWN_MS;
+}
+
+// saca tildes/diacriticos para que "politica" matchee "política" (la gente
+// suele escribir sin tildes en el chat)
+function normalizeForMatch(text) {
+  return text
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase();
+}
+
+// bloqueo REAL de temas prohibidos: pasa ANTES de llamar a Groq, asi no
+// depende de que el modelo respete la instruccion del prompt (esa es solo
+// una capa extra). Si el mensaje contiene alguna de las palabras/temas
+// configurados, ni siquiera se gasta la llamada a la IA
+function matchForbiddenTopic(content, forbiddenTopics) {
+  if (!forbiddenTopics?.length || !content) return null;
+  const normalizedContent = normalizeForMatch(content);
+  return forbiddenTopics.find((topic) => topic && normalizedContent.includes(normalizeForMatch(topic))) || null;
 }
 
 const AI_EMBED_MIN_LENGTH = 150;
@@ -496,7 +528,7 @@ async function handleStaffActionRequest(message, config) {
     return true;
   }
 
-  if (!canUseAiNow(message.author.id)) {
+  if (!canUseAiNow(message.author.id, aiCooldownMs(config))) {
     await message.reply('⏳ Esperá unos segundos antes de pedirme otra acción.');
     return true;
   }
@@ -685,12 +717,14 @@ client.on('messageCreate', async (message) => {
     if (response === NEEDS_FALLBACK) {
       let reply = config?.helpResponses?.fallbackResponse;
       let aiGenerated = false;
-      if (
+      if (matchForbiddenTopic(message.content, config?.ai?.forbiddenTopics)) {
+        reply = 'No puedo hablar de ese tema.';
+      } else if (
         config?.ai?.enabled &&
         config.ai.helpFallback &&
         aiHelper.isConfigured(config) &&
         isAiChannelAllowed(config, message.channel.id) &&
-        canUseAiNow(message.author.id)
+        canUseAiNow(message.author.id, aiCooldownMs(config))
       ) {
         const aiContext = await buildAiContext(message, config);
         const aiReply = await aiHelper.answerHelpQuestion(client, config, prepareAiText(message), aiContext);
@@ -717,7 +751,7 @@ client.on('messageCreate', async (message) => {
       // modo mas general en vez de quedarse callado
       const cleanedContent = prepareAiText(message);
       if (cleanedContent) {
-        if (!canUseAiNow(message.author.id)) {
+        if (!canUseAiNow(message.author.id, aiCooldownMs(config))) {
           await message.reply('⏳ Esperá unos segundos antes de volver a preguntarme algo.');
         } else {
           // reacciona mientras procesa (puede tardar unos segundos), y la
@@ -757,6 +791,8 @@ client.on('messageCreate', async (message) => {
               trackAiUsage(guildId, Boolean(summary));
               if (summary) await sendAiReply(message, config, summary);
               else await message.reply('🤖 No pude armar el resumen ahora, probá de nuevo en un rato.');
+            } else if (matchForbiddenTopic(cleanedContent, config?.ai?.forbiddenTopics)) {
+              await message.reply('No puedo hablar de ese tema.');
             } else {
               const aiContext = await buildAiContext(message, config);
               aiContext.realData = await buildRealDataForQuery(message);

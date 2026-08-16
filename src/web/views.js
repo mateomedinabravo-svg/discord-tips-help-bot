@@ -1135,8 +1135,11 @@ function aiPage({ user, config, channels, aiConfigured, usageStats, guildName, f
     ? `<div class="warning-banner">⚠️ Todavía no configuraste una clave de Groq. Podés activar estas opciones, pero no van a hacer nada hasta que pongas una clave abajo.</div>`
     : '';
 
+  // config vieja tenia un solo channelId; si channelIds todavia no tiene
+  // nada pero channelId si, se muestra ese como preseleccionado
+  const selectedChannelIds = config.ai.channelIds?.length ? config.ai.channelIds : config.ai.channelId ? [config.ai.channelId] : [];
   const channelOptions = channels
-    .map((c) => `<option value="${c.id}" ${c.id === config.ai.channelId ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`)
+    .map((c) => `<option value="${c.id}" ${selectedChannelIds.includes(c.id) ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`)
     .join('');
 
   const toneOptions = [
@@ -1153,7 +1156,7 @@ function aiPage({ user, config, channels, aiConfigured, usageStats, guildName, f
 
   const body = `
   <h1>IA (gratis, con Groq)</h1>
-  <p class="muted">Usa un modelo de IA gratuito para charlar: responde mejor cuando el sistema normal de ayuda no entiende la pregunta, y también contesta si te mencionan directamente. Puede consultar datos reales (nivel, balance), disparar una trivia o resumir un canal si se lo pedís por chat. Solo contesta texto — nunca borra mensajes, banea, ni toma ninguna acción de moderación ni de configuración, aunque se lo pidan por chat.</p>
+  <p class="muted">Usa un modelo de IA gratuito para charlar: responde mejor cuando el sistema normal de ayuda no entiende la pregunta, y también contesta si te mencionan directamente. Puede consultar datos reales (nivel, balance), disparar una trivia o resumir un canal si se lo pedís por chat. Solo contesta texto — nunca borra mensajes, banea, ni toma ninguna acción de moderación ni de configuración por su cuenta.</p>
   ${setupWarning}
 
   <div class="card">
@@ -1181,12 +1184,24 @@ function aiPage({ user, config, channels, aiConfigured, usageStats, guildName, f
     <div class="checkbox-row"><input type="checkbox" name="helpFallback" id="ai-help" ${config.ai.helpFallback ? 'checked' : ''}>
       <label for="ai-help" style="margin:0;">Usar IA cuando no encuentra un tema específico de ayuda, y cuando lo mencionan directamente</label></div>
 
-    <label>Canal exclusivo de la IA (opcional)</label>
-    <select name="channelId"><option value="">-- Sin restricción: responde en todos los canales --</option>${channelOptions}</select>
-    <p class="muted" style="margin-top:-8px;">Si elegís un canal, la IA solo va a responder ahí (ni por mención ni como respaldo de ayuda). En el resto del server siguen funcionando igual los comandos, las respuestas pre-guardadas de ayuda, los tips y las advertencias de automoderación — nada de eso depende de la IA.</p>
+    <label>Canales permitidos (opcional)</label>
+    <select name="channelIds" multiple size="6">${channelOptions}</select>
+    <p class="muted" style="margin-top:-8px;">Sin nada seleccionado, la IA responde en todos los canales. Si elegís uno o varios, solo va a responder ahí (ni por mención ni como respaldo de ayuda). Mantené Ctrl (o Cmd en Mac) apretado para elegir varios. El resto de las funciones del bot (comandos, tips, automoderación) no depende de esto.</p>
 
     <label>Tono</label>
     <select name="tone">${toneOptions}</select>
+
+    <label>Personalidad personalizada (opcional)</label>
+    <textarea name="customPersonality" placeholder='Ej: "Sos sarcástico pero nunca ofensivo" o "Hablá como pirata de vez en cuando"' style="min-height:70px;">${escapeHtml(config.ai.customPersonality || '')}</textarea>
+    <p class="muted" style="margin-top:-8px;">Se suma a las instrucciones del tono elegido arriba. Es texto libre — escribilo como si le estuvieras explicando a la IA cómo comportarse.</p>
+
+    <label>Temas prohibidos (opcional, uno por línea)</label>
+    <textarea name="forbiddenTopics" placeholder="política&#10;religión" style="min-height:70px;">${(config.ai.forbiddenTopics || []).join('\n')}</textarea>
+    <p class="muted" style="margin-top:-8px;">Si un mensaje contiene alguna de estas palabras, la IA ni siquiera llega a procesarlo — responde directo que no puede hablar de eso. Funciona sin importar tildes.</p>
+
+    <label>Cooldown por usuario (segundos)</label>
+    <input type="number" name="cooldownSeconds" min="1" max="120" value="${config.ai.cooldownSeconds ?? 8}">
+    <p class="muted" style="margin-top:-8px;">Cuánto tiempo tiene que esperar la misma persona entre un pedido a la IA y el siguiente (cuida la cuota gratis de Groq).</p>
 
     <label>Clave de Groq ${hasOwnKey ? '(ya tenés una guardada — dejá esto vacío para no cambiarla)' : ''}</label>
     <input type="password" name="apiKey" placeholder="${hasOwnKey ? '••••••••••••••••' : 'gsk_...'}" autocomplete="off">
@@ -1194,19 +1209,12 @@ function aiPage({ user, config, channels, aiConfigured, usageStats, guildName, f
     ${hasOwnKey ? `<div class="checkbox-row"><input type="checkbox" name="removeApiKey" id="ai-remove-key">
       <label for="ai-remove-key" style="margin:0;">Quitar la clave guardada</label></div>` : ''}
 
-    <button type="submit">Guardar</button>
-  </form>
-
-  <form class="card" method="post" action="/dashboard/ia">
-    <h2>Moderación por chat con la IA</h2>
+    <h2 style="margin-top:28px;">Moderación por chat con la IA</h2>
     <p class="muted">Los IDs de esta lista pueden pedirle al bot por chat (mencionándolo) que banee, expulse, silencie o advierta a alguien mencionando a la persona — por ejemplo "@bot baneá a @fulano por spam". El bot siempre pide confirmación (✅/❌) antes de banear/expulsar/silenciar, respeta los roles protegidos y la jerarquía de roles, y nunca deja que la IA decida esto por su cuenta.</p>
     <label>IDs de Discord autorizados (uno por línea)</label>
     <textarea name="staffUserIds" placeholder="123456789012345678" style="min-height:80px;">${(config.ai.staffUserIds || []).join('\n')}</textarea>
     <p class="muted" style="margin-top:-8px;">Activá el Modo de desarrollador en Discord (Configuración → Avanzado) para poder copiar el ID de cualquier usuario con clic derecho → "Copiar ID de usuario".</p>
-    <input type="hidden" name="enabled" value="${config.ai.enabled ? 'on' : ''}">
-    <input type="hidden" name="helpFallback" value="${config.ai.helpFallback ? 'on' : ''}">
-    <input type="hidden" name="channelId" value="${config.ai.channelId || ''}">
-    <input type="hidden" name="tone" value="${config.ai.tone}">
+
     <button type="submit">Guardar</button>
   </form>`;
   return layout({ title: 'IA', user, body, flash, guildName });
