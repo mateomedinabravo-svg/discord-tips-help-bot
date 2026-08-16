@@ -398,7 +398,7 @@ async function buildChannelSummaryTranscript(message) {
 const STAFF_ACTIONS = [
   { type: 'ban', label: 'banear', pattern: /\b(banea(lo|la)?|banear|ban)\b/i, confirm: true },
   { type: 'kick', label: 'expulsar', pattern: /\b(expulsa(lo|la)?|expulsar|echa(lo|la)?|echar|kick(ealo)?)\b/i, confirm: true },
-  { type: 'mute', label: 'silenciar', pattern: /\b(silencia(lo|la)?|silenciar|mutea(lo|la)?|mutear|timeout)\b/i, confirm: true },
+  { type: 'mute', label: 'silenciar', pattern: /\b(silencia(lo|la)?|silenciar|mutea(lo|la)?|mutear|mute|timeout)\b/i, confirm: true },
   { type: 'warn', label: 'advertir', pattern: /\b(advi(e|é)rte(le)?|advertir|amonesta(lo|la)?|amonestar|warn(ealo)?)\b/i, confirm: false },
 ];
 
