@@ -515,16 +515,8 @@ function createApp({ client }) {
     res.redirect('/dashboard/tickets/config?saved=1');
   });
 
-  app.post('/dashboard/tickets/config/panel', requireAuth, requireActiveGuild, async (req, res) => {
-    const config = await db.getGuildConfig(req.session.activeGuildId);
+  app.post('/dashboard/tickets/config/transcripciones', requireAuth, requireActiveGuild, async (req, res) => {
     await db.updateGuildConfig(req.session.activeGuildId, {
-      ticketPanel: {
-        ...config.ticketPanel,
-        channelId: req.body.channelId || null,
-        title: req.body.title || config.ticketPanel.title,
-        description: req.body.description || config.ticketPanel.description,
-        categoryChannelId: req.body.categoryChannelId || null,
-      },
       ticketTranscripts: {
         enabled: req.body.transcriptsEnabled === 'on',
         channelId: req.body.transcriptsChannelId || null,
@@ -532,6 +524,36 @@ function createApp({ client }) {
       ticketFeedback: {
         enabled: req.body.feedbackEnabled === 'on',
       },
+    });
+    res.redirect('/dashboard/tickets/config?saved=1');
+  });
+
+  app.post('/dashboard/tickets/config/panel', requireAuth, requireActiveGuild, async (req, res) => {
+    if (!req.body.channelId) {
+      return res.redirect(`/dashboard/tickets/config?error=${encodeURIComponent('Elegí un canal para el panel.')}`);
+    }
+
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    const panel = {
+      id: `panel-${Date.now()}`,
+      channelId: req.body.channelId,
+      messageId: null,
+      title: (req.body.title || '🎫 Centro de soporte').trim(),
+      description: (req.body.description || '').trim(),
+      categoryChannelId: req.body.categoryChannelId || null,
+      categoryIds: [].concat(req.body.categoryIds || []),
+    };
+
+    await db.updateGuildConfig(req.session.activeGuildId, {
+      ticketPanels: [...(config.ticketPanels || []), panel],
+    });
+    res.redirect('/dashboard/tickets/config?saved=1');
+  });
+
+  app.post('/dashboard/tickets/config/panel/eliminar', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    await db.updateGuildConfig(req.session.activeGuildId, {
+      ticketPanels: (config.ticketPanels || []).filter((p) => p.id !== req.body.id),
     });
     res.redirect('/dashboard/tickets/config?saved=1');
   });
@@ -545,8 +567,10 @@ function createApp({ client }) {
     }
 
     try {
-      const messageId = await ticketCommand.publishPanel(guild, config);
-      await db.updateGuildConfig(req.session.activeGuildId, { ticketPanel: { ...config.ticketPanel, messageId } });
+      const messageId = await ticketCommand.publishPanel(guild, config, req.body.id);
+      await db.updateGuildConfig(req.session.activeGuildId, {
+        ticketPanels: config.ticketPanels.map((p) => (p.id === req.body.id ? { ...p, messageId } : p)),
+      });
       res.redirect('/dashboard/tickets/config?published=1');
     } catch (err) {
       console.error('No se pudo publicar el panel de tickets:', err);

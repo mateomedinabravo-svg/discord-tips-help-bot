@@ -42,11 +42,12 @@ async function findOrCreateTicketsCategory(guild) {
   return guild.channels.create({ name: TICKETS_CATEGORY_NAME, type: ChannelType.GuildCategory });
 }
 
-// si el admin eligio una categoria de Discord desde el dashboard se usa esa;
-// si no existe mas (borrada) o no eligio ninguna, se cae al comportamiento
-// original de buscar/crear una categoria llamada "Tickets"
-async function resolveTicketParentCategory(guild, config) {
-  const categoryChannelId = config.ticketPanel?.categoryChannelId;
+// si el panel desde el que se abrio el ticket tiene una categoria de Discord
+// elegida se usa esa; si no existe mas (borrada), no eligio ninguna, o el
+// ticket se abrio por /ticket (sin panel), se cae al comportamiento original
+// de buscar/crear una categoria llamada "Tickets"
+async function resolveTicketParentCategory(guild, panel) {
+  const categoryChannelId = panel?.categoryChannelId;
   if (categoryChannelId) {
     const chosen = await guild.channels.fetch(categoryChannelId).catch(() => null);
     if (chosen && chosen.type === ChannelType.GuildCategory) return chosen;
@@ -61,9 +62,12 @@ function staffRoles(guild) {
   );
 }
 
-function categorySelectRow(categories) {
+// sin panelId (comando /ticket) usa el customId base; publicado desde un
+// panel especifico le suma el id del panel para que handleCategorySelect
+// sepa despues cual eligio (y con eso, que categoria de Discord usar)
+function categorySelectRow(categories, panelId) {
   const menu = new StringSelectMenuBuilder()
-    .setCustomId(CATEGORY_SELECT_ID)
+    .setCustomId(panelId ? `${CATEGORY_SELECT_ID}:${panelId}` : CATEGORY_SELECT_ID)
     .setPlaceholder('Elegí un tipo de ticket')
     .addOptions(
       categories.slice(0, 25).map((cat) => ({
@@ -76,9 +80,15 @@ function categorySelectRow(categories) {
   return new ActionRowBuilder().addComponents(menu);
 }
 
-async function publishPanel(guild, config) {
-  const panel = config.ticketPanel;
-  if (!panel.channelId) throw new Error('No hay canal de panel configurado');
+function categoriesForPanel(config, panel) {
+  if (!panel.categoryIds || !panel.categoryIds.length) return config.ticketCategories;
+  return config.ticketCategories.filter((c) => panel.categoryIds.includes(c.id));
+}
+
+async function publishPanel(guild, config, panelId) {
+  const panel = (config.ticketPanels || []).find((p) => p.id === panelId);
+  if (!panel) throw new Error('Ese panel ya no existe');
+  if (!panel.channelId) throw new Error('No hay canal configurado para este panel');
 
   const channel = await guild.channels.fetch(panel.channelId);
   if (!channel || !channel.isTextBased()) throw new Error('Canal inválido');
@@ -92,14 +102,17 @@ async function publishPanel(guild, config) {
     }
   }
 
+  const categories = categoriesForPanel(config, panel);
+  if (!categories.length) throw new Error('Este panel no tiene ninguna categoría disponible');
+
   const embed = new EmbedBuilder().setColor(resolveColor(config, 'brand')).setTitle(panel.title).setDescription(panel.description);
-  const row = categorySelectRow(config.ticketCategories);
+  const row = categorySelectRow(categories, panel.id);
 
   const message = await channel.send({ embeds: [embed], components: [row] });
   return message.id;
 }
 
-async function createTicketChannel(interaction, config, categoryId) {
+async function createTicketChannel(interaction, config, categoryId, panel) {
   const category = config.ticketCategories.find((c) => c.id === categoryId);
   if (!category) {
     await interaction.reply({ content: '⚠️ Esa categoría ya no existe.', ephemeral: true });
@@ -108,11 +121,13 @@ async function createTicketChannel(interaction, config, categoryId) {
 
   const guild = interaction.guild;
   const existingTickets = await db.listTickets(guild.id, 'open');
-  const alreadyOpen = existingTickets.find((t) => t.userId === interaction.user.id);
+  // el limite es un ticket abierto por categoria, no uno solo en total: un
+  // usuario puede tener a la vez un ticket de "Soporte" y otro de "Facturación"
+  const alreadyOpen = existingTickets.find((t) => t.userId === interaction.user.id && t.categoryId === categoryId);
 
   if (alreadyOpen) {
     await interaction.reply({
-      content: `⚠️ Ya tenés un ticket abierto: <#${alreadyOpen.channelId}>`,
+      content: `⚠️ Ya tenés un ticket abierto de esta categoría: <#${alreadyOpen.channelId}>`,
       ephemeral: true,
     });
     return;
@@ -120,7 +135,7 @@ async function createTicketChannel(interaction, config, categoryId) {
 
   await interaction.deferReply({ ephemeral: true });
 
-  const parent = await resolveTicketParentCategory(guild, config);
+  const parent = await resolveTicketParentCategory(guild, panel);
   const staffRoleIds = category.staffRoleIds && category.staffRoleIds.length ? category.staffRoleIds : staffRoles(guild).map((r) => r.id);
 
   const permissionOverwrites = [
@@ -188,7 +203,7 @@ async function handleTicketCommand(interaction, config) {
   }
 
   if (categories.length === 1) {
-    await createTicketChannel(interaction, config, categories[0].id);
+    await createTicketChannel(interaction, config, categories[0].id, null);
     return;
   }
 
@@ -196,8 +211,10 @@ async function handleTicketCommand(interaction, config) {
 }
 
 async function handleCategorySelect(interaction, config) {
-  if (interaction.customId !== CATEGORY_SELECT_ID) return;
-  await createTicketChannel(interaction, config, interaction.values[0]);
+  if (!interaction.customId.startsWith(CATEGORY_SELECT_ID)) return;
+  const [, panelId] = interaction.customId.split(':');
+  const panel = panelId ? (config.ticketPanels || []).find((p) => p.id === panelId) : null;
+  await createTicketChannel(interaction, config, interaction.values[0], panel);
 }
 
 async function handleClaimButton(interaction) {

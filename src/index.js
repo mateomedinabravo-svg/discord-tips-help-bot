@@ -605,7 +605,7 @@ async function handleInteraction(interaction) {
   }
 
   if (interaction.isStringSelectMenu()) {
-    if (interaction.customId === ticketCommand.CATEGORY_SELECT_ID) {
+    if (interaction.customId.startsWith(ticketCommand.CATEGORY_SELECT_ID)) {
       const config = interaction.guild ? configByGuild.get(interaction.guild.id) : null;
       if (config) await ticketCommand.handleCategorySelect(interaction, config);
     } else if (interaction.customId === selectRoles.SELECT_MENU_ID) {

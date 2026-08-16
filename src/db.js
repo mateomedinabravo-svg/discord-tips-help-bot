@@ -101,13 +101,10 @@ function defaultConfig(guildId) {
         staffRoleIds: [],
       },
     ],
-    ticketPanel: {
-      channelId: null,
-      messageId: null,
-      title: '🎫 Centro de soporte',
-      description: 'Elegí abajo el tipo de ticket que necesitás para que el staff te ayude.',
-      categoryChannelId: null,
-    },
+    // varios paneles independientes: cada uno se publica en su propio canal,
+    // con su propio embed y su propio subconjunto de categorias (categoryIds
+    // vacio = todas las categorias de ticketCategories)
+    ticketPanels: [],
     ticketTranscripts: {
       enabled: false,
       channelId: null,
@@ -198,6 +195,17 @@ function defaultConfig(guildId) {
 }
 
 async function ensureIndexes(database) {
+  // el limite de "un ticket abierto" paso de ser por usuario (guildId+userId) a
+  // ser por usuario+categoria (guildId+userId+categoryId), para permitir tener
+  // varios tickets abiertos a la vez si son de categorias distintas. El indice
+  // viejo se borra primero porque un indice con distinta clave no reemplaza al
+  // anterior, solo se suma, y el viejo seguiria bloqueando el segundo ticket
+  try {
+    await database.collection('tickets').dropIndex('guildId_1_userId_1');
+  } catch (err) {
+    if (err.codeName !== 'IndexNotFound') console.error('No se pudo borrar el índice viejo de tickets:', err.message);
+  }
+
   // indices unicos: aceleran las consultas mas frecuentes (antes escaneaban toda
   // la coleccion) y evitan documentos duplicados por condiciones de carrera
   // (dos inserts casi simultaneos del mismo guild/usuario antes de que exista el doc)
@@ -211,7 +219,7 @@ async function ensureIndexes(database) {
     database.collection('marriages').createIndex({ guildId: 1, userId: 1 }, { unique: true }),
     database.collection('warnings').createIndex({ guildId: 1, userId: 1 }),
     database.collection('tickets').createIndex(
-      { guildId: 1, userId: 1 },
+      { guildId: 1, userId: 1, categoryId: 1 },
       { unique: true, partialFilterExpression: { status: 'open' } },
     ),
     database.collection('inviteJoins').createIndex({ guildId: 1, inviterId: 1 }),
@@ -259,7 +267,34 @@ async function getGuildConfig(guildId) {
   config.casino = { ...defaults.casino, ...(config.casino || {}) };
   config.pets = { ...defaults.pets, ...(config.pets || {}) };
   config.ticketCategories = config.ticketCategories || defaults.ticketCategories;
-  config.ticketPanel = { ...defaults.ticketPanel, ...(config.ticketPanel || {}) };
+  // migracion: guilds guardadas antes de que existieran varios paneles tenian
+  // un unico "ticketPanel" (objeto); se convierte en un array de un elemento
+  // la primera vez que se lee, sin perder lo que ya estaba configurado/publicado
+  if (!Array.isArray(config.ticketPanels) || !config.ticketPanels.length) {
+    const legacy = config.ticketPanel;
+    config.ticketPanels = legacy && legacy.channelId
+      ? [
+          {
+            id: 'panel-1',
+            channelId: legacy.channelId,
+            messageId: legacy.messageId || null,
+            title: legacy.title || '🎫 Centro de soporte',
+            description: legacy.description || 'Elegí abajo el tipo de ticket que necesitás para que el staff te ayude.',
+            categoryChannelId: legacy.categoryChannelId || null,
+            categoryIds: [],
+          },
+        ]
+      : [];
+  }
+  config.ticketPanels = config.ticketPanels.map((p) => ({
+    id: p.id,
+    channelId: p.channelId || null,
+    messageId: p.messageId || null,
+    title: p.title || '🎫 Centro de soporte',
+    description: p.description || '',
+    categoryChannelId: p.categoryChannelId || null,
+    categoryIds: Array.isArray(p.categoryIds) ? p.categoryIds : [],
+  }));
   config.ticketTranscripts = { ...defaults.ticketTranscripts, ...(config.ticketTranscripts || {}) };
   config.ticketFeedback = { ...defaults.ticketFeedback, ...(config.ticketFeedback || {}) };
   config.starboard = { ...defaults.starboard, ...(config.starboard || {}) };
@@ -327,9 +362,11 @@ async function getNextTicketNumber(guildId) {
   return doc.next;
 }
 
-// protegido por un indice unico parcial en {guildId, userId} con status:'open':
-// si el usuario ya tiene un ticket abierto (por una segunda invocacion casi
-// simultanea), el insert falla con codigo 11000 en vez de crear un duplicado
+// protegido por un indice unico parcial en {guildId, userId, categoryId} con
+// status:'open': si el usuario ya tiene un ticket abierto de esa misma
+// categoria (por una segunda invocacion casi simultanea), el insert falla con
+// codigo 11000 en vez de crear un duplicado; puede tener tickets abiertos de
+// categorias distintas al mismo tiempo sin problema
 async function createTicket({ guildId, channelId, userId, categoryId, categoryLabel, number }) {
   const database = await connect();
   try {
