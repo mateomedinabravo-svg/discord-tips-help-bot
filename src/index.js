@@ -413,7 +413,9 @@ client.on('messageCreate', async (message) => {
       if (cleanedContent) {
         const aiContext = await buildAiContext(message, config);
         const chatReply = await aiHelper.chatReply(client, config, cleanedContent, aiContext);
-        if (chatReply) await message.reply(chatReply);
+        // si la IA falla (timeout, rate limit, etc.) igual contesta algo en
+        // vez de quedarse en silencio total despues de que la mencionaron
+        await message.reply(chatReply || '🤖 No pude pensar una respuesta ahora, mencioname de nuevo en un rato.');
       }
     }
   } catch (err) {

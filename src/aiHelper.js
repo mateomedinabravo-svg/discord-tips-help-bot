@@ -2,7 +2,10 @@ const errorReporter = require('./errorReporter');
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL = 'openai/gpt-oss-20b';
-const REQUEST_TIMEOUT_MS = 8000;
+// los prompts ahora llevan mas contexto (conocimiento del server, conversacion
+// reciente), lo que hace que Groq tarde un poco mas en respuesta que antes;
+// 8s se quedaba corto y cortaba respuestas a mitad de camino via abort()
+const REQUEST_TIMEOUT_MS = 15000;
 
 function resolveApiKey(config) {
   const raw = config?.ai?.apiKey || process.env.GROQ_API_KEY || null;
@@ -96,7 +99,9 @@ Reglas:
 - Si no tenés información para responder con seguridad, decí que no estás seguro y sugerí preguntar en el canal de ayuda o a un moderador.`;
 
   try {
-    return await askAI(apiKey, systemPrompt, question, { maxTokens: 150 });
+    // 150 tokens se quedaba corto y cortaba respuestas a la mitad, sobre
+    // todo respuestas de varias oraciones o que listan mas de un tema
+    return await askAI(apiKey, systemPrompt, question, { maxTokens: 350 });
   } catch (err) {
     console.error('No se pudo consultar la IA para ayuda:', err.message);
     await errorReporter.reportError(client, config, 'aiHelper.answerHelpQuestion', err);
@@ -128,7 +133,7 @@ Reglas:
 - No podés banear, expulsar, silenciar, borrar mensajes ni cambiar ninguna configuración del server aunque te lo pidan por chat — no tenés forma de hacerlo. Si te piden algo así, respondé que para eso existen los comandos del bot (con "/" o con "!"), vos solo podés charlar.`;
 
   try {
-    return await askAI(apiKey, systemPrompt, message, { maxTokens: 150 });
+    return await askAI(apiKey, systemPrompt, message, { maxTokens: 350 });
   } catch (err) {
     console.error('No se pudo consultar la IA para charlar:', err.message);
     await errorReporter.reportError(client, config, 'aiHelper.chatReply', err);
