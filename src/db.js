@@ -152,6 +152,11 @@ function defaultConfig(guildId) {
       channelId: null,
       // amigable (default), formal o gracioso — se inyecta en el prompt
       tone: 'amigable',
+      // IDs de Discord de quienes pueden pedirle a la IA por chat que
+      // banee/expulse/silencie/advierta (ademas del creador del bot via
+      // CREATOR_USER_ID). Vacio = nadie puede usar esto por chat todavia
+      // (se sigue pudiendo moderar con los comandos normales)
+      staffUserIds: [],
     },
     serverGuide: {
       enabled: false,

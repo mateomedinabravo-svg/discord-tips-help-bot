@@ -1090,6 +1090,19 @@ function aiPage({ user, config, channels, aiConfigured, usageStats, guildName, f
       <label for="ai-remove-key" style="margin:0;">Quitar la clave guardada</label></div>` : ''}
 
     <button type="submit">Guardar</button>
+  </form>
+
+  <form class="card" method="post" action="/dashboard/ia">
+    <h2>Moderación por chat con la IA</h2>
+    <p class="muted">Los IDs de esta lista pueden pedirle al bot por chat (mencionándolo) que banee, expulse, silencie o advierta a alguien mencionando a la persona — por ejemplo "@bot baneá a @fulano por spam". El bot siempre pide confirmación (✅/❌) antes de banear/expulsar/silenciar, respeta los roles protegidos y la jerarquía de roles, y nunca deja que la IA decida esto por su cuenta.</p>
+    <label>IDs de Discord autorizados (uno por línea)</label>
+    <textarea name="staffUserIds" placeholder="123456789012345678" style="min-height:80px;">${(config.ai.staffUserIds || []).join('\n')}</textarea>
+    <p class="muted" style="margin-top:-8px;">Activá el Modo de desarrollador en Discord (Configuración → Avanzado) para poder copiar el ID de cualquier usuario con clic derecho → "Copiar ID de usuario".</p>
+    <input type="hidden" name="enabled" value="${config.ai.enabled ? 'on' : ''}">
+    <input type="hidden" name="helpFallback" value="${config.ai.helpFallback ? 'on' : ''}">
+    <input type="hidden" name="channelId" value="${config.ai.channelId || ''}">
+    <input type="hidden" name="tone" value="${config.ai.tone}">
+    <button type="submit">Guardar</button>
   </form>`;
   return layout({ title: 'IA', user, body, flash, guildName });
 }

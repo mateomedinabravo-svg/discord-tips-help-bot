@@ -1430,12 +1430,17 @@ function createApp({ client }) {
     // las claves de Groq son ASCII imprimible; se limpia cualquier caracter pegado
     // por error (emojis, comillas raras, etc.) que rompería el header HTTP al usarla
     const cleanedInput = (req.body.apiKey || '').replace(/[^\x21-\x7e]/g, '').trim();
+    const staffUserIds = (req.body.staffUserIds || '')
+      .split('\n')
+      .map((id) => id.trim())
+      .filter(Boolean);
     await db.updateGuildConfig(req.session.activeGuildId, {
       ai: {
         enabled: req.body.enabled === 'on',
         helpFallback: req.body.helpFallback === 'on',
         channelId: req.body.channelId || null,
         tone: ['formal', 'gracioso'].includes(req.body.tone) ? req.body.tone : 'amigable',
+        staffUserIds,
         // si el campo llega vacio, mantenemos la clave que ya estaba guardada (no la borramos por error),
         // salvo que se tilde explicitamente "quitar clave"
         apiKey: req.body.removeApiKey === 'on' ? '' : cleanedInput || config.ai.apiKey,

@@ -46,6 +46,12 @@ if (!TOKEN) {
   process.exit(1);
 }
 
+// el creador/programador del bot: siempre puede pedirle acciones de
+// moderacion por chat, ademas de quien este en config.ai.staffUserIds por
+// server. Se identifica por ID real de Discord (no por nombre, que se puede
+// cambiar o falsificar) — si no esta seteada, nadie tiene este acceso extra
+const CREATOR_USER_ID = process.env.CREATOR_USER_ID || null;
+
 const CONFIG_REFRESH_MS = 60 * 1000;
 const GIVEAWAY_CHECK_MS = 30 * 1000;
 const SCHEDULED_ANNOUNCEMENT_CHECK_MS = 60 * 1000;
@@ -293,6 +299,7 @@ async function buildAiContext(message, config) {
     roleNames,
     channelNames,
     tone: config?.ai?.tone,
+    isCreator: Boolean(CREATOR_USER_ID) && message.author.id === CREATOR_USER_ID,
   };
 }
 
@@ -327,29 +334,44 @@ function trackAiUsage(guildId, success) {
   db.incrementAiUsage(guildId, success).catch((err) => console.error('No se pudo registrar uso de IA:', err.message));
 }
 
-// si el mensaje pregunta por nivel/balance/etc, busca el dato REAL en la base
-// para el que escribe y para cualquier usuario mencionado, asi la IA contesta
-// con el numero real en vez de inventarlo
+// si el mensaje pregunta por nivel/balance/roles/etc, busca el dato REAL en
+// la base (o en el propio member de discord) para el que escribe y para
+// cualquier usuario mencionado, asi la IA contesta con el dato real en vez
+// de inventarlo
 async function buildRealDataForQuery(message) {
-  if (!/\b(nivel|balance|monedas|plata|perfil|experiencia|xp)\b/i.test(message.content)) return '';
+  const wantsStats = /\b(nivel|balance|monedas|plata|perfil|experiencia|xp)\b/i.test(message.content);
+  const wantsRoles = /\b(rol|roles|permiso|permisos)\b/i.test(message.content);
+  if (!wantsStats && !wantsRoles) return '';
 
-  const targets = [{ id: message.author.id, name: message.member?.displayName || message.author.username }];
+  const targets = [{ id: message.author.id, name: message.member?.displayName || message.author.username, member: message.member }];
   for (const [id, user] of message.mentions.users) {
     if (id === client.user.id) continue;
-    targets.push({ id, name: message.mentions.members?.get(id)?.displayName || user.username });
+    const member = message.mentions.members?.get(id);
+    targets.push({ id, name: member?.displayName || user.username, member });
   }
 
   const lines = [];
   for (const target of targets) {
-    try {
-      const [levelInfo, account] = await Promise.all([
-        db.getUserLevel(message.guild.id, target.id),
-        db.getEconomyAccount(message.guild.id, target.id),
-      ]);
-      lines.push(`- ${target.name}: nivel ${levelInfo.level} (${levelInfo.xp} XP total), balance ${account.balance}`);
-    } catch (err) {
-      console.error('No se pudo traer datos reales para la IA:', err.message);
+    const parts = [];
+    if (wantsStats) {
+      try {
+        const [levelInfo, account] = await Promise.all([
+          db.getUserLevel(message.guild.id, target.id),
+          db.getEconomyAccount(message.guild.id, target.id),
+        ]);
+        parts.push(`nivel ${levelInfo.level} (${levelInfo.xp} XP total), balance ${account.balance}`);
+      } catch (err) {
+        console.error('No se pudo traer datos reales para la IA:', err.message);
+      }
     }
+    if (wantsRoles) {
+      const roleNames = target.member?.roles.cache
+        .filter((role) => role.id !== message.guild.id)
+        .map((role) => role.name)
+        .join(', ');
+      parts.push(`roles: ${roleNames || '(sin roles)'}`);
+    }
+    if (parts.length) lines.push(`- ${target.name}: ${parts.join(' | ')}`);
   }
   return lines.join('\n');
 }
@@ -361,6 +383,170 @@ async function buildChannelSummaryTranscript(message) {
     .reverse()
     .map((m) => `${m.member?.displayName || m.author.username}: ${m.content}`.replace(/\s+/g, ' ').slice(0, 200))
     .join('\n');
+}
+
+// ==== acciones de moderacion por chat con la IA ====
+//
+// IMPORTANTE: la IA (Groq) NUNCA participa en decidir ni ejecutar estas
+// acciones. Todo esto es deteccion por palabra clave (regex) + validacion de
+// permisos en código, exactamente igual al patron ya usado para /meme y
+// /trivia por chat. Esto es a proposito: como no hay ningun LLM en el medio,
+// no existe ningun prompt/injection posible que pueda "convencer" al bot de
+// banear a alguien — la unica forma de que esto se ejecute es que un ID de
+// Discord real y autorizado escriba un mensaje que matchee el patron, con
+// una mencion real (@usuario) como objetivo.
+const STAFF_ACTIONS = [
+  { type: 'ban', label: 'banear', pattern: /\b(banea(lo|la)?|banear|ban)\b/i, confirm: true },
+  { type: 'kick', label: 'expulsar', pattern: /\b(expulsa(lo|la)?|expulsar|echa(lo|la)?|echar|kick(ealo)?)\b/i, confirm: true },
+  { type: 'mute', label: 'silenciar', pattern: /\b(silencia(lo|la)?|silenciar|mutea(lo|la)?|mutear|timeout)\b/i, confirm: true },
+  { type: 'warn', label: 'advertir', pattern: /\b(advi(e|é)rte(le)?|advertir|amonesta(lo|la)?|amonestar|warn(ealo)?)\b/i, confirm: false },
+];
+
+function detectStaffAction(content) {
+  for (const action of STAFF_ACTIONS) {
+    const match = content.match(action.pattern);
+    if (match) return { ...action, matchedText: match[0] };
+  }
+  return null;
+}
+
+// solo el creador del bot (CREATOR_USER_ID) o quien este explicitamente en
+// config.ai.staffUserIds de ESE server puede pedir esto por chat — no se usa
+// el rol/permiso de discord de quien escribe, es una lista aparte a
+// proposito (asi el dueño del bot controla esto independiente de quien sea
+// mod en cada server)
+function isAiStaffAuthorized(config, userId) {
+  if (CREATOR_USER_ID && userId === CREATOR_USER_ID) return true;
+  return (config?.ai?.staffUserIds || []).includes(userId);
+}
+
+// el objetivo SIEMPRE tiene que ser una mencion real de discord (@usuario),
+// nunca se adivina un nombre desde el texto libre — asi no hay forma de que
+// la IA (ni nadie por texto) apunte a la persona equivocada
+function extractStaffActionTarget(message) {
+  return message.mentions.members?.find((member) => member.id !== client.user.id) || null;
+}
+
+function extractStaffActionReason(message, targetId, matchedText) {
+  let text = message.content;
+  text = text.replace(new RegExp(`<@!?${client.user.id}>`, 'g'), '');
+  text = text.replace(new RegExp(`<@!?${targetId}>`, 'g'), '');
+  text = text.replace(matchedText, '');
+  text = text.replace(/^\s*((a|al|le|por|que)\s+)+/i, '').trim();
+  return text || 'Sin especificar';
+}
+
+function extractMuteMinutes(content) {
+  const match = content.match(/(\d+)\s*(minutos?|min\b|horas?|hs\b|hrs?\b)/i);
+  if (!match) return 10;
+  const amount = parseInt(match[1], 10);
+  const unit = match[2].toLowerCase();
+  if (unit.startsWith('hora') || unit.startsWith('hs') || unit.startsWith('hr')) return amount * 60;
+  return amount;
+}
+
+// shim minimo de "interaction" para reusar los handlers REALES de
+// moderationCommands.js sin duplicar su logica (mismos chequeos de rol
+// protegido y jerarquia que ya tienen /ban /kick /mute /warn)
+function buildModerationShim(message, target, reason, minutes) {
+  return {
+    guild: message.guild,
+    user: message.author,
+    member: message.member,
+    client,
+    options: {
+      getUser: () => target.user,
+      getString: () => reason,
+      getInteger: () => minutes,
+    },
+    reply: (payload) => message.reply(payload),
+  };
+}
+
+// pide confirmacion con reacciones antes de ejecutar acciones destructivas;
+// solo cuenta la reaccion del mismo usuario que pidio la accion
+async function requestModerationConfirmation(message, description) {
+  const confirmMsg = await message.reply(`${description}\n\nReaccioná con ✅ para confirmar o ❌ para cancelar (15s).`);
+  await confirmMsg.react('✅').catch(() => {});
+  await confirmMsg.react('❌').catch(() => {});
+  try {
+    const collected = await confirmMsg.awaitReactions({
+      filter: (reaction, user) => ['✅', '❌'].includes(reaction.emoji.name) && user.id === message.author.id,
+      max: 1,
+      time: 15000,
+      errors: ['time'],
+    });
+    return collected.first().emoji.name === '✅';
+  } catch {
+    await message.reply('⏳ Se venció el tiempo para confirmar, cancelado.').catch(() => {});
+    return false;
+  }
+}
+
+// devuelve true si el mensaje matcheaba una accion de staff (autorizada,
+// rechazada o cancelada) — en ese caso el caller no debe seguir con el resto
+// del flujo de IA para este mensaje. Devuelve false si no era este tipo de
+// pedido, y el mensaje sigue su curso normal (ayuda / charla / etc)
+async function handleStaffActionRequest(message, config) {
+  const action = detectStaffAction(message.content);
+  if (!action) return false;
+
+  if (!isAiStaffAuthorized(config, message.author.id)) {
+    await message.reply('❌ No tenés permiso para pedirme acciones de moderación por chat.');
+    return true;
+  }
+
+  if (!canUseAiNow(message.author.id)) {
+    await message.reply('⏳ Esperá unos segundos antes de pedirme otra acción.');
+    return true;
+  }
+
+  const target = extractStaffActionTarget(message);
+  if (!target) {
+    await message.reply(`Mencioná a la persona (@usuario) para poder ${action.label}la/o.`);
+    return true;
+  }
+
+  const reason = extractStaffActionReason(message, target.id, action.matchedText);
+
+  try {
+    if (action.type === 'mute') {
+      const minutes = extractMuteMinutes(message.content);
+      if (action.confirm) {
+        const ok = await requestModerationConfirmation(message, `🔇 Vas a **silenciar** a <@${target.id}> por ${minutes} min. Motivo: ${reason}`);
+        if (!ok) {
+          await message.reply('❌ Cancelado.');
+          return true;
+        }
+      }
+      await moderationCommands.handleMuteCommand(buildModerationShim(message, target, reason, minutes), config);
+      return true;
+    }
+
+    if (action.type === 'warn') {
+      await moderationCommands.handleWarnCommand(buildModerationShim(message, target, reason, null), config);
+      return true;
+    }
+
+    const emoji = action.type === 'ban' ? '🔨' : '👢';
+    const verb = action.type === 'ban' ? 'banear' : 'expulsar';
+    const ok = await requestModerationConfirmation(message, `${emoji} Vas a **${verb}** a <@${target.id}>. Motivo: ${reason}`);
+    if (!ok) {
+      await message.reply('❌ Cancelado.');
+      return true;
+    }
+    if (action.type === 'ban') {
+      await moderationCommands.handleBanCommand(buildModerationShim(message, target, reason, null), config);
+    } else {
+      await moderationCommands.handleKickCommand(buildModerationShim(message, target, reason, null), config);
+    }
+    return true;
+  } catch (err) {
+    console.error('Error ejecutando acción de moderación por IA:', err);
+    await errorReporter.reportError(client, config, 'handleStaffActionRequest', err);
+    await message.reply('⚠️ Algo falló al ejecutar esa acción.').catch(() => {});
+    return true;
+  }
 }
 
 async function applyAutomod(message, config) {
@@ -487,6 +673,11 @@ client.on('messageCreate', async (message) => {
       botId: client.user.id,
     });
     if (directedElsewhere) return;
+
+    if (mentionsBot && config?.ai?.enabled) {
+      const wasStaffAction = await handleStaffActionRequest(message, config);
+      if (wasStaffAction) return;
+    }
 
     const findHelpResponse = findHelpResponseByGuild.get(guildId) || (() => null);
     const response = findHelpResponse(message.content);
