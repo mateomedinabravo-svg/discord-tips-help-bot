@@ -771,7 +771,7 @@ function customCommandsPage({ user, config, guildName, flash }) {
 
   <form class="card" method="post" action="/dashboard/comandos/prefijo">
     <h2>Comandos con prefijo</h2>
-    <p class="muted">Todos los comandos también funcionan escribiéndolos en el chat con este prefijo. La mayoría van con espacios (ej. "!balance", "!mute @usuario 30 spam"). Los que tienen más de un campo de texto libre (/anuncio, /encuesta, /programar, /sorteo crear, /casa) van separados por "|" en vez de espacios, ej. "!anuncio Mensaje del anuncio | #canal | Título". Los de moderación y configuración piden el mismo permiso de Discord que su versión "/".</p>
+    <p class="muted">Todos los comandos también funcionan escribiéndolos en el chat con este prefijo. La mayoría van con espacios (ej. "!balance", "!mute @usuario 30 spam"). Los que tienen más de un campo de texto libre (/anuncio, /encuesta, /programar, /sorteo crear, /casa) van separados por "|" en vez de espacios, ej. "!anuncio Mensaje del anuncio | #canal | Título". Los de moderación y configuración piden el mismo permiso de Discord que su versión "/". Escribí "!help" en el chat para ver la lista completa — Discord no tiene autocompletado nativo para comandos con prefijo (eso es exclusivo de "/"), así que los "/" siguen apareciendo en el menú de Discord aunque también funcionen con "!".</p>
     <div class="checkbox-row"><input type="checkbox" name="enabled" id="tc-enabled" ${config.textCommands.enabled ? 'checked' : ''}>
       <label for="tc-enabled" style="margin:0;">Activado</label></div>
     <label>Prefijo</label>

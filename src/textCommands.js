@@ -35,6 +35,7 @@ const moderationCommands = require('./moderationCommands');
 const announceCommand = require('./announceCommand');
 const pollCommand = require('./pollCommand');
 const housesCommand = require('./housesCommand');
+const { buildEmbed } = require('./embedStyle');
 
 class TextCommandError extends Error {}
 
@@ -45,53 +46,70 @@ function isMentionToken(token) {
   return USER_MENTION_TOKEN.test(token) || CHANNEL_MENTION_TOKEN.test(token);
 }
 
+// categorias para agrupar la lista de !help, en el orden en que se muestran
+const CAT = {
+  ECONOMIA: '💰 Economía',
+  CASINO: '🎰 Casino',
+  PROGRESION: '📈 Progresión',
+  TICKETS: '🎫 Tickets',
+  MATRIMONIO: '💍 Matrimonio',
+  MASCOTAS: '🐾 Mascotas',
+  COMUNIDAD: '🎉 Comunidad',
+  STAFF: '🛡️ Staff',
+};
+
 // comandos de una sola palabra -> un modulo/subcomando especifico
 const FLAT_COMMANDS = {
-  balance: { module: 'economia', subcommand: 'balance' },
-  daily: { module: 'economia', subcommand: 'daily' },
-  work: { module: 'economia', subcommand: 'work' },
-  pay: { module: 'economia', subcommand: 'pay', usage: '!pay @usuario <cantidad>' },
-  perfil: { module: 'economia', subcommand: 'perfil' },
-  shop: { module: 'economia', subcommand: 'shop' },
-  comprar: { module: 'economia', subcommand: 'comprar', usage: '!comprar <item>' },
-  inventario: { module: 'economia', subcommand: 'inventario' },
+  help: { module: 'help' },
 
-  apostar: { module: 'casino', subcommand: 'apostar', choices: { eleccion: ['cara', 'cruz'] }, usage: '!apostar <cantidad> <cara|cruz>' },
-  slots: { module: 'casino', subcommand: 'slots', usage: '!slots <cantidad>' },
+  balance: { module: 'economia', subcommand: 'balance', category: CAT.ECONOMIA },
+  daily: { module: 'economia', subcommand: 'daily', category: CAT.ECONOMIA },
+  work: { module: 'economia', subcommand: 'work', category: CAT.ECONOMIA },
+  pay: { module: 'economia', subcommand: 'pay', usage: '!pay @usuario <cantidad>', category: CAT.ECONOMIA },
+  perfil: { module: 'economia', subcommand: 'perfil', category: CAT.ECONOMIA },
+  shop: { module: 'economia', subcommand: 'shop', category: CAT.ECONOMIA },
+  comprar: { module: 'economia', subcommand: 'comprar', usage: '!comprar <item>', category: CAT.ECONOMIA },
+  inventario: { module: 'economia', subcommand: 'inventario', category: CAT.ECONOMIA },
+
+  apostar: { module: 'casino', subcommand: 'apostar', choices: { eleccion: ['cara', 'cruz'] }, usage: '!apostar <cantidad> <cara|cruz>', category: CAT.CASINO },
+  slots: { module: 'casino', subcommand: 'slots', usage: '!slots <cantidad>', category: CAT.CASINO },
   ruleta: {
     module: 'casino',
     subcommand: 'ruleta',
     choices: { apuesta: ['rojo', 'negro', 'numero'] },
     usage: '!ruleta <cantidad> <rojo|negro|numero> [numero]',
+    category: CAT.CASINO,
   },
-  blackjack: { module: 'casino', subcommand: 'blackjack', usage: '!blackjack <cantidad>' },
-  dados: { module: 'casino', subcommand: 'dados', usage: '!dados <cantidad>' },
-  ppt: { module: 'casino', subcommand: 'ppt', choices: { eleccion: ['piedra', 'papel', 'tijera'] }, usage: '!ppt <cantidad> <piedra|papel|tijera>' },
+  blackjack: { module: 'casino', subcommand: 'blackjack', usage: '!blackjack <cantidad>', category: CAT.CASINO },
+  dados: { module: 'casino', subcommand: 'dados', usage: '!dados <cantidad>', category: CAT.CASINO },
+  ppt: { module: 'casino', subcommand: 'ppt', choices: { eleccion: ['piedra', 'papel', 'tijera'] }, usage: '!ppt <cantidad> <piedra|papel|tijera>', category: CAT.CASINO },
 
-  nivel: { module: 'nivel' },
-  ranking: { module: 'ranking' },
+  nivel: { module: 'nivel', category: CAT.PROGRESION },
+  ranking: { module: 'ranking', category: CAT.PROGRESION },
 
-  ticket: { module: 'ticket' },
+  ticket: { module: 'ticket', category: CAT.TICKETS },
 
-  casar: { module: 'casar', usage: '!casar @usuario' },
-  divorciar: { module: 'divorciar' },
-  pareja: { module: 'pareja' },
+  casar: { module: 'casar', usage: '!casar @usuario', category: CAT.MATRIMONIO },
+  divorciar: { module: 'divorciar', category: CAT.MATRIMONIO },
+  pareja: { module: 'pareja', category: CAT.MATRIMONIO },
 
-  meme: { module: 'meme' },
-  trivia: { module: 'trivia' },
-  afk: { module: 'afk', restStringOptions: ['motivo'] },
+  meme: { module: 'meme', category: CAT.COMUNIDAD },
+  trivia: { module: 'trivia', category: CAT.COMUNIDAD },
+  afk: { module: 'afk', restStringOptions: ['motivo'], category: CAT.COMUNIDAD },
   casa: {
     module: 'casa',
     mode: 'pipes',
-    usage: '!casa <respuesta 1> | <respuesta 2> | ... (un campo por cada pregunta del formulario, en orden)',
+    usage: '!casa <respuesta 1> | <respuesta 2> | ...',
+    category: CAT.COMUNIDAD,
   },
 
-  debug: { module: 'debug', permission: PermissionFlagsBits.ManageGuild },
+  debug: { module: 'debug', permission: PermissionFlagsBits.ManageGuild, category: CAT.STAFF },
   decir: {
     module: 'decir',
     permission: PermissionFlagsBits.ManageGuild,
     restStringOptions: ['mensaje'],
     usage: '!decir [#canal] <mensaje>',
+    category: CAT.STAFF,
   },
   anuncio: {
     module: 'anuncio',
@@ -99,12 +117,14 @@ const FLAT_COMMANDS = {
     mode: 'pipes',
     minSegments: 1,
     usage: '!anuncio <mensaje> [| #canal] [| <titulo>] [| <color hex>] [| <url imagen>]',
+    category: CAT.STAFF,
   },
   encuesta: {
     module: 'encuesta',
     mode: 'pipes',
     minSegments: 3,
     usage: '!encuesta <pregunta> | <opcion1> | <opcion2> [| <opcion3>] [| <opcion4>] [| <opcion5>]',
+    category: CAT.COMUNIDAD,
   },
   programar: {
     module: 'programar',
@@ -112,19 +132,21 @@ const FLAT_COMMANDS = {
     mode: 'pipes',
     minSegments: 2,
     usage: '!programar <mensaje> | <cuando, ej 2h> [| #canal]',
+    category: CAT.STAFF,
   },
 
-  ban: { module: 'moderacion', subcommand: 'ban', permission: PermissionFlagsBits.BanMembers, restStringOptions: ['razon'], usage: '!ban @usuario [razon]' },
-  kick: { module: 'moderacion', subcommand: 'kick', permission: PermissionFlagsBits.KickMembers, restStringOptions: ['razon'], usage: '!kick @usuario [razon]' },
+  ban: { module: 'moderacion', subcommand: 'ban', permission: PermissionFlagsBits.BanMembers, restStringOptions: ['razon'], usage: '!ban @usuario [razon]', category: CAT.STAFF },
+  kick: { module: 'moderacion', subcommand: 'kick', permission: PermissionFlagsBits.KickMembers, restStringOptions: ['razon'], usage: '!kick @usuario [razon]', category: CAT.STAFF },
   mute: {
     module: 'moderacion',
     subcommand: 'mute',
     permission: PermissionFlagsBits.ModerateMembers,
     restStringOptions: ['razon'],
     usage: '!mute @usuario <minutos> [razon]',
+    category: CAT.STAFF,
   },
-  warn: { module: 'moderacion', subcommand: 'warn', permission: PermissionFlagsBits.ModerateMembers, restStringOptions: ['razon'], usage: '!warn @usuario <razon>' },
-  warnings: { module: 'moderacion', subcommand: 'warnings', permission: PermissionFlagsBits.ModerateMembers, usage: '!warnings @usuario' },
+  warn: { module: 'moderacion', subcommand: 'warn', permission: PermissionFlagsBits.ModerateMembers, restStringOptions: ['razon'], usage: '!warn @usuario <razon>', category: CAT.STAFF },
+  warnings: { module: 'moderacion', subcommand: 'warnings', permission: PermissionFlagsBits.ModerateMembers, usage: '!warnings @usuario', category: CAT.STAFF },
 };
 
 // comandos de dos palabras ("!mascota ver"): el primer token es el nombre del
@@ -136,6 +158,7 @@ const GROUPED_COMMANDS = {
     module: 'mascota',
     defaultSubcommand: 'ver',
     usage: '!mascota ver|adoptar|alimentar|jugar',
+    category: CAT.MASCOTAS,
     subcommands: {
       ver: {},
       adoptar: { choices: { especie: ['perro', 'gato', 'dragon', 'conejo', 'pajaro'] }, usage: '!mascota adoptar <nombre> <perro|gato|dragon|conejo|pajaro>' },
@@ -147,12 +170,14 @@ const GROUPED_COMMANDS = {
     module: 'invitaciones',
     defaultSubcommand: 'ver',
     usage: '!invitaciones ver|ranking',
+    category: CAT.COMUNIDAD,
     subcommands: { ver: {}, ranking: {} },
   },
   cumpleanos: {
     module: 'cumpleanos',
     defaultSubcommand: 'ver',
     usage: '!cumpleanos ver|configurar <dia> <mes>',
+    category: CAT.COMUNIDAD,
     subcommands: { ver: {}, configurar: { usage: '!cumpleanos configurar <dia (1-31)> <mes (1-12)>' } },
   },
   sorteo: {
@@ -160,12 +185,61 @@ const GROUPED_COMMANDS = {
     defaultSubcommand: null,
     permission: PermissionFlagsBits.ManageGuild,
     usage: '!sorteo terminar <mensaje_id>  o  !sorteo crear <premio> | <duracion>',
+    category: CAT.STAFF,
     subcommands: {
       terminar: { usage: '!sorteo terminar <mensaje_id>' },
       crear: { mode: 'pipes', minSegments: 2, usage: '!sorteo crear <premio> | <duracion, ej 2h> [| <ganadores>] [| #canal]' },
     },
   },
 };
+
+const CATEGORY_ORDER = [CAT.ECONOMIA, CAT.CASINO, CAT.PROGRESION, CAT.TICKETS, CAT.MATRIMONIO, CAT.MASCOTAS, CAT.COMUNIDAD, CAT.STAFF];
+
+// Discord no ofrece autocompletado nativo para comandos de prefijo (eso es
+// exclusivo de los comandos "/"), asi que esta es la alternativa mas cercana:
+// un listado armado a partir de las mismas tablas que usa el enrutador, asi
+// no se desactualiza cuando se agrega o saca un comando
+function buildHelpFields(prefix) {
+  const byCategory = new Map();
+
+  function pushLine(category, usage, locked) {
+    if (!category) return;
+    const list = byCategory.get(category) || [];
+    const displayUsage = usage.replace(/^!/, prefix);
+    list.push(`\`${displayUsage}\`${locked ? ' 🔒' : ''}`);
+    byCategory.set(category, list);
+  }
+
+  for (const [name, entry] of Object.entries(FLAT_COMMANDS)) {
+    if (entry.module === 'help') continue;
+    pushLine(entry.category, entry.usage || `!${name}`, !!entry.permission);
+  }
+
+  for (const [name, group] of Object.entries(GROUPED_COMMANDS)) {
+    for (const [sub, subConfig] of Object.entries(group.subcommands)) {
+      const locked = !!(subConfig.permission || group.permission);
+      pushLine(group.category, subConfig.usage || `!${name} ${sub}`, locked);
+    }
+  }
+
+  return CATEGORY_ORDER.filter((cat) => byCategory.has(cat)).map((cat) => ({
+    name: cat,
+    value: byCategory.get(cat).join('\n'),
+    inline: false,
+  }));
+}
+
+async function handleHelpCommand(interaction, config, prefix) {
+  const embed = buildEmbed({
+    type: 'brand',
+    title: '📋 Comandos con prefijo',
+    description: `Todos estos también funcionan como comandos "/". Lo que tiene 🔒 pide permiso de staff.`,
+    fields: buildHelpFields(prefix),
+    footer: `Prefijo actual: ${prefix}`,
+    config,
+  });
+  await interaction.reply({ embeds: [embed] });
+}
 
 function buildTextInteraction(message, { subcommand, args, restStringOptions, choices }) {
   const mentionedUsers = [...message.mentions.users.values()];
@@ -292,8 +366,10 @@ async function dispatchModeracion(subcommand, interaction, config) {
   }
 }
 
-async function dispatch(resolved, interaction, config, segments) {
+async function dispatch(resolved, interaction, config, segments, prefix) {
   switch (resolved.module) {
+    case 'help':
+      return handleHelpCommand(interaction, config, prefix);
     case 'economia':
       return economyCommands.handleEconomyCommand(interaction, config);
     case 'casino':
@@ -424,7 +500,7 @@ async function handleTextCommand(message, config) {
   });
 
   try {
-    await dispatch(resolved, interaction, config, args);
+    await dispatch(resolved, interaction, config, args, prefix);
   } catch (err) {
     if (err instanceof TextCommandError) {
       await message.reply(`❌ ${err.message}${resolved.usage ? `\nUso: ${resolved.usage}` : ''}`);
