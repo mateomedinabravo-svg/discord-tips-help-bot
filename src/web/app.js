@@ -174,6 +174,14 @@ function createApp({ client }) {
     res.type('text/plain').send('Bot activo');
   });
 
+  app.get('/terminos', (req, res) => {
+    res.send(views.termsPage());
+  });
+
+  app.get('/privacidad', (req, res) => {
+    res.send(views.privacyPage());
+  });
+
   app.get('/login', (req, res) => {
     if (req.session.user) return res.redirect('/servers');
 

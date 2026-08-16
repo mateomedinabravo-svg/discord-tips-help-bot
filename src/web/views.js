@@ -249,6 +249,111 @@ function loginPage({ authorizeUrl, error }) {
 </body></html>`;
 }
 
+// paginas publicas (sin login) que exige Discord para verificar la
+// aplicacion: Condiciones del Servicio y Politica de Privacidad
+function termsPage() {
+  const body = `
+  <h1>Condiciones del Servicio</h1>
+  <p class="muted">Última actualización: ${new Date().toLocaleDateString('es-AR', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+
+  <div class="card">
+    <h2>1. Aceptación</h2>
+    <p>Al invitar a PlanetBot a tu servidor de Discord o usar este panel web, aceptás estas Condiciones del Servicio. Si no estás de acuerdo, no uses el bot ni el panel.</p>
+  </div>
+
+  <div class="card">
+    <h2>2. Qué es PlanetBot</h2>
+    <p>PlanetBot es un bot de Discord con funciones de moderación, economía virtual, niveles, tickets de soporte, sorteos y un asistente conversacional opcional basado en IA (Groq), administrable desde este panel web mediante inicio de sesión con Discord (OAuth2).</p>
+  </div>
+
+  <div class="card">
+    <h2>3. Uso aceptable</h2>
+    <p>No está permitido usar el bot para actividades ilegales, acoso, spam, evasión de las políticas de Discord, ni para intentar explotar, saturar o comprometer el servicio. Nos reservamos el derecho de restringir el acceso al bot o al panel a cualquier servidor o usuario que incumpla esto.</p>
+  </div>
+
+  <div class="card">
+    <h2>4. Acceso al panel web</h2>
+    <p>El panel se administra mediante inicio de sesión con tu cuenta de Discord. Solo pueden acceder usuarios con permisos de administración en el servidor correspondiente (y, si el dueño del servidor lo configura, una lista adicional de usuarios permitidos/bloqueados o una contraseña extra para la sección de Estado/Debug).</p>
+  </div>
+
+  <div class="card">
+    <h2>5. Función de IA (opcional)</h2>
+    <p>Si el administrador del servidor activa la función de IA, algunos mensajes se envían a un proveedor externo (Groq) para generar una respuesta de texto. Esta función es opcional, puede desactivarse en cualquier momento desde el panel, y las respuestas generadas pueden contener errores — no deben tomarse como asesoramiento profesional de ningún tipo.</p>
+  </div>
+
+  <div class="card">
+    <h2>6. Disponibilidad</h2>
+    <p>El servicio se ofrece "tal cual", sin garantía de disponibilidad ininterrumpida. Puede haber interrupciones por mantenimiento, fallas técnicas o de terceros (Discord, hosting, base de datos, proveedor de IA).</p>
+  </div>
+
+  <div class="card">
+    <h2>7. Cambios</h2>
+    <p>Estas condiciones pueden actualizarse en cualquier momento. El uso continuado del bot o el panel después de un cambio implica la aceptación de la nueva versión.</p>
+  </div>
+
+  <div class="card">
+    <h2>8. Contacto</h2>
+    <p>Para consultas sobre estas condiciones, escribinos a <a href="mailto:mateo.bravo.medina@gmail.com">mateo.bravo.medina@gmail.com</a>.</p>
+  </div>`;
+  return layout({ title: 'Condiciones del Servicio', user: null, body });
+}
+
+function privacyPage() {
+  const body = `
+  <h1>Política de Privacidad</h1>
+  <p class="muted">Última actualización: ${new Date().toLocaleDateString('es-AR', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+
+  <div class="card">
+    <h2>1. Qué datos recolectamos</h2>
+    <p>Para funcionar, PlanetBot y su panel guardan: tu ID de usuario de Discord y el de los servidores donde está el bot, nombres de usuario/apodos, la configuración que el servidor elige (canales, roles, mensajes, etc.), datos de economía virtual y niveles, historial de advertencias de moderación, y estadísticas de uso (por ejemplo, cuántas veces se usó la IA). No guardamos el historial completo de mensajes del servidor — solo lo puntual que cada función necesita (por ejemplo, el mensaje que activa una respuesta automática, o el contexto reciente de un canal cuando se usa la IA).</p>
+  </div>
+
+  <div class="card">
+    <h2>2. Cómo se usan</h2>
+    <p>Estos datos se usan únicamente para que el bot y el panel funcionen: mostrar tu perfil de economía/nivel, aplicar la configuración de tu servidor, mantener tu sesión iniciada en el panel, y generar respuestas cuando la función de IA está activada.</p>
+  </div>
+
+  <div class="card">
+    <h2>3. Con quién se comparte</h2>
+    <p>No vendemos ni compartimos tus datos con terceros con fines comerciales. Sí se comparte información puntual con:</p>
+    <ul style="margin:0; padding-left:20px; font-size:14px; color:#dbdee1; line-height:1.8;">
+      <li><strong>Discord</strong>, para autenticarte (OAuth2) y para que el bot funcione dentro de tu servidor.</li>
+      <li><strong>Groq</strong>, únicamente si el administrador del servidor activa la función de IA — se le envía el mensaje puntual (y algo de contexto reciente) para generar una respuesta, no un historial completo.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>4. Dónde se guarda</h2>
+    <p>Los datos se almacenan en una base de datos MongoDB Atlas. Las contraseñas adicionales del panel (si el servidor configura una para la sección de Estado/Debug) se guardan con hash y salt, nunca en texto plano.</p>
+  </div>
+
+  <div class="card">
+    <h2>5. Cuánto tiempo se guardan</h2>
+    <p>Los datos de un servidor se conservan mientras el bot esté agregado a ese servidor. Si el bot es expulsado, la información asociada puede eliminarse a pedido del dueño del servidor escribiendo a nuestro contacto.</p>
+  </div>
+
+  <div class="card">
+    <h2>6. Tus derechos</h2>
+    <p>Podés pedir en cualquier momento que te informemos qué datos tenemos sobre vos, o que los eliminemos, escribiendo a <a href="mailto:mateo.bravo.medina@gmail.com">mateo.bravo.medina@gmail.com</a>. Ten en cuenta que borrar cierta información (como advertencias de moderación) puede afectar el funcionamiento del bot en ese servidor.</p>
+  </div>
+
+  <div class="card">
+    <h2>7. Menores de edad</h2>
+    <p>El uso de Discord y de este bot requiere cumplir con los Términos de Servicio de Discord, que exigen una edad mínima de 13 años (o la que corresponda según tu país).</p>
+  </div>
+
+  <div class="card">
+    <h2>8. Cambios</h2>
+    <p>Esta política puede actualizarse. Los cambios importantes se van a reflejar en esta misma página con la fecha de última actualización.</p>
+  </div>
+
+  <div class="card">
+    <h2>9. Contacto</h2>
+    <p>Para cualquier consulta sobre privacidad, escribinos a <a href="mailto:mateo.bravo.medina@gmail.com">mateo.bravo.medina@gmail.com</a>.</p>
+  </div>`;
+  return layout({ title: 'Política de Privacidad', user: null, body });
+}
+
 function generalPage({ user, config, guildName, flash }) {
   const body = `
   <h1>Configuración general</h1>
@@ -1536,6 +1641,8 @@ function birthdaysPage({ user, config, channels, guildName, flash }) {
 module.exports = {
   layout,
   loginPage,
+  termsPage,
+  privacyPage,
   generalPage,
   welcomePage,
   automodPage,
