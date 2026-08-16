@@ -60,6 +60,12 @@ function defaultConfig(guildId) {
       logModeration: true,
     },
     customCommands: [],
+    // equivalente en texto de los comandos slash mas usados (ej "!balance"),
+    // para servers que prefieren el estilo de prefijo clasico
+    textCommands: {
+      enabled: true,
+      prefix: '!',
+    },
     houses: {
       enabled: false,
       requestChannelId: null,
@@ -262,6 +268,7 @@ async function getGuildConfig(guildId) {
   config.logging = { ...defaults.logging, ...(config.logging || {}) };
   config.houses = { ...defaults.houses, ...(config.houses || {}) };
   config.customCommands = config.customCommands || [];
+  config.textCommands = { ...defaults.textCommands, ...(config.textCommands || {}) };
   config.protectedRoleIds = config.protectedRoleIds || [];
   config.economy = { ...defaults.economy, ...(config.economy || {}) };
   config.casino = { ...defaults.casino, ...(config.casino || {}) };

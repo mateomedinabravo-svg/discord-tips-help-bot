@@ -768,7 +768,18 @@ function customCommandsPage({ user, config, guildName, flash }) {
 
   const body = `
   <h1>Comandos personalizados</h1>
-  <p class="muted">Se registran como comandos de barra /nombre. Puede tardar un minuto en aparecer en Discord.</p>
+
+  <form class="card" method="post" action="/dashboard/comandos/prefijo">
+    <h2>Comandos con prefijo</h2>
+    <p class="muted">Los comandos mas usados (balance, daily, work, pay, perfil, nivel, ranking, ticket, casar, mascota ver) tambien funcionan escribiendolos en el chat con este prefijo, ej. "!balance".</p>
+    <div class="checkbox-row"><input type="checkbox" name="enabled" id="tc-enabled" ${config.textCommands.enabled ? 'checked' : ''}>
+      <label for="tc-enabled" style="margin:0;">Activado</label></div>
+    <label>Prefijo</label>
+    <input type="text" name="prefix" maxlength="5" value="${escapeHtml(config.textCommands.prefix)}" style="max-width:100px;">
+    <button type="submit">Guardar</button>
+  </form>
+
+  <p class="muted">Los comandos personalizados de abajo se registran como comandos de barra /nombre. Puede tardar un minuto en aparecer en Discord.</p>
 
   <div class="card">
     <h2>Comandos activos</h2>

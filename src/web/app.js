@@ -1015,6 +1015,14 @@ function createApp({ client }) {
     res.redirect('/dashboard/comandos?saved=1');
   });
 
+  app.post('/dashboard/comandos/prefijo', requireAuth, requireActiveGuild, async (req, res) => {
+    const prefix = (req.body.prefix || '!').trim().slice(0, 5) || '!';
+    await db.updateGuildConfig(req.session.activeGuildId, {
+      textCommands: { enabled: req.body.enabled === 'on', prefix },
+    });
+    res.redirect('/dashboard/comandos?saved=1');
+  });
+
   app.post('/dashboard/comandos/eliminar', requireAuth, requireActiveGuild, async (req, res) => {
     const config = await db.getGuildConfig(req.session.activeGuildId);
     const updatedConfig = await db.updateGuildConfig(req.session.activeGuildId, {

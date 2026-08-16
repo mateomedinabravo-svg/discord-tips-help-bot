@@ -6,6 +6,7 @@ const { buildResponder, NEEDS_FALLBACK } = require('./helpResponder');
 const aiHelper = require('./aiHelper');
 const announceCommand = require('./announceCommand');
 const ticketCommand = require('./ticketCommand');
+const textCommands = require('./textCommands');
 const levelCommands = require('./levelCommands');
 const moderationCommands = require('./moderationCommands');
 const reactionRoles = require('./reactionRoles');
@@ -349,6 +350,9 @@ client.on('messageCreate', async (message) => {
     if (wasRemoved) return;
 
     if (config) {
+      const wasTextCommand = await textCommands.handleTextCommand(message, config);
+      if (wasTextCommand) return;
+
       levelCommands.awardXp(message, config).catch((err) => console.error('No se pudo otorgar XP:', err));
     }
 
