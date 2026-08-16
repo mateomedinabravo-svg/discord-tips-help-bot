@@ -626,6 +626,12 @@ async function handleInteraction(interaction) {
       return;
     }
 
+    if (interaction.customId.startsWith(`${ticketCommand.OPEN_BUTTON_PREFIX}:`)) {
+      const config = interaction.guild ? configByGuild.get(interaction.guild.id) : null;
+      if (config) await ticketCommand.handleOpenButton(interaction, config);
+      return;
+    }
+
     if (interaction.customId.startsWith(ticketCommand.RATE_PREFIX)) {
       await ticketCommand.handleRatingButton(interaction);
       return;

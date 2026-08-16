@@ -542,6 +542,7 @@ function createApp({ client }) {
       description: (req.body.description || '').trim(),
       categoryChannelId: req.body.categoryChannelId || null,
       categoryIds: [].concat(req.body.categoryIds || []),
+      style: req.body.style === 'button' ? 'button' : 'select',
     };
 
     await db.updateGuildConfig(req.session.activeGuildId, {

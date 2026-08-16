@@ -282,6 +282,7 @@ async function getGuildConfig(guildId) {
             description: legacy.description || 'Elegí abajo el tipo de ticket que necesitás para que el staff te ayude.',
             categoryChannelId: legacy.categoryChannelId || null,
             categoryIds: [],
+            style: 'select',
           },
         ]
       : [];
@@ -294,6 +295,7 @@ async function getGuildConfig(guildId) {
     description: p.description || '',
     categoryChannelId: p.categoryChannelId || null,
     categoryIds: Array.isArray(p.categoryIds) ? p.categoryIds : [],
+    style: p.style === 'button' ? 'button' : 'select',
   }));
   config.ticketTranscripts = { ...defaults.ticketTranscripts, ...(config.ticketTranscripts || {}) };
   config.ticketFeedback = { ...defaults.ticketFeedback, ...(config.ticketFeedback || {}) };

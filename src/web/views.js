@@ -1158,8 +1158,9 @@ function ticketConfigPage({ user, config, channels, categoryChannels, roles, gui
       const categoriesText = panel.categoryIds && panel.categoryIds.length
         ? panel.categoryIds.map((id) => categoryLabelById[id] || id).join(', ')
         : 'Todas las categorías';
+      const styleText = panel.style === 'button' ? 'botones' : 'menú desplegable';
       return `<div class="server-row">
-        <span class="name">${escapeHtml(panel.title)} · canal: ${channel ? '#' + escapeHtml(channel.name) : '(sin canal)'} · ${escapeHtml(categoriesText)} ${panel.messageId ? '· publicado' : '· sin publicar'}</span>
+        <span class="name">${escapeHtml(panel.title)} · canal: ${channel ? '#' + escapeHtml(channel.name) : '(sin canal)'} · ${escapeHtml(categoriesText)} · ${styleText} ${panel.messageId ? '· publicado' : '· sin publicar'}</span>
         <div style="display:flex; gap:8px;">
           <form method="post" action="/dashboard/tickets/config/panel/publicar" style="margin:0;">
             <input type="hidden" name="id" value="${escapeHtml(panel.id)}">
@@ -1214,6 +1215,11 @@ function ticketConfigPage({ user, config, channels, categoryChannels, roles, gui
     <select name="categoryIds" multiple size="5">${categoryCheckOptions()}</select>
     <label>Categoría de Discord donde se crean los canales de ticket</label>
     <select name="categoryChannelId"><option value="">-- Auto (crea/usa una categoría "Tickets") --</option>${categoryChannelOptions(null)}</select>
+    <label>Estilo</label>
+    <div class="checkbox-row"><input type="radio" name="style" value="select" id="style-select" checked>
+      <label for="style-select" style="margin:0;">Menú desplegable</label></div>
+    <div class="checkbox-row"><input type="radio" name="style" value="button" id="style-button">
+      <label for="style-button" style="margin:0;">Botones (uno por categoría)</label></div>
     <button type="submit">Crear panel</button>
   </form>
 

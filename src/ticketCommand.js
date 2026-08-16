@@ -16,6 +16,7 @@ const TICKETS_CATEGORY_NAME = 'Tickets';
 const CLOSE_BUTTON_ID = 'close-ticket';
 const CLAIM_BUTTON_ID = 'claim-ticket';
 const CATEGORY_SELECT_ID = 'ticket-category-select';
+const OPEN_BUTTON_PREFIX = 'ticket-open-btn';
 const RATE_PREFIX = 'ticket-rate:';
 
 const definition = new SlashCommandBuilder()
@@ -80,6 +81,28 @@ function categorySelectRow(categories, panelId) {
   return new ActionRowBuilder().addComponents(menu);
 }
 
+// misma idea que categorySelectRow pero como botones en vez de menu
+// desplegable (algunos admins lo prefieren, ej. un solo boton "Enviar
+// Portafolio"). Mismo limite que el select: 25 opciones (5 filas x 5)
+function categoryButtonRows(categories, panelId) {
+  const rows = [];
+  for (let i = 0; i < categories.length && i < 25; i += 5) {
+    const chunk = categories.slice(i, i + 5);
+    rows.push(
+      new ActionRowBuilder().addComponents(
+        chunk.map((cat) =>
+          new ButtonBuilder()
+            .setCustomId(`${OPEN_BUTTON_PREFIX}:${panelId}:${cat.id}`)
+            .setLabel(cat.label.slice(0, 80))
+            .setEmoji(cat.emoji || undefined)
+            .setStyle(ButtonStyle.Primary),
+        ),
+      ),
+    );
+  }
+  return rows;
+}
+
 function categoriesForPanel(config, panel) {
   if (!panel.categoryIds || !panel.categoryIds.length) return config.ticketCategories;
   return config.ticketCategories.filter((c) => panel.categoryIds.includes(c.id));
@@ -106,9 +129,10 @@ async function publishPanel(guild, config, panelId) {
   if (!categories.length) throw new Error('Este panel no tiene ninguna categoría disponible');
 
   const embed = new EmbedBuilder().setColor(resolveColor(config, 'brand')).setTitle(panel.title).setDescription(panel.description);
-  const row = categorySelectRow(categories, panel.id);
+  const components =
+    panel.style === 'button' ? categoryButtonRows(categories, panel.id) : [categorySelectRow(categories, panel.id)];
 
-  const message = await channel.send({ embeds: [embed], components: [row] });
+  const message = await channel.send({ embeds: [embed], components });
   return message.id;
 }
 
@@ -217,6 +241,13 @@ async function handleCategorySelect(interaction, config) {
   await createTicketChannel(interaction, config, interaction.values[0], panel);
 }
 
+async function handleOpenButton(interaction, config) {
+  if (!interaction.customId.startsWith(`${OPEN_BUTTON_PREFIX}:`)) return;
+  const [, panelId, categoryId] = interaction.customId.split(':');
+  const panel = (config.ticketPanels || []).find((p) => p.id === panelId);
+  await createTicketChannel(interaction, config, categoryId, panel);
+}
+
 async function handleClaimButton(interaction) {
   if (interaction.customId !== CLAIM_BUTTON_ID) return;
 
@@ -316,12 +347,14 @@ module.exports = {
   publishPanel,
   handleTicketCommand,
   handleCategorySelect,
+  handleOpenButton,
   handleClaimButton,
   handleCloseButton,
   handleRatingButton,
   CLOSE_BUTTON_ID,
   CLAIM_BUTTON_ID,
   CATEGORY_SELECT_ID,
+  OPEN_BUTTON_PREFIX,
   RATE_PREFIX,
   resolveTicketParentCategory,
 };
