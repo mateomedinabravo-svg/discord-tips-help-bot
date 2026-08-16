@@ -28,6 +28,20 @@ const pkg = require('../../package.json');
 // View/Send/History/ManageMessages/ManageChannels/EmbedLinks/AddReactions/Kick/Ban/ManageRoles/ModerateMembers/ManageGuild/ManageNicknames
 const BOT_INVITE_PERMISSIONS = 1099914374262;
 
+// hash+salt para la contraseña de la pagina Estado/Debug (nunca se guarda en
+// texto plano). scrypt es parte de node, no hace falta agregar una dependencia
+function hashPassword(password, salt) {
+  return crypto.scryptSync(password, salt, 64).toString('hex');
+}
+
+function verifyPassword(password, salt, expectedHash) {
+  if (!expectedHash) return false;
+  const actualHash = hashPassword(password, salt);
+  const actual = Buffer.from(actualHash, 'hex');
+  const expected = Buffer.from(expectedHash, 'hex');
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+}
+
 function slugify(text) {
   return (text || '')
     .toLowerCase()
@@ -73,7 +87,7 @@ function createApp({ client }) {
     res.redirect('/login');
   }
 
-  function requireActiveGuild(req, res, next) {
+  async function requireActiveGuild(req, res, next) {
     const guildId = req.session.activeGuildId;
     const manageable = req.session.manageableGuilds || [];
     const isManageable = manageable.some((g) => g.id === guildId);
@@ -81,6 +95,24 @@ function createApp({ client }) {
     if (!guildId || !isManageable || !client.guilds.cache.has(guildId)) {
       return res.redirect('/servers');
     }
+
+    // el dueño real del server (segun Discord) nunca queda bloqueado, para
+    // no arriesgarse a un lockout por una lista de acceso mal configurada
+    const guild = client.guilds.cache.get(guildId);
+    if (req.session.user.id !== guild.ownerId) {
+      const config = await db.getGuildConfig(guildId);
+      const access = config.dashboardAccess || {};
+      const blockedIds = access.blockedUserIds || [];
+      const allowedIds = access.allowedUserIds || [];
+      const isBlocked = blockedIds.includes(req.session.user.id);
+      const hasAllowlist = allowedIds.length > 0;
+      const isAllowed = !hasAllowlist || allowedIds.includes(req.session.user.id);
+
+      if (isBlocked || !isAllowed) {
+        return res.status(403).send(views.accessDeniedPage({ user: req.session.user, guildName: guild.name }));
+      }
+    }
+
     next();
   }
 
@@ -783,8 +815,35 @@ function createApp({ client }) {
     res.redirect('/dashboard/logs?saved=1');
   });
 
+  function isDebugUnlocked(req, guildId) {
+    return Boolean(req.session.debugUnlocked && req.session.debugUnlocked[guildId]);
+  }
+
+  // requiere haber pasado por /dashboard/debug/desbloquear en esta sesion
+  // (si el server tiene contraseña puesta); protege las rutas POST tambien,
+  // no solo la pantalla, para que no se puedan tocar los settings a mano
+  // sin haber entrado por la contraseña
+  async function requireDebugUnlocked(req, res, next) {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    if (config.dashboardAccess.passwordHash && !isDebugUnlocked(req, req.session.activeGuildId)) {
+      return res.redirect('/dashboard/debug');
+    }
+    next();
+  }
+
   app.get('/dashboard/debug', requireAuth, requireActiveGuild, async (req, res) => {
     const config = await db.getGuildConfig(req.session.activeGuildId);
+
+    if (config.dashboardAccess.passwordHash && !isDebugUnlocked(req, req.session.activeGuildId)) {
+      return res.send(
+        views.debugPasswordPage({
+          user: req.session.user,
+          guildName: guildName(req),
+          flash: req.query.error || null,
+        }),
+      );
+    }
+
     const mem = process.memoryUsage();
     res.send(
       views.debugPage({
@@ -805,12 +864,51 @@ function createApp({ client }) {
     );
   });
 
-  app.post('/dashboard/debug', requireAuth, requireActiveGuild, async (req, res) => {
+  app.post('/dashboard/debug/desbloquear', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    const access = config.dashboardAccess;
+
+    if (!verifyPassword(req.body.password || '', access.passwordSalt, access.passwordHash)) {
+      return res.redirect(`/dashboard/debug?error=${encodeURIComponent('Contraseña incorrecta.')}`);
+    }
+
+    req.session.debugUnlocked = req.session.debugUnlocked || {};
+    req.session.debugUnlocked[req.session.activeGuildId] = true;
+    res.redirect('/dashboard/debug');
+  });
+
+  app.post('/dashboard/debug', requireAuth, requireActiveGuild, requireDebugUnlocked, async (req, res) => {
     await db.updateGuildConfig(req.session.activeGuildId, {
       debug: {
         enabled: req.body.enabled === 'on',
         errorChannelId: req.body.errorChannelId || null,
       },
+    });
+    res.redirect('/dashboard/debug?saved=1');
+  });
+
+  app.post('/dashboard/debug/acceso', requireAuth, requireActiveGuild, requireDebugUnlocked, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    const newPassword = (req.body.password || '').trim();
+
+    let passwordHash = config.dashboardAccess.passwordHash;
+    let passwordSalt = config.dashboardAccess.passwordSalt;
+    if (newPassword) {
+      passwordSalt = crypto.randomBytes(16).toString('hex');
+      passwordHash = hashPassword(newPassword, passwordSalt);
+    }
+
+    const allowedUserIds = (req.body.allowedUserIds || '')
+      .split('\n')
+      .map((id) => id.trim())
+      .filter(Boolean);
+    const blockedUserIds = (req.body.blockedUserIds || '')
+      .split('\n')
+      .map((id) => id.trim())
+      .filter(Boolean);
+
+    await db.updateGuildConfig(req.session.activeGuildId, {
+      dashboardAccess: { passwordHash, passwordSalt, allowedUserIds, blockedUserIds },
     });
     res.redirect('/dashboard/debug?saved=1');
   });
@@ -1313,12 +1411,14 @@ function createApp({ client }) {
 
   app.get('/dashboard/ia', requireAuth, requireActiveGuild, async (req, res) => {
     const config = await db.getGuildConfig(req.session.activeGuildId);
+    const usageStats = await db.getAiUsageStats(req.session.activeGuildId);
     res.send(
       views.aiPage({
         user: req.session.user,
         config,
         channels: getTextChannels(req),
         aiConfigured: aiHelper.isConfigured(config),
+        usageStats,
         guildName: guildName(req),
         flash: req.query.saved ? 'Guardado.' : null,
       }),
@@ -1335,6 +1435,7 @@ function createApp({ client }) {
         enabled: req.body.enabled === 'on',
         helpFallback: req.body.helpFallback === 'on',
         channelId: req.body.channelId || null,
+        tone: ['formal', 'gracioso'].includes(req.body.tone) ? req.body.tone : 'amigable',
         // si el campo llega vacio, mantenemos la clave que ya estaba guardada (no la borramos por error),
         // salvo que se tilde explicitamente "quitar clave"
         apiKey: req.body.removeApiKey === 'on' ? '' : cleanedInput || config.ai.apiKey,

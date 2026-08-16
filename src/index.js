@@ -292,7 +292,67 @@ async function buildAiContext(message, config) {
     recentMessages,
     roleNames,
     channelNames,
+    tone: config?.ai?.tone,
   };
+}
+
+const AI_COOLDOWN_MS = 8000;
+const lastAiReplyByUser = new Map();
+
+// evita que un usuario spamee menciones a la IA (cuida el limite gratis de
+// Groq y evita abuso); un solo Map global de userId alcanza porque el
+// cooldown es "por usuario", no por servidor ni por canal
+function canUseAiNow(userId) {
+  const now = Date.now();
+  const last = lastAiReplyByUser.get(userId) || 0;
+  if (now - last < AI_COOLDOWN_MS) return false;
+  lastAiReplyByUser.set(userId, now);
+  return true;
+}
+
+async function replyWithAiEmbed(message, config, text) {
+  const embed = buildEmbed({ type: 'brand', description: text, config });
+  await message.reply({ embeds: [embed] });
+}
+
+function trackAiUsage(guildId, success) {
+  db.incrementAiUsage(guildId, success).catch((err) => console.error('No se pudo registrar uso de IA:', err.message));
+}
+
+// si el mensaje pregunta por nivel/balance/etc, busca el dato REAL en la base
+// para el que escribe y para cualquier usuario mencionado, asi la IA contesta
+// con el numero real en vez de inventarlo
+async function buildRealDataForQuery(message) {
+  if (!/\b(nivel|balance|monedas|plata|perfil|experiencia|xp)\b/i.test(message.content)) return '';
+
+  const targets = [{ id: message.author.id, name: message.member?.displayName || message.author.username }];
+  for (const [id, user] of message.mentions.users) {
+    if (id === client.user.id) continue;
+    targets.push({ id, name: message.mentions.members?.get(id)?.displayName || user.username });
+  }
+
+  const lines = [];
+  for (const target of targets) {
+    try {
+      const [levelInfo, account] = await Promise.all([
+        db.getUserLevel(message.guild.id, target.id),
+        db.getEconomyAccount(message.guild.id, target.id),
+      ]);
+      lines.push(`- ${target.name}: nivel ${levelInfo.level} (${levelInfo.xp} XP total), balance ${account.balance}`);
+    } catch (err) {
+      console.error('No se pudo traer datos reales para la IA:', err.message);
+    }
+  }
+  return lines.join('\n');
+}
+
+async function buildChannelSummaryTranscript(message) {
+  const recent = await message.channel.messages.fetch({ limit: 25 });
+  return [...recent.values()]
+    .filter((m) => m.id !== message.id && !m.author.bot)
+    .reverse()
+    .map((m) => `${m.member?.displayName || m.author.username}: ${m.content}`.replace(/\s+/g, ' ').slice(0, 200))
+    .join('\n');
 }
 
 async function applyAutomod(message, config) {
@@ -425,12 +485,26 @@ client.on('messageCreate', async (message) => {
 
     if (response === NEEDS_FALLBACK) {
       let reply = config?.helpResponses?.fallbackResponse;
-      if (config?.ai?.enabled && config.ai.helpFallback && aiHelper.isConfigured(config) && isAiChannelAllowed(config, message.channel.id)) {
+      let aiGenerated = false;
+      if (
+        config?.ai?.enabled &&
+        config.ai.helpFallback &&
+        aiHelper.isConfigured(config) &&
+        isAiChannelAllowed(config, message.channel.id) &&
+        canUseAiNow(message.author.id)
+      ) {
         const aiContext = await buildAiContext(message, config);
         const aiReply = await aiHelper.answerHelpQuestion(client, config, prepareAiText(message), aiContext);
-        if (aiReply) reply = aiReply;
+        trackAiUsage(guildId, Boolean(aiReply));
+        if (aiReply) {
+          reply = aiReply;
+          aiGenerated = true;
+        }
       }
-      if (reply) await message.reply(reply);
+      if (reply) {
+        if (aiGenerated) await replyWithAiEmbed(message, config, reply);
+        else await message.reply(reply);
+      }
     } else if (response) {
       await message.reply(response);
     } else if (
@@ -444,20 +518,59 @@ client.on('messageCreate', async (message) => {
       // modo mas general en vez de quedarse callado
       const cleanedContent = prepareAiText(message);
       if (cleanedContent) {
-        if (/\bmemes?\b/i.test(cleanedContent)) {
-          // pidio un meme por chat: se manda un meme real (misma logica que
-          // /meme) en vez de que la IA "hable" de mandarlo, que es lo que
-          // generaba el link falso de imgur.com
-          await memeCommand.handleMemeCommand(
-            { deferReply: async () => {}, editReply: (payload) => message.reply(payload) },
-            config,
-          );
+        if (!canUseAiNow(message.author.id)) {
+          await message.reply('⏳ Esperá unos segundos antes de volver a preguntarme algo.');
         } else {
-          const aiContext = await buildAiContext(message, config);
-          const chatReply = await aiHelper.chatReply(client, config, cleanedContent, aiContext);
-          // si la IA falla (timeout, rate limit, etc.) igual contesta algo en
-          // vez de quedarse en silencio total despues de que la mencionaron
-          await message.reply(chatReply || '🤖 No pude pensar una respuesta ahora, mencioname de nuevo en un rato.');
+          // reacciona mientras procesa (puede tardar unos segundos), y la
+          // saca pase lo que pase al terminar
+          const reaction = await message.react('🤔').catch(() => null);
+          try {
+            if (/\bmemes?\b/i.test(cleanedContent)) {
+              // pidio un meme por chat: se manda un meme real (misma logica
+              // que /meme) en vez de que la IA "hable" de mandarlo, que es lo
+              // que generaba el link falso de imgur.com
+              await memeCommand.handleMemeCommand(
+                { deferReply: async () => {}, editReply: (payload) => message.reply(payload) },
+                config,
+              );
+            } else if (/\btrivia\b/i.test(cleanedContent)) {
+              // idem, pero disparando una trivia real en vez de que la IA
+              // hable de hacer una
+              let sentMessage = null;
+              await triviaCommand.handleTriviaCommand(
+                {
+                  reply: async (payload) => {
+                    sentMessage = await message.reply(payload);
+                    return sentMessage;
+                  },
+                  fetchReply: async () => sentMessage,
+                  guild: message.guild,
+                },
+                config,
+              );
+            } else if (/\bresum/i.test(cleanedContent)) {
+              const transcript = await buildChannelSummaryTranscript(message).catch((err) => {
+                console.error('No se pudo traer mensajes para el resumen:', err.message);
+                return '';
+              });
+              const aiContext = await buildAiContext(message, config);
+              const summary = await aiHelper.summarizeChannel(client, config, transcript, aiContext);
+              trackAiUsage(guildId, Boolean(summary));
+              if (summary) await replyWithAiEmbed(message, config, summary);
+              else await message.reply('🤖 No pude armar el resumen ahora, probá de nuevo en un rato.');
+            } else {
+              const aiContext = await buildAiContext(message, config);
+              aiContext.realData = await buildRealDataForQuery(message);
+              const chatReply = await aiHelper.chatReply(client, config, cleanedContent, aiContext);
+              trackAiUsage(guildId, Boolean(chatReply));
+              // si la IA falla (timeout, rate limit, etc.) igual contesta algo
+              // en vez de quedarse en silencio total despues de que la mencionaron
+              if (chatReply) await replyWithAiEmbed(message, config, chatReply);
+              else await message.reply('🤖 No pude pensar una respuesta ahora, mencioname de nuevo en un rato.');
+            }
+          } finally {
+            if (reaction) await reaction.users.remove(client.user.id).catch(() => {});
+          }
         }
       }
     }

@@ -7,6 +7,16 @@ const MODEL = 'openai/gpt-oss-20b';
 // 8s se quedaba corto y cortaba respuestas a mitad de camino via abort()
 const REQUEST_TIMEOUT_MS = 15000;
 
+const TONE_INSTRUCTIONS = {
+  formal: 'Usá un tono formal y respetuoso, sin jerga ni chistes.',
+  gracioso: 'Usá un tono divertido, con humor liviano, sin dejar de ser respetuoso.',
+  amigable: 'Usá un tono amigable y cercano, como hablando con un conocido.',
+};
+
+function toneInstruction(tone) {
+  return TONE_INSTRUCTIONS[tone] || TONE_INSTRUCTIONS.amigable;
+}
+
 function resolveApiKey(config) {
   const raw = config?.ai?.apiKey || process.env.GROQ_API_KEY || null;
   if (!raw) return null;
@@ -55,7 +65,7 @@ async function askAI(apiKey, systemPrompt, userPrompt, { maxTokens = 200, temper
   return data.choices?.[0]?.message?.content?.trim() || null;
 }
 
-// arma el bloque de "conocimiento del server" que comparten los dos prompts:
+// arma el bloque de "conocimiento del server" que comparten los prompts:
 // temas de ayuda cargados, secciones de la guia del server (si esta
 // habilitada), roles y canales reales del server, y quien es quien (nombre
 // del bot, nombre de quien escribe)
@@ -85,19 +95,29 @@ function buildRecentContextBlock(recentMessages) {
   return `\nAsí venía la conversación en el canal (es solo contexto, no hace falta repetirla ni responderla de nuevo):\n${recentMessages}\n\nComo ya venías hablando en este canal, NO saludes de nuevo ("Hola", "¡Hola de nuevo!", etc.) ni te vuelvas a presentar: segui la conversación de forma natural, directo a lo que te preguntan.`;
 }
 
+// datos reales sacados de la base (nivel, balance, etc.) que index.js junta
+// ANTES de llamar a la IA, para que conteste con el numero real en vez de
+// inventarlo. Sin esto, cualquier pregunta de "cuanto nivel tengo" quedaria
+// librada a que la IA adivine
+function buildRealDataBlock(realData) {
+  if (!realData) return '';
+  return `\nDatos reales de la base de datos (usalos tal cual si te preguntan algo relacionado; NUNCA inventes otro numero):\n${realData}`;
+}
+
 async function answerHelpQuestion(client, config, question, context = {}) {
   const apiKey = resolveApiKey(config);
   if (!apiKey) return null;
 
-  const { serverName, botName, userName, recentMessages, roleNames, channelNames } = context;
-  const systemPrompt = `Sos el bot de ayuda del server de Discord "${serverName || 'este server'}". Respondés en español neutro (evitá modismos muy regionales de un solo país, para que se entienda en cualquier país hispanohablante).
+  const { serverName, botName, userName, recentMessages, roleNames, channelNames, realData, tone } = context;
+  const systemPrompt = `Sos el bot de ayuda del server de Discord "${serverName || 'este server'}". Respondés en español neutro (evitá modismos muy regionales de un solo país, para que se entienda en cualquier país hispanohablante). ${toneInstruction(tone)}
 
 ${buildKnowledgeBlock(config, { botName, userName, roleNames, channelNames })}
 ${buildRecentContextBlock(recentMessages)}
+${buildRealDataBlock(realData)}
 
 Reglas:
-- Solo sabés lo que está en la lista de temas, la guía, los canales y los roles de arriba. Nunca inventes canales, roles, reglas o datos que no están ahí.
-- Respondé siempre en español, corto (1-3 oraciones), tono amigable.
+- Solo sabés lo que está en la lista de temas, la guía, los canales, los roles y los datos reales de arriba. Nunca inventes canales, roles, reglas o datos que no están ahí.
+- Respondé siempre en español, corto (1-3 oraciones).
 - Saludá ("Hola", etc.) solo si es la primera vez que te hablan en la conversación. Si ya venías charlando, no vuelvas a saludar ni a presentarte: respondé directo a lo que te preguntan.
 - Si la pregunta se relaciona con algún tema de la lista, respondé basándote en eso.
 - Si no tenés información para responder con seguridad, decí que no estás seguro y sugerí preguntar en el canal de ayuda o a un moderador.
@@ -125,14 +145,15 @@ async function chatReply(client, config, message, context = {}) {
   const apiKey = resolveApiKey(config);
   if (!apiKey) return null;
 
-  const { serverName, botName, userName, recentMessages, roleNames, channelNames } = context;
-  const systemPrompt = `Sos un bot de Discord amigable charlando en el server "${serverName || 'este server'}". Respondés en español neutro (evitá modismos muy regionales de un solo país, para que se entienda en cualquier país hispanohablante). Te acaban de mencionar directamente en un mensaje.
+  const { serverName, botName, userName, recentMessages, roleNames, channelNames, realData, tone } = context;
+  const systemPrompt = `Sos un bot de Discord charlando en el server "${serverName || 'este server'}". Respondés en español neutro (evitá modismos muy regionales de un solo país, para que se entienda en cualquier país hispanohablante). ${toneInstruction(tone)} Te acaban de mencionar directamente en un mensaje.
 
 ${buildKnowledgeBlock(config, { botName, userName, roleNames, channelNames })}
 ${buildRecentContextBlock(recentMessages)}
+${buildRealDataBlock(realData)}
 
 Reglas:
-- Respondé corto (1-3 oraciones), tono amigable y natural.
+- Respondé corto (1-3 oraciones), natural.
 - Saludá ("Hola", etc.) solo si es la primera vez que te hablan en la conversación. Si ya venías charlando, no vuelvas a saludar ni a presentarte: respondé directo a lo que te preguntan.
 - Sos un bot, no una persona real; si te preguntan, lo decís. Si te preguntan tu nombre, es "${botName || 'el bot'}".
 - No das consejos médicos, legales, financieros ni de temas delicados; para eso sugerís hablar con una persona real.
@@ -148,4 +169,31 @@ Reglas:
   }
 }
 
-module.exports = { isConfigured, answerHelpQuestion, chatReply };
+// resume los ultimos mensajes reales de un canal (transcript ya armado por
+// index.js) en vez de que la IA invente de que se hablo
+async function summarizeChannel(client, config, transcript, context = {}) {
+  const apiKey = resolveApiKey(config);
+  if (!apiKey) return null;
+
+  if (!transcript) return 'No encontré mensajes recientes para resumir.';
+
+  const { serverName, botName, userName, tone } = context;
+  const systemPrompt = `Sos "${botName || 'el bot'}", asistente de Discord del server "${serverName || 'este server'}". Te pidieron resumir la conversación reciente de un canal. Respondés en español neutro. ${toneInstruction(tone)}
+
+Mensajes recientes reales del canal (mas viejo primero):
+${transcript}
+
+Reglas:
+- Resumí en 3-5 líneas los temas principales, sin citar mensaje por mensaje ni inventar nada que no esté ahí.
+- Si los mensajes no alcanzan para armar un resumen con sentido, decilo.`;
+
+  try {
+    return await askAI(apiKey, systemPrompt, `Resumime de qué hablaron${userName ? `, ${userName}` : ''}.`, { maxTokens: 350 });
+  } catch (err) {
+    console.error('No se pudo generar el resumen del canal:', err.message);
+    await errorReporter.reportError(client, config, 'aiHelper.summarizeChannel', err);
+    return null;
+  }
+}
+
+module.exports = { isConfigured, answerHelpQuestion, chatReply, summarizeChannel };

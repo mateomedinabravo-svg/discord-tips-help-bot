@@ -150,6 +150,8 @@ function defaultConfig(guildId) {
       // responde nada de IA (los comandos, respuestas pre-guardadas, tips y
       // advertencias siguen andando en todos los canales igual)
       channelId: null,
+      // amigable (default), formal o gracioso — se inyecta en el prompt
+      tone: 'amigable',
     },
     serverGuide: {
       enabled: false,
@@ -167,6 +169,18 @@ function defaultConfig(guildId) {
     debug: {
       enabled: false,
       errorChannelId: null,
+    },
+    // controla quien puede entrar al dashboard de este server (ademas de
+    // necesitar "Administrar servidor" en Discord) y protege la pagina
+    // Estado/Debug (donde se edita esto) con una contraseña aparte, guardada
+    // como hash+salt (nunca en texto plano). El dueño real del server
+    // (guild.ownerId) nunca queda bloqueado, para no arriesgarse a un
+    // lockout por una lista mal configurada
+    dashboardAccess: {
+      passwordHash: '',
+      passwordSalt: '',
+      allowedUserIds: [],
+      blockedUserIds: [],
     },
     branding: {
       colors: {
@@ -318,6 +332,7 @@ async function getGuildConfig(guildId) {
   config.welcome = { ...defaults.welcome, ...(config.welcome || {}) };
   config.goodbye = { ...defaults.goodbye, ...(config.goodbye || {}) };
   config.debug = { ...defaults.debug, ...(config.debug || {}) };
+  config.dashboardAccess = { ...defaults.dashboardAccess, ...(config.dashboardAccess || {}) };
   config.branding = { ...defaults.branding, ...(config.branding || {}), colors: { ...defaults.branding.colors, ...(config.branding?.colors || {}) } };
   config.suggestions = { ...defaults.suggestions, ...(config.suggestions || {}) };
   config.memberCounter = { ...defaults.memberCounter, ...(config.memberCounter || {}) };
@@ -350,6 +365,30 @@ async function incrementMessageStat(guildId, channelId) {
     },
     { upsert: true },
   );
+}
+
+// contador simple de uso de la IA (cuantas veces respondio bien vs fallo),
+// para tener visibilidad en el dashboard de cuanto se usa
+async function incrementAiUsage(guildId, success) {
+  const database = await connect();
+  await database.collection('aiUsage').updateOne(
+    { guildId },
+    {
+      $inc: success ? { successCount: 1 } : { failCount: 1 },
+      $set: { lastUsedAt: new Date() },
+    },
+    { upsert: true },
+  );
+}
+
+async function getAiUsageStats(guildId) {
+  const database = await connect();
+  const stats = await database.collection('aiUsage').findOne({ guildId });
+  return {
+    successCount: stats?.successCount || 0,
+    failCount: stats?.failCount || 0,
+    lastUsedAt: stats?.lastUsedAt || null,
+  };
 }
 
 async function getStats(guildId) {
@@ -1034,6 +1073,8 @@ module.exports = {
   getGuildConfig,
   updateGuildConfig,
   incrementMessageStat,
+  incrementAiUsage,
+  getAiUsageStats,
   getStats,
   getNextTicketNumber,
   createTicket,

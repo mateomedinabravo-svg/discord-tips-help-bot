@@ -1024,7 +1024,7 @@ function miniEventsPage({ user, config, channels, guildName, flash }) {
   return layout({ title: 'Eventos', user, body, flash, guildName });
 }
 
-function aiPage({ user, config, channels, aiConfigured, guildName, flash }) {
+function aiPage({ user, config, channels, aiConfigured, usageStats, guildName, flash }) {
   const hasOwnKey = Boolean(config.ai.apiKey);
   const setupWarning = !aiConfigured
     ? `<div class="warning-banner">⚠️ Todavía no configuraste una clave de Groq. Podés activar estas opciones, pero no van a hacer nada hasta que pongas una clave abajo.</div>`
@@ -1034,10 +1034,31 @@ function aiPage({ user, config, channels, aiConfigured, guildName, flash }) {
     .map((c) => `<option value="${c.id}" ${c.id === config.ai.channelId ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`)
     .join('');
 
+  const toneOptions = [
+    ['amigable', 'Amigable'],
+    ['formal', 'Formal'],
+    ['gracioso', 'Con humor'],
+  ]
+    .map(([value, label]) => `<option value="${value}" ${config.ai.tone === value ? 'selected' : ''}>${label}</option>`)
+    .join('');
+
+  const lastUsedText = usageStats.lastUsedAt
+    ? new Date(usageStats.lastUsedAt).toLocaleString('es-AR')
+    : 'Todavía no se usó';
+
   const body = `
   <h1>IA (gratis, con Groq)</h1>
-  <p class="muted">Usa un modelo de IA gratuito para charlar: responde mejor cuando el sistema normal de ayuda no entiende la pregunta, y también contesta si te mencionan directamente. Solo contesta texto — nunca borra mensajes, banea, ni toma ninguna acción de moderación ni de configuración, aunque se lo pidan por chat.</p>
+  <p class="muted">Usa un modelo de IA gratuito para charlar: responde mejor cuando el sistema normal de ayuda no entiende la pregunta, y también contesta si te mencionan directamente. Puede consultar datos reales (nivel, balance), disparar una trivia o resumir un canal si se lo pedís por chat. Solo contesta texto — nunca borra mensajes, banea, ni toma ninguna acción de moderación ni de configuración, aunque se lo pidan por chat.</p>
   ${setupWarning}
+
+  <div class="card">
+    <h2>Uso</h2>
+    <table>
+      <tr><td>Respuestas exitosas</td><td>${usageStats.successCount}</td></tr>
+      <tr><td>Fallidas (timeout, error de Groq, etc.)</td><td>${usageStats.failCount}</td></tr>
+      <tr><td>Último uso</td><td>${escapeHtml(lastUsedText)}</td></tr>
+    </table>
+  </div>
 
   <div class="card">
     <h2>Cómo conseguir la clave (gratis, sin tarjeta)</h2>
@@ -1058,6 +1079,9 @@ function aiPage({ user, config, channels, aiConfigured, guildName, flash }) {
     <label>Canal exclusivo de la IA (opcional)</label>
     <select name="channelId"><option value="">-- Sin restricción: responde en todos los canales --</option>${channelOptions}</select>
     <p class="muted" style="margin-top:-8px;">Si elegís un canal, la IA solo va a responder ahí (ni por mención ni como respaldo de ayuda). En el resto del server siguen funcionando igual los comandos, las respuestas pre-guardadas de ayuda, los tips y las advertencias de automoderación — nada de eso depende de la IA.</p>
+
+    <label>Tono</label>
+    <select name="tone">${toneOptions}</select>
 
     <label>Clave de Groq ${hasOwnKey ? '(ya tenés una guardada — dejá esto vacío para no cambiarla)' : ''}</label>
     <input type="password" name="apiKey" placeholder="${hasOwnKey ? '••••••••••••••••' : 'gsk_...'}" autocomplete="off">
@@ -1267,9 +1291,35 @@ function ticketConfigPage({ user, config, editingPanel, channels, categoryChanne
   return layout({ title: 'Config. Tickets', user, body, flash, guildName });
 }
 
+function accessDeniedPage({ user, guildName }) {
+  const body = `
+  <h1>🚫 Acceso denegado</h1>
+  <div class="card">
+    <p>No tenés permiso para entrar al dashboard de este server. Si pensás que es un error, pedile al dueño del server que te agregue a la lista de usuarios permitidos, o que te saque de la de bloqueados, desde Estado / Debug.</p>
+    <a class="btn" href="/servers">Volver a mis servers</a>
+  </div>`;
+  return layout({ title: 'Acceso denegado', user, body, flash: null, guildName });
+}
+
+function debugPasswordPage({ user, guildName, flash }) {
+  const body = `
+  <h1>Estado / Debug</h1>
+  <div class="card">
+    <h2>🔒 Página protegida</h2>
+    <p class="muted">Esta página pide una contraseña aparte, además de tu acceso normal al dashboard.</p>
+    <form method="post" action="/dashboard/debug/desbloquear">
+      <label>Contraseña</label>
+      <input type="password" name="password" autocomplete="off" autofocus>
+      <button type="submit">Entrar</button>
+    </form>
+  </div>`;
+  return layout({ title: 'Estado / Debug', user, body, flash, guildName });
+}
+
 function debugPage({ user, config, channels, guildName, flash, stats }) {
   const channelOptions = channels.map((c) => `<option value="${c.id}" ${c.id === config.debug.errorChannelId ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`).join('');
   const mismatch = config.debug.enabled && !config.debug.errorChannelId;
+  const hasPassword = Boolean(config.dashboardAccess.passwordHash);
 
   const body = `
   <h1>Estado / Debug</h1>
@@ -1302,7 +1352,25 @@ function debugPage({ user, config, channels, guildName, flash, stats }) {
   <div class="card">
     <h2>Comando /debug</h2>
     <p class="muted">Cualquier miembro con permiso "Gestionar servidor" puede usar <code>/debug</code> en Discord para ver esta misma info técnica al instante.</p>
-  </div>`;
+  </div>
+
+  <form class="card" method="post" action="/dashboard/debug/acceso">
+    <h2>Acceso al dashboard</h2>
+    <p class="muted">Además de necesitar "Administrar servidor" en Discord, podés restringir quién entra al dashboard de este server. El dueño real del server (según Discord) siempre puede entrar, para evitar quedarse afuera por una lista mal cargada.</p>
+
+    <label>Contraseña de esta página ${hasPassword ? '(dejá vacío para no cambiarla)' : '(todavía no tiene una)'}</label>
+    <input type="password" name="password" placeholder="${hasPassword ? '••••••••' : ''}" autocomplete="off">
+
+    <label>IDs de usuario permitidos (uno por línea; si dejás esto vacío, entra cualquiera con "Administrar servidor" que no esté bloqueado)</label>
+    <textarea name="allowedUserIds" placeholder="123456789012345678">${escapeHtml((config.dashboardAccess.allowedUserIds || []).join('\n'))}</textarea>
+
+    <label>IDs de usuario bloqueados (uno por línea; nunca entran, aunque tengan "Administrar servidor")</label>
+    <textarea name="blockedUserIds" placeholder="123456789012345678">${escapeHtml((config.dashboardAccess.blockedUserIds || []).join('\n'))}</textarea>
+
+    <p class="muted">Para conseguir el ID de un usuario: activá el "Modo desarrollador" en Discord (Ajustes > Avanzado), después clic derecho sobre la persona > Copiar ID de usuario.</p>
+
+    <button type="submit">Guardar</button>
+  </form>`;
   return layout({ title: 'Estado / Debug', user, body, flash, guildName });
 }
 
@@ -1478,6 +1546,8 @@ module.exports = {
   miniEventsPage,
   aiPage,
   serverGuidePage,
+  accessDeniedPage,
+  debugPasswordPage,
   debugPage,
   appearancePage,
   suggestionsPage,
