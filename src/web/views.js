@@ -15,6 +15,7 @@ const NAV_GROUPS = [
   {
     label: 'General',
     icon: '🏠',
+    color: '#5865f2',
     links: [
       { href: '/dashboard/general', label: 'General', icon: '⚙️' },
       { href: '/dashboard/estadisticas', label: 'Estadísticas', icon: '📊' },
@@ -25,6 +26,7 @@ const NAV_GROUPS = [
   {
     label: 'Comunidad',
     icon: '💬',
+    color: '#00b0f4',
     links: [
       { href: '/dashboard/bienvenida', label: 'Bienvenida/Despedida', icon: '👋', enabledPath: 'welcome.enabled' },
       { href: '/dashboard/mensajes', label: 'Tips y ayuda', icon: '💡' },
@@ -39,6 +41,7 @@ const NAV_GROUPS = [
   {
     label: 'Moderación',
     icon: '🛡️',
+    color: '#ed4245',
     links: [
       { href: '/dashboard/automoderacion', label: 'Automoderación', icon: '🚫', enabledPath: 'automod.enabled' },
       { href: '/dashboard/logs', label: 'Logs', icon: '📜', enabledPath: 'logging.enabled' },
@@ -48,6 +51,7 @@ const NAV_GROUPS = [
   {
     label: 'Tickets',
     icon: '🎫',
+    color: '#f0b232',
     links: [
       { href: '/dashboard/tickets', label: 'Tickets', icon: '🎫' },
       { href: '/dashboard/tickets/config', label: 'Configurar', icon: '🔧' },
@@ -56,6 +60,7 @@ const NAV_GROUPS = [
   {
     label: 'Progresión',
     icon: '📈',
+    color: '#9b59b6',
     links: [
       { href: '/dashboard/niveles', label: 'Niveles', icon: '🏆', enabledPath: 'leveling.enabled' },
       { href: '/dashboard/roles-reaccion', label: 'Roles por reacción', icon: '🎭' },
@@ -65,6 +70,7 @@ const NAV_GROUPS = [
   {
     label: 'Economía y juegos',
     icon: '🎮',
+    color: '#3ba55d',
     links: [
       { href: '/dashboard/economia', label: 'Economía', icon: '💰', enabledPath: 'economy.enabled' },
       { href: '/dashboard/casino', label: 'Casino', icon: '🎰', enabledPath: 'casino.enabled' },
@@ -76,6 +82,7 @@ const NAV_GROUPS = [
   {
     label: 'A medida',
     icon: '🎨',
+    color: '#eb459e',
     links: [
       { href: '/dashboard/comandos', label: 'Comandos', icon: '⌨️', enabledPath: 'textCommands.enabled' },
       { href: '/dashboard/ia', label: 'IA', icon: '🤖', enabledPath: 'ai.enabled' },
@@ -333,17 +340,23 @@ function layout({ title, user, body, flash, guildName }) {
   .nav-icon { display: inline-block; width: 20px; text-align: center; margin-right: 2px; }
   .module-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
   .module-card {
-    display: flex; flex-direction: column; align-items: flex-start; gap: 8px; text-decoration: none;
+    position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; text-decoration: none;
     background: var(--bg-raised); border: 1px solid var(--border); border-radius: 14px; padding: 18px;
     transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
   }
-  .module-card:hover { border-color: var(--brand); transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25); }
+  .module-card:hover { border-color: var(--border-soft); transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3); }
   .module-card:active { transform: translateY(-1px) scale(0.98); }
   .module-icon {
     font-size: 22px; line-height: 1; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
-    background: var(--bg-sunken); border-radius: 10px; border: 1px solid var(--border);
+    border-radius: 12px;
   }
   .module-name { font-weight: 600; font-size: 14.5px; color: #fff; }
+  .module-badge {
+    position: absolute; top: 12px; right: 12px; font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.03em; padding: 3px 8px; border-radius: 20px;
+  }
+  .module-badge.on { background: rgba(59, 165, 93, 0.18); color: #7dd996; }
+  .module-badge.off { background: rgba(148, 155, 164, 0.15); color: var(--text-muted); }
   .app-layout { display: flex; align-items: flex-start; }
   .server-list { display: flex; flex-direction: column; gap: 10px; }
   .server-row {
@@ -664,16 +677,18 @@ function privacyPage() {
 // pantalla de inicio del dashboard: grilla de tarjetas, una por funcion del
 // bot (se arma reusando NAV_GROUPS para no duplicar la lista de paginas)
 function dashboardHomePage({ user, config, guildName }) {
-  const modules = NAV_GROUPS.flatMap((group) => group.links);
+  const modules = NAV_GROUPS.flatMap((group) => group.links.map((link) => ({ ...link, color: group.color })));
 
   const cards = modules
     .map((m) => {
       const enabled = m.enabledPath ? getConfigValue(config, m.enabledPath) : null;
-      const badge = m.enabledPath ? `<span class="pill ${enabled ? 'open' : 'closed'}">${enabled ? 'Activado' : 'Desactivado'}</span>` : '';
+      const badge = m.enabledPath
+        ? `<span class="module-badge ${enabled ? 'on' : 'off'}">${enabled ? 'Activado' : 'Desactivado'}</span>`
+        : '';
       return `<a class="module-card" href="${m.href}">
-        <span class="module-icon">${m.icon || '🔹'}</span>
-        <span class="module-name">${escapeHtml(m.label)}</span>
         ${badge}
+        <span class="module-icon" style="background:${m.color}26; color:${m.color};">${m.icon || '🔹'}</span>
+        <span class="module-name">${escapeHtml(m.label)}</span>
       </a>`;
     })
     .join('');
