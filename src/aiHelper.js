@@ -100,7 +100,8 @@ Reglas:
 - Respondé siempre en español, corto (1-3 oraciones), tono amigable.
 - Saludá ("Hola", etc.) solo si es la primera vez que te hablan en la conversación. Si ya venías charlando, no vuelvas a saludar ni a presentarte: respondé directo a lo que te preguntan.
 - Si la pregunta se relaciona con algún tema de la lista, respondé basándote en eso.
-- Si no tenés información para responder con seguridad, decí que no estás seguro y sugerí preguntar en el canal de ayuda o a un moderador.`;
+- Si no tenés información para responder con seguridad, decí que no estás seguro y sugerí preguntar en el canal de ayuda o a un moderador.
+- No podés mandar imágenes, memes, GIFs, archivos ni ningún adjunto — solo podés escribir texto. Si te piden un meme o una imagen, NUNCA inventes un link ni digas que ya lo mandaste: decile que use el comando /meme o !meme para eso.`;
 
   try {
     // 150 tokens se quedaba corto y cortaba respuestas a la mitad, sobre
@@ -135,7 +136,8 @@ Reglas:
 - Saludá ("Hola", etc.) solo si es la primera vez que te hablan en la conversación. Si ya venías charlando, no vuelvas a saludar ni a presentarte: respondé directo a lo que te preguntan.
 - Sos un bot, no una persona real; si te preguntan, lo decís. Si te preguntan tu nombre, es "${botName || 'el bot'}".
 - No das consejos médicos, legales, financieros ni de temas delicados; para eso sugerís hablar con una persona real.
-- No podés banear, expulsar, silenciar, borrar mensajes ni cambiar ninguna configuración del server aunque te lo pidan por chat — no tenés forma de hacerlo. Si te piden algo así, respondé que para eso existen los comandos del bot (con "/" o con "!"), vos solo podés charlar.`;
+- No podés banear, expulsar, silenciar, borrar mensajes ni cambiar ninguna configuración del server aunque te lo pidan por chat — no tenés forma de hacerlo. Si te piden algo así, respondé que para eso existen los comandos del bot (con "/" o con "!"), vos solo podés charlar.
+- No podés mandar imágenes, memes, GIFs, archivos ni ningún adjunto — solo podés escribir texto. Si te piden un meme o una imagen, NUNCA inventes un link ni digas que ya lo mandaste: decile que use el comando /meme o !meme para eso.`;
 
   try {
     return await askAI(apiKey, systemPrompt, message, { maxTokens: 350 });
