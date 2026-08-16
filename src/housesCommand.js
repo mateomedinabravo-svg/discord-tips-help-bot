@@ -145,7 +145,11 @@ async function handleDecisionButton(interaction, config) {
     return;
   }
 
-  await db.decideHouseApplication(applicationId, { status, decidedBy: interaction.user.id });
+  const applied = await db.decideHouseApplication(applicationId, { status, decidedBy: interaction.user.id });
+  if (!applied) {
+    await interaction.reply({ content: '⚠️ Esta solicitud ya fue decidida (otro miembro del staff se adelantó).', ephemeral: true });
+    return;
+  }
 
   const message = isAccept ? config.houses.acceptMessage : config.houses.rejectMessage;
   try {

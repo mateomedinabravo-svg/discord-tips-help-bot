@@ -106,8 +106,12 @@ async function handleDaily(interaction, config) {
   }
 
   const amount = config.economy.dailyAmount;
-  await db.addBalance(interaction.guild.id, interaction.user.id, amount);
-  await db.setEconomyCooldown(interaction.guild.id, interaction.user.id, 'lastDaily', new Date());
+  const claimed = await db.claimEconomyCooldown(interaction.guild.id, interaction.user.id, 'lastDaily', ONE_DAY_MS, amount);
+  if (!claimed) {
+    await interaction.reply({ content: '⏳ Ya reclamaste tu diario. Volvé mañana.', ephemeral: true });
+    return;
+  }
+
   const embed = buildEmbed({
     type: 'success',
     title: '🎁 Recompensa diaria',
@@ -132,8 +136,12 @@ async function handleWork(interaction, config) {
   const max = Math.max(config.economy.workMinAmount, config.economy.workMaxAmount);
   const amount = Math.floor(Math.random() * (max - min + 1)) + min;
 
-  await db.addBalance(interaction.guild.id, interaction.user.id, amount);
-  await db.setEconomyCooldown(interaction.guild.id, interaction.user.id, 'lastWork', new Date());
+  const claimed = await db.claimEconomyCooldown(interaction.guild.id, interaction.user.id, 'lastWork', cooldownMs, amount);
+  if (!claimed) {
+    await interaction.reply({ content: '⏳ Todavía estás cansado del último trabajo.', ephemeral: true });
+    return;
+  }
+
   const embed = buildEmbed({
     type: 'success',
     title: '💼 A trabajar',
@@ -199,13 +207,12 @@ async function handleBuy(interaction, config) {
     return;
   }
 
-  const account = await db.getEconomyAccount(interaction.guild.id, interaction.user.id);
-  if (account.balance < item.price) {
+  const spent = await db.spendBalance(interaction.guild.id, interaction.user.id, item.price);
+  if (!spent) {
     await interaction.reply({ content: `❌ Te falta plata: ${item.name} cuesta ${formatMoney(item.price, config)}.`, ephemeral: true });
     return;
   }
 
-  await db.addBalance(interaction.guild.id, interaction.user.id, -item.price);
   await db.addInventoryItem(interaction.guild.id, interaction.user.id, { itemId: item.id, name: item.name });
   const embed = buildEmbed({
     type: 'success',

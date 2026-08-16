@@ -123,11 +123,15 @@ async function handleFeed(interaction, config) {
     return;
   }
 
-  await db.updatePet(interaction.guild.id, interaction.user.id, {
-    hunger: Math.min(100, pet.hunger + 25),
-    xp: pet.xp + 10,
-    lastFed: new Date(),
+  const claimed = await db.claimPetCooldown(interaction.guild.id, interaction.user.id, 'lastFed', cooldownMs, {
+    statField: 'hunger',
+    statGain: 25,
+    xpGain: 10,
   });
+  if (!claimed) {
+    await interaction.reply({ content: `⏳ ${pet.name} todavía no tiene hambre.`, ephemeral: true });
+    return;
+  }
 
   await interaction.reply(`🍖 Alimentaste a **${pet.name}**!`);
 }
@@ -147,11 +151,15 @@ async function handlePlay(interaction, config) {
     return;
   }
 
-  await db.updatePet(interaction.guild.id, interaction.user.id, {
-    happiness: Math.min(100, pet.happiness + 25),
-    xp: pet.xp + 10,
-    lastPlayed: new Date(),
+  const claimed = await db.claimPetCooldown(interaction.guild.id, interaction.user.id, 'lastPlayed', cooldownMs, {
+    statField: 'happiness',
+    statGain: 25,
+    xpGain: 10,
   });
+  if (!claimed) {
+    await interaction.reply({ content: `⏳ ${pet.name} está cansada.`, ephemeral: true });
+    return;
+  }
 
   await interaction.reply(`🎾 Jugaste con **${pet.name}**!`);
 }

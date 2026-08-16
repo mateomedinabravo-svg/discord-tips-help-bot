@@ -13,7 +13,10 @@ function normalize(text) {
   return text
     .toLowerCase()
     .normalize('NFD')
-    .replace(new RegExp('[' + String.fromCharCode(0x0300) + '-' + String.fromCharCode(0x036f) + ']', 'g'), '');
+    .replace(new RegExp('[' + String.fromCharCode(0x0300) + '-' + String.fromCharCode(0x036f) + ']', 'g'), '')
+    // colapsa letras repetidas 3+ veces seguidas (ej. "ayudaaaa" -> "ayuda", "porfaaa" -> "porfa"),
+    // muy comun en chat; no afecta dobles letras legitimas del español (solo 2 repeticiones)
+    .replace(/(.)\1{2,}/g, '$1');
 }
 
 function levenshtein(a, b) {

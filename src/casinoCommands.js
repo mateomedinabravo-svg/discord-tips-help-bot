@@ -79,6 +79,10 @@ function formatMoney(amount, config) {
   return `${amount} ${config.economy.currencySymbol}${config.economy.currencyName}`;
 }
 
+// valida y descuenta la apuesta de forma atomica (nunca deja que dos apuestas
+// concurrentes pasen la validacion con el mismo saldo viejo). Cada handler de
+// juego debe acreditar el pago BRUTO al resolverse (0 si perdio, `amount` si
+// empata/recupera la apuesta, `amount * 2` si gana simple, etc), nunca un delta neto
 async function validateBet(interaction, config, amount) {
   if (!config?.casino?.enabled) {
     await interaction.reply({ content: '⚠️ El casino no está habilitado en este server.', ephemeral: true });
@@ -96,13 +100,14 @@ async function validateBet(interaction, config, amount) {
     return null;
   }
 
-  const account = await db.getEconomyAccount(interaction.guild.id, interaction.user.id);
-  if (account.balance < amount) {
+  const spent = await db.spendBalance(interaction.guild.id, interaction.user.id, amount);
+  if (!spent) {
+    const account = await db.getEconomyAccount(interaction.guild.id, interaction.user.id);
     await interaction.reply({ content: `❌ No tenés suficiente saldo (tenés ${formatMoney(account.balance, config)}).`, ephemeral: true });
     return null;
   }
 
-  return account;
+  return true;
 }
 
 async function handleCasinoCommand(interaction, config) {
@@ -133,7 +138,7 @@ async function handleCoinFlip(interaction, config) {
   const result = Math.random() < 0.5 ? 'cara' : 'cruz';
   const won = result === choice;
 
-  await db.addBalance(interaction.guild.id, interaction.user.id, won ? amount : -amount);
+  await db.addBalance(interaction.guild.id, interaction.user.id, won ? amount * 2 : 0);
   const emoji = result === 'cara' ? '🪙' : '🌀';
   const embed = buildEmbed({
     type: won ? 'success' : 'error',
@@ -172,7 +177,7 @@ async function handleSlots(interaction, config) {
     outcome = 'Dos iguales, recuperás tu apuesta.';
   }
 
-  await db.addBalance(interaction.guild.id, interaction.user.id, winnings);
+  await db.addBalance(interaction.guild.id, interaction.user.id, winnings + amount);
   const embed = buildEmbed({
     type: winnings > 0 ? 'success' : winnings === 0 ? 'warning' : 'error',
     title: '🎰 Tragamonedas',
@@ -203,7 +208,7 @@ async function handleRoulette(interaction, config) {
     winnings = amount;
   }
 
-  await db.addBalance(interaction.guild.id, interaction.user.id, winnings);
+  await db.addBalance(interaction.guild.id, interaction.user.id, winnings + amount);
   const outcome = winnings > 0 ? `¡Ganaste **${formatMoney(winnings, config)}**!` : `Perdiste **${formatMoney(amount, config)}**.`;
   const embed = buildEmbed({
     type: winnings > 0 ? 'success' : 'error',
@@ -234,7 +239,7 @@ async function handleDice(interaction, config) {
     outcome = `Perdiste **${formatMoney(amount, config)}**.`;
   }
 
-  await db.addBalance(interaction.guild.id, interaction.user.id, winnings);
+  await db.addBalance(interaction.guild.id, interaction.user.id, winnings + amount);
   const embed = buildEmbed({
     type: winnings > 0 ? 'success' : winnings === 0 ? 'warning' : 'error',
     title: '🎲 Dados',
@@ -268,7 +273,7 @@ async function handleRockPaperScissors(interaction, config) {
     outcome = `Perdiste **${formatMoney(amount, config)}**.`;
   }
 
-  await db.addBalance(interaction.guild.id, interaction.user.id, winnings);
+  await db.addBalance(interaction.guild.id, interaction.user.id, winnings + amount);
   const embed = buildEmbed({
     type: winnings > 0 ? 'success' : winnings === 0 ? 'warning' : 'error',
     title: '✊ Piedra, papel o tijera',
@@ -337,8 +342,6 @@ async function handleBlackjackStart(interaction, config) {
   const amount = interaction.options.getInteger('cantidad', true);
   if (!(await validateBet(interaction, config, amount))) return;
 
-  await db.addBalance(interaction.guild.id, interaction.user.id, -amount);
-
   const deck = newShuffledDeck();
   const game = {
     guildId: interaction.guild.id,
@@ -357,6 +360,17 @@ async function handleBlackjackStart(interaction, config) {
   const playerBlackjack = handValue(game.playerCards) === 21;
 
   if (playerBlackjack) {
+    const dealerBlackjack = handValue(game.dealerCards) === 21;
+
+    if (dealerBlackjack) {
+      await db.addBalance(interaction.guild.id, interaction.user.id, amount);
+      const embed = buildBlackjackEmbed(game, config, { reveal: true }).setFooter({
+        text: 'Empate: el dealer también tiene blackjack natural. Recuperás tu apuesta.',
+      });
+      await interaction.reply({ embeds: [embed] });
+      return;
+    }
+
     const winnings = Math.floor(amount * 2.5);
     await db.addBalance(interaction.guild.id, interaction.user.id, winnings);
     const embed = buildBlackjackEmbed(game, config, { reveal: true }).setFooter({ text: `¡Blackjack! Ganaste ${formatMoney(winnings, config)}.` });

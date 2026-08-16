@@ -56,6 +56,10 @@ async function handleBirthdayCommand(interaction) {
   if (sub === 'ver') return handleVer(interaction);
 }
 
+function isLeapYear(year) {
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+}
+
 async function checkBirthdaysToday(client, configByGuild) {
   const now = new Date();
   const day = now.getUTCDate();
@@ -63,6 +67,12 @@ async function checkBirthdaysToday(client, configByGuild) {
   const year = now.getUTCFullYear();
 
   const birthdays = await db.getBirthdaysForToday(day, month);
+
+  // en años no bisiestos el 29 de febrero nunca coincide con "hoy"; sin esto
+  // esos cumpleaños no se anuncian nunca, asi que los festejamos el 1 de marzo
+  if (month === 3 && day === 1 && !isLeapYear(year)) {
+    birthdays.push(...(await db.getBirthdaysForToday(29, 2)));
+  }
 
   for (const b of birthdays) {
     if (b.lastAnnouncedYear === year) continue;

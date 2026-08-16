@@ -194,6 +194,32 @@ function defaultConfig(guildId) {
   };
 }
 
+async function ensureIndexes(database) {
+  // indices unicos: aceleran las consultas mas frecuentes (antes escaneaban toda
+  // la coleccion) y evitan documentos duplicados por condiciones de carrera
+  // (dos inserts casi simultaneos del mismo guild/usuario antes de que exista el doc)
+  const tasks = [
+    database.collection('guildConfig').createIndex({ guildId: 1 }, { unique: true }),
+    database.collection('economy').createIndex({ guildId: 1, userId: 1 }, { unique: true }),
+    database.collection('levels').createIndex({ guildId: 1, userId: 1 }, { unique: true }),
+    database.collection('pets').createIndex({ guildId: 1, userId: 1 }, { unique: true }),
+    database.collection('afk').createIndex({ guildId: 1, userId: 1 }, { unique: true }),
+    database.collection('birthdays').createIndex({ guildId: 1, userId: 1 }, { unique: true }),
+    database.collection('marriages').createIndex({ guildId: 1, userId: 1 }, { unique: true }),
+    database.collection('warnings').createIndex({ guildId: 1, userId: 1 }),
+    database.collection('tickets').createIndex(
+      { guildId: 1, userId: 1 },
+      { unique: true, partialFilterExpression: { status: 'open' } },
+    ),
+    database.collection('inviteJoins').createIndex({ guildId: 1, inviterId: 1 }),
+  ];
+
+  const results = await Promise.allSettled(tasks);
+  for (const result of results) {
+    if (result.status === 'rejected') console.error('No se pudo crear un índice de MongoDB:', result.reason.message);
+  }
+}
+
 async function connect() {
   if (db) return db;
 
@@ -205,6 +231,7 @@ async function connect() {
   client = new MongoClient(uri);
   await client.connect();
   db = client.db(process.env.MONGODB_DB_NAME || 'discordTipsBot');
+  await ensureIndexes(db);
   return db;
 }
 
@@ -297,22 +324,31 @@ async function getNextTicketNumber(guildId) {
   return doc.next;
 }
 
+// protegido por un indice unico parcial en {guildId, userId} con status:'open':
+// si el usuario ya tiene un ticket abierto (por una segunda invocacion casi
+// simultanea), el insert falla con codigo 11000 en vez de crear un duplicado
 async function createTicket({ guildId, channelId, userId, categoryId, categoryLabel, number }) {
   const database = await connect();
-  await database.collection('tickets').insertOne({
-    guildId,
-    channelId,
-    userId,
-    categoryId: categoryId || null,
-    categoryLabel: categoryLabel || null,
-    number,
-    status: 'open',
-    claimedBy: null,
-    rating: null,
-    createdAt: new Date(),
-    closedAt: null,
-    closedBy: null,
-  });
+  try {
+    await database.collection('tickets').insertOne({
+      guildId,
+      channelId,
+      userId,
+      categoryId: categoryId || null,
+      categoryLabel: categoryLabel || null,
+      number,
+      status: 'open',
+      claimedBy: null,
+      rating: null,
+      createdAt: new Date(),
+      closedAt: null,
+      closedBy: null,
+    });
+    return true;
+  } catch (err) {
+    if (err.code === 11000) return false;
+    throw err;
+  }
 }
 
 async function claimTicket({ channelId, claimedBy }) {
@@ -484,11 +520,18 @@ async function createHouseApplication({ guildId, userId, answers }) {
   return result.insertedId;
 }
 
+// solo aplica la decision si la solicitud todavia estaba pendiente; devuelve
+// false si ya la habian decidido (dos miembros del staff clickeando a la vez)
 async function decideHouseApplication(applicationId, { status, decidedBy }) {
   const database = await connect();
-  await database
+  const result = await database
     .collection('houseApplications')
-    .updateOne({ _id: new ObjectId(applicationId) }, { $set: { status, decidedAt: new Date(), decidedBy } });
+    .findOneAndUpdate(
+      { _id: new ObjectId(applicationId), status: 'pending' },
+      { $set: { status, decidedAt: new Date(), decidedBy } },
+    );
+  const matched = result?.value !== undefined ? result.value : result;
+  return matched !== null;
 }
 
 async function getHouseApplication(applicationId) {
@@ -505,7 +548,13 @@ async function getEconomyAccount(guildId, userId) {
   let account = await accounts.findOne({ guildId, userId });
   if (!account) {
     account = { guildId, userId, balance: 0, inventory: [], lastDaily: null, lastWork: null };
-    await accounts.insertOne(account);
+    try {
+      await accounts.insertOne(account);
+    } catch (err) {
+      // otra llamada concurrente ya creo la cuenta (indice unico guildId+userId); la leemos
+      if (err.code !== 11000) throw err;
+      account = await accounts.findOne({ guildId, userId });
+    }
   }
   return account;
 }
@@ -518,15 +567,41 @@ async function addBalance(guildId, userId, amount) {
   return updated.balance;
 }
 
+// resta `amount` solo si el saldo alcanza, de forma atomica (evita que dos
+// gastos concurrentes lean el mismo saldo viejo y ambos pasen la validacion)
+async function spendBalance(guildId, userId, amount) {
+  await getEconomyAccount(guildId, userId);
+  const database = await connect();
+  const result = await database
+    .collection('economy')
+    .findOneAndUpdate({ guildId, userId, balance: { $gte: amount } }, { $inc: { balance: -amount } });
+  const matched = result?.value !== undefined ? result.value : result;
+  return matched !== null;
+}
+
 async function setEconomyCooldown(guildId, userId, field, date) {
   const database = await connect();
   await database.collection('economy').updateOne({ guildId, userId }, { $set: { [field]: date } }, { upsert: true });
 }
 
+// reclama una recompensa de cooldown (daily/work) de forma atomica: solo si el
+// campo de cooldown ya expiro, en la misma operacion que acredita el monto.
+// evita el doble cobro por spam-click antes de que el primer pedido termine de escribir
+async function claimEconomyCooldown(guildId, userId, field, cooldownMs, amount) {
+  await getEconomyAccount(guildId, userId);
+  const database = await connect();
+  const cutoff = new Date(Date.now() - cooldownMs);
+  const result = await database.collection('economy').findOneAndUpdate(
+    { guildId, userId, $or: [{ [field]: null }, { [field]: { $lte: cutoff } }] },
+    { $set: { [field]: new Date() }, $inc: { balance: amount } },
+  );
+  const matched = result?.value !== undefined ? result.value : result;
+  return matched !== null;
+}
+
 async function transferBalance(guildId, fromUserId, toUserId, amount) {
-  const from = await getEconomyAccount(guildId, fromUserId);
-  if (from.balance < amount) return false;
-  await addBalance(guildId, fromUserId, -amount);
+  const spent = await spendBalance(guildId, fromUserId, amount);
+  if (!spent) return false;
   await addBalance(guildId, toUserId, amount);
   return true;
 }
@@ -552,19 +627,46 @@ async function getEconomyLeaderboard(guildId, limit = 10) {
 
 // --- Matrimonios ---
 
+// se guarda un documento por cada miembro de la pareja (userId + partnerId),
+// protegido por un indice unico en {guildId, userId}: si alguno de los dos ya
+// esta casado, el insert de su documento falla con codigo 11000 en vez de
+// dejar pasar una doble aceptacion simultanea (dos "Aceptar" casi a la vez)
 async function getMarriage(guildId, userId) {
   const database = await connect();
-  return database.collection('marriages').findOne({ guildId, $or: [{ user1Id: userId }, { user2Id: userId }] });
+  const doc = await database.collection('marriages').findOne({ guildId, userId });
+  if (!doc) return null;
+  return { guildId, user1Id: doc.userId, user2Id: doc.partnerId, marriedAt: doc.marriedAt };
 }
 
 async function createMarriage(guildId, user1Id, user2Id) {
   const database = await connect();
-  await database.collection('marriages').insertOne({ guildId, user1Id, user2Id, marriedAt: new Date() });
+  const marriages = database.collection('marriages');
+  const marriedAt = new Date();
+
+  try {
+    await marriages.insertOne({ guildId, userId: user1Id, partnerId: user2Id, marriedAt });
+  } catch (err) {
+    if (err.code === 11000) return false;
+    throw err;
+  }
+
+  try {
+    await marriages.insertOne({ guildId, userId: user2Id, partnerId: user1Id, marriedAt });
+  } catch (err) {
+    // el otro lado ya quedo casado con alguien mas mientras tanto: deshacemos el primero
+    await marriages.deleteOne({ guildId, userId: user1Id, partnerId: user2Id });
+    if (err.code === 11000) return false;
+    throw err;
+  }
+
+  return true;
 }
 
 async function deleteMarriage(guildId, userId) {
   const database = await connect();
-  await database.collection('marriages').deleteOne({ guildId, $or: [{ user1Id: userId }, { user2Id: userId }] });
+  const doc = await database.collection('marriages').findOne({ guildId, userId });
+  if (!doc) return;
+  await database.collection('marriages').deleteMany({ guildId, $or: [{ userId }, { userId: doc.partnerId }] });
 }
 
 // --- Mascotas ---
@@ -610,6 +712,27 @@ async function updatePet(guildId, userId, partialUpdate) {
   const database = await connect();
   await database.collection('pets').updateOne({ guildId, userId }, { $set: partialUpdate });
   return getPet(guildId, userId);
+}
+
+// version atomica de "alimentar/jugar": solo aplica si el cooldown ya expiro,
+// clampeando la stat a 100 en la misma operacion (evita doble-cobro por spam-click)
+async function claimPetCooldown(guildId, userId, field, cooldownMs, { statField, statGain, xpGain }) {
+  const database = await connect();
+  const cutoff = new Date(Date.now() - cooldownMs);
+  const result = await database.collection('pets').findOneAndUpdate(
+    { guildId, userId, $or: [{ [field]: null }, { [field]: { $lte: cutoff } }] },
+    [
+      {
+        $set: {
+          [field]: new Date(),
+          [statField]: { $min: [100, { $add: [`$${statField}`, statGain] }] },
+          xp: { $add: ['$xp', xpGain] },
+        },
+      },
+    ],
+    { returnDocument: 'after' },
+  );
+  return result?.value !== undefined ? result.value : result;
 }
 
 // --- Starboard ---
@@ -736,10 +859,18 @@ async function removeSuggestionVote(messageId, userId) {
   return database.collection('suggestions').findOne({ messageId });
 }
 
+// solo aplica la decision si la sugerencia todavia estaba pendiente; devuelve
+// null si ya la habian decidido (dos aprobadores clickeando a la vez)
 async function setSuggestionStatus(messageId, status, staffId, staffTag) {
   const database = await connect();
-  await database.collection('suggestions').updateOne({ messageId }, { $set: { status, staffId, staffTag } });
-  return database.collection('suggestions').findOne({ messageId });
+  const result = await database
+    .collection('suggestions')
+    .findOneAndUpdate(
+      { messageId, status: 'pending' },
+      { $set: { status, staffId, staffTag } },
+      { returnDocument: 'after' },
+    );
+  return result?.value !== undefined ? result.value : result;
 }
 
 async function setAfk(guildId, userId, reason) {
@@ -840,6 +971,9 @@ module.exports = {
   addBalance,
   setEconomyCooldown,
   transferBalance,
+  spendBalance,
+  claimEconomyCooldown,
+  claimPetCooldown,
   addInventoryItem,
   getEconomyLeaderboard,
   getMarriage,

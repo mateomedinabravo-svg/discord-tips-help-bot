@@ -154,18 +154,33 @@ function createApp({ client }) {
         .map((g) => ({ id: g.id, name: g.name, icon: g.icon }));
 
       if (!manageableGuilds.length) {
+        // se guarda el nuevo state en sesion para que el link de "intentar de
+        // nuevo" funcione (si no, el proximo callback siempre lo rechaza)
+        const retryState = crypto.randomBytes(16).toString('hex');
+        req.session.oauthState = retryState;
         return res.status(403).send(
           views.loginPage({
-            authorizeUrl: buildAuthorizeUrl({ clientId, redirectUri, state: crypto.randomBytes(16).toString('hex') }),
+            authorizeUrl: buildAuthorizeUrl({ clientId, redirectUri, state: retryState }),
             error: 'Tu cuenta no tiene permiso de administrador en ningún server.',
           }),
         );
       }
 
-      req.session.user = { id: discordUser.id, username: discordUser.username };
-      req.session.accessToken = token.access_token;
-      req.session.manageableGuilds = manageableGuilds;
-      res.redirect('/servers');
+      // se regenera el id de sesion despues de autenticar (evita session fixation:
+      // un id de sesion fijado antes del login no queda autenticado despues)
+      req.session.regenerate((regenErr) => {
+        if (regenErr) {
+          console.error('No se pudo regenerar la sesión tras el login:', regenErr);
+          return res
+            .status(500)
+            .send(views.loginPage({ authorizeUrl: '/login', error: 'Ocurrió un error al iniciar sesión, probá de nuevo.' }));
+        }
+
+        req.session.user = { id: discordUser.id, username: discordUser.username };
+        req.session.accessToken = token.access_token;
+        req.session.manageableGuilds = manageableGuilds;
+        res.redirect('/servers');
+      });
     } catch (err) {
       console.error('Error en OAuth callback:', err);
       res

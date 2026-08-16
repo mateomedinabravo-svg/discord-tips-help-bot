@@ -118,6 +118,10 @@ async function handleDecisionButton(interaction, config) {
 
   const status = interaction.customId === APPROVE_ID ? 'approved' : 'rejected';
   const updated = await db.setSuggestionStatus(interaction.message.id, status, interaction.user.id, interaction.user.username);
+  if (!updated) {
+    await interaction.reply({ content: '⚠️ Esta sugerencia ya fue decidida (otro miembro del staff se adelantó).', ephemeral: true });
+    return;
+  }
 
   await interaction.update({ embeds: [buildSuggestionEmbed(updated, config)], components: [buildButtons({ disabled: true })] });
 }

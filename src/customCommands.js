@@ -30,6 +30,17 @@ const NAME_PATTERN = /^[a-z0-9_-]{1,32}$/;
 
 const lastUse = new Map();
 
+// sin esto, lastUse crece para siempre (una entrada por cada combinacion
+// guild+usuario+comando que se haya usado alguna vez); se barre cada hora
+// cualquier entrada mas vieja que el cooldown maximo razonable
+const MAX_ENTRY_AGE_MS = 24 * 60 * 60 * 1000;
+setInterval(() => {
+  const cutoff = Date.now() - MAX_ENTRY_AGE_MS;
+  for (const [key, timestamp] of lastUse) {
+    if (timestamp < cutoff) lastUse.delete(key);
+  }
+}, 60 * 60 * 1000);
+
 function validateCommandName(name) {
   if (!NAME_PATTERN.test(name)) {
     return 'El nombre solo puede tener minúsculas, números, "-" y "_", sin espacios (1 a 32 caracteres).';

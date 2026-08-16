@@ -925,7 +925,7 @@ function serverGuidePage({ user, config, channels, guildName, flash, editingSect
   const sectionRows = (config.serverGuide.sections || [])
     .map(
       (s) => `<div class="server-row">
-        <span class="name">${s.emoji || ''} ${escapeHtml(s.label)}</span>
+        <span class="name">${escapeHtml(s.emoji || '')} ${escapeHtml(s.label)}</span>
         <div style="display:flex; gap:8px;">
           <a class="btn" href="/dashboard/guia?edit=${encodeURIComponent(s.id)}" style="background:#4752c4;">Editar</a>
           <form method="post" action="/dashboard/guia/seccion/eliminar" style="margin:0;">
@@ -994,7 +994,7 @@ function ticketConfigPage({ user, config, channels, roles, guildName, flash }) {
   const categoryRows = (config.ticketCategories || [])
     .map(
       (cat) => `<div class="server-row">
-        <span class="name">${cat.emoji || '🎫'} ${escapeHtml(cat.label)} ${cat.staffRoleIds?.length ? `· ${cat.staffRoleIds.length} rol(es)` : '· sin rol (usa Manage Server)'}</span>
+        <span class="name">${escapeHtml(cat.emoji || '🎫')} ${escapeHtml(cat.label)} ${cat.staffRoleIds?.length ? `· ${cat.staffRoleIds.length} rol(es)` : '· sin rol (usa Manage Server)'}</span>
         <form method="post" action="/dashboard/tickets/config/categoria/eliminar" style="margin:0;">
           <input type="hidden" name="id" value="${escapeHtml(cat.id)}">
           <button type="submit" style="margin:0; background:#ed4245;">Eliminar</button>

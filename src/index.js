@@ -72,6 +72,16 @@ const client = new Client({
   partials: [Partials.Channel, Partials.Message, Partials.Reaction, Partials.User],
 });
 
+// red de contención final: cualquier rechazo/excepción que se escape de los
+// handlers de arriba (por ejemplo un evento nuevo sin try/catch) se loguea
+// en vez de tirar abajo el proceso entero
+process.on('unhandledRejection', (err) => {
+  console.error('unhandledRejection:', err);
+});
+process.on('uncaughtException', (err) => {
+  console.error('uncaughtException:', err);
+});
+
 function getTracker(guildId) {
   if (!trackerByGuild.has(guildId)) {
     trackerByGuild.set(guildId, new ActivityTracker());
@@ -146,6 +156,10 @@ function formatTemplate(template, member) {
 function startTipLoop(guildId) {
   async function scheduleTip() {
     await sendTipToMostActiveChannel(guildId);
+    // si el bot ya no esta en este server (se fue mientras esta llamada estaba
+    // en vuelo), no volvemos a armar el timer: evita que el loop quede corriendo
+    // para siempre reintentando contra un server al que ya no tenemos acceso
+    if (!client.guilds.cache.has(guildId)) return;
     const config = configByGuild.get(guildId);
     const delayMs = Math.max(1, config?.tipsIntervalMinutes || 20) * 60 * 1000;
     tipTimerByGuild.set(guildId, setTimeout(scheduleTip, delayMs));
@@ -165,6 +179,7 @@ function startMiniEventLoop(guildId) {
     if (config?.miniEvents?.enabled) {
       await miniEvents.postEvent(client, guildId, config);
     }
+    if (!client.guilds.cache.has(guildId)) return;
     const delayMs = Math.max(5, config?.miniEvents?.intervalMinutes || 120) * 60 * 1000;
     miniEventTimerByGuild.set(guildId, setTimeout(scheduleEvent, delayMs));
   }
@@ -215,7 +230,7 @@ async function applyAutomod(message, config) {
 
   if (automod?.enabled) {
     const lowerContent = message.content.toLowerCase();
-    const hasBannedWord = automod.bannedWords.some((word) => word && lowerContent.includes(word));
+    const hasBannedWord = automod.bannedWords.some((word) => word && lowerContent.includes(word.toLowerCase()));
     const hasInvite = automod.blockInvites && containsInviteLink(message.content);
     const mentionCount = message.mentions.users.size + message.mentions.roles.size;
     const isMentionSpam = automod.mentionSpamLimit > 0 && mentionCount > automod.mentionSpamLimit;
@@ -356,30 +371,46 @@ client.on('messageCreate', async (message) => {
 
 client.on('messageDelete', async (message) => {
   if (!message.guild) return;
-  await logging.logMessageDelete(client, configByGuild.get(message.guild.id), message);
+  const config = configByGuild.get(message.guild.id);
+  try {
+    await logging.logMessageDelete(client, config, message);
+  } catch (err) {
+    console.error('Error en messageDelete:', err);
+    await errorReporter.reportError(client, config, 'messageDelete', err);
+  }
 });
 
 client.on('messageUpdate', async (oldMessage, newMessage) => {
   if (!newMessage.guild) return;
-  await logging.logMessageUpdate(client, configByGuild.get(newMessage.guild.id), oldMessage, newMessage);
+  const config = configByGuild.get(newMessage.guild.id);
+  try {
+    await logging.logMessageUpdate(client, config, oldMessage, newMessage);
+  } catch (err) {
+    console.error('Error en messageUpdate:', err);
+    await errorReporter.reportError(client, config, 'messageUpdate', err);
+  }
 });
 
 client.on('messageReactionAdd', async (reaction, user) => {
-  await reactionRoles.handleReactionChange(reaction, user, 'add');
-  await miniEvents.handleMiniEventReaction(reaction, user);
-
-  if (reaction.message.guild) {
-    const config = configByGuild.get(reaction.message.guild.id);
+  const config = reaction.message.guild ? configByGuild.get(reaction.message.guild.id) : null;
+  try {
+    await reactionRoles.handleReactionChange(reaction, user, 'add');
+    await miniEvents.handleMiniEventReaction(reaction, user);
     if (config) await starboard.handleStarboardReaction(reaction, config);
+  } catch (err) {
+    console.error('Error en messageReactionAdd:', err);
+    await errorReporter.reportError(client, config, 'messageReactionAdd', err);
   }
 });
 
 client.on('messageReactionRemove', async (reaction, user) => {
-  await reactionRoles.handleReactionChange(reaction, user, 'remove');
-
-  if (reaction.message.guild) {
-    const config = configByGuild.get(reaction.message.guild.id);
+  const config = reaction.message.guild ? configByGuild.get(reaction.message.guild.id) : null;
+  try {
+    await reactionRoles.handleReactionChange(reaction, user, 'remove');
     if (config) await starboard.handleStarboardReaction(reaction, config);
+  } catch (err) {
+    console.error('Error en messageReactionRemove:', err);
+    await errorReporter.reportError(client, config, 'messageReactionRemove', err);
   }
 });
 

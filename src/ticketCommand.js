@@ -137,7 +137,7 @@ async function createTicketChannel(interaction, config, categoryId) {
     permissionOverwrites,
   });
 
-  await db.createTicket({
+  const created = await db.createTicket({
     guildId: guild.id,
     channelId: channel.id,
     userId: interaction.user.id,
@@ -145,6 +145,14 @@ async function createTicketChannel(interaction, config, categoryId) {
     categoryLabel: category.label,
     number,
   });
+
+  if (!created) {
+    // otra invocacion casi simultanea ya le abrio un ticket a este usuario;
+    // borramos el canal huerfano que acabamos de crear en vez de duplicar
+    await channel.delete().catch((err) => console.error('No se pudo borrar el canal de ticket duplicado:', err));
+    await interaction.editReply({ content: '⚠️ Ya tenés un ticket abierto.' });
+    return;
+  }
 
   const buttons = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(CLAIM_BUTTON_ID).setLabel('Reclamar').setStyle(ButtonStyle.Primary),

@@ -86,7 +86,11 @@ async function handleMarriageButton(interaction) {
     return;
   }
 
-  await db.createMarriage(interaction.guild.id, proposerId, targetId);
+  const created = await db.createMarriage(interaction.guild.id, proposerId, targetId);
+  if (!created) {
+    await interaction.update({ content: '❌ Uno de los dos ya se casó con otra persona mientras tanto.', components: [] });
+    return;
+  }
   await interaction.update({ content: `🎉 <@${proposerId}> y <@${targetId}> se casaron! 💍`, components: [] });
 }
 
