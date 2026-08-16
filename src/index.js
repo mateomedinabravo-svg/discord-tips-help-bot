@@ -310,9 +310,17 @@ function canUseAiNow(userId) {
   return true;
 }
 
-async function replyWithAiEmbed(message, config, text) {
-  const embed = buildEmbed({ type: 'brand', description: text, config });
-  await message.reply({ embeds: [embed] });
+const AI_EMBED_MIN_LENGTH = 150;
+
+// las respuestas cortas van como texto plano (mas livianas en el chat); las
+// largas se envuelven en embed con la marca para que se lean mejor
+async function sendAiReply(message, config, text) {
+  if (text.length >= AI_EMBED_MIN_LENGTH) {
+    const embed = buildEmbed({ type: 'brand', description: text, config });
+    await message.reply({ embeds: [embed] });
+  } else {
+    await message.reply(text);
+  }
 }
 
 function trackAiUsage(guildId, success) {
@@ -502,7 +510,7 @@ client.on('messageCreate', async (message) => {
         }
       }
       if (reply) {
-        if (aiGenerated) await replyWithAiEmbed(message, config, reply);
+        if (aiGenerated) await sendAiReply(message, config, reply);
         else await message.reply(reply);
       }
     } else if (response) {
@@ -556,7 +564,7 @@ client.on('messageCreate', async (message) => {
               const aiContext = await buildAiContext(message, config);
               const summary = await aiHelper.summarizeChannel(client, config, transcript, aiContext);
               trackAiUsage(guildId, Boolean(summary));
-              if (summary) await replyWithAiEmbed(message, config, summary);
+              if (summary) await sendAiReply(message, config, summary);
               else await message.reply('🤖 No pude armar el resumen ahora, probá de nuevo en un rato.');
             } else {
               const aiContext = await buildAiContext(message, config);
@@ -565,7 +573,7 @@ client.on('messageCreate', async (message) => {
               trackAiUsage(guildId, Boolean(chatReply));
               // si la IA falla (timeout, rate limit, etc.) igual contesta algo
               // en vez de quedarse en silencio total despues de que la mencionaron
-              if (chatReply) await replyWithAiEmbed(message, config, chatReply);
+              if (chatReply) await sendAiReply(message, config, chatReply);
               else await message.reply('🤖 No pude pensar una respuesta ahora, mencioname de nuevo en un rato.');
             }
           } finally {
