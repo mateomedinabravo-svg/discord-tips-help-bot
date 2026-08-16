@@ -513,11 +513,15 @@ function createApp({ client }) {
     const editingPanel = req.query.editarPanel
       ? (config.ticketPanels || []).find((p) => p.id === req.query.editarPanel) || null
       : null;
+    const editingCategory = req.query.editarCategoria
+      ? (config.ticketCategories || []).find((c) => c.id === req.query.editarCategoria) || null
+      : null;
     res.send(
       views.ticketConfigPage({
         user: req.session.user,
         config,
         editingPanel,
+        editingCategory,
         channels: getTextChannels(req),
         categoryChannels: getCategoryChannels(req),
         roles: getAssignableRoles(req),
@@ -534,8 +538,24 @@ function createApp({ client }) {
     }
 
     const config = await db.getGuildConfig(req.session.activeGuildId);
-    const id = slugify(label) || `cat-${Date.now()}`;
+    // presente solo al editar una categoria existente (ver "Editar" en la lista)
+    const originalId = (req.body.originalId || '').trim();
     const staffRoleIds = [].concat(req.body.staffRoleIds || []);
+
+    let id;
+    if (originalId) {
+      // el id se mantiene igual al editar, aunque cambie el nombre — lo
+      // referencian los paneles (categoryIds) y los tickets ya creados
+      id = originalId;
+    } else {
+      id = slugify(label) || `cat-${Date.now()}`;
+      // antes esto pisaba en silencio una categoria existente con el mismo
+      // nombre "slugificado"; ahora se rechaza en vez de perder datos sin avisar
+      const collision = (config.ticketCategories || []).find((c) => c.id === id);
+      if (collision) {
+        return res.redirect(`/dashboard/tickets/config?error=${encodeURIComponent('Ya existe una categoría con ese nombre.')}`);
+      }
+    }
 
     const category = {
       id,
@@ -1086,10 +1106,14 @@ function createApp({ client }) {
 
   app.get('/dashboard/comandos', requireAuth, requireActiveGuild, async (req, res) => {
     const config = await db.getGuildConfig(req.session.activeGuildId);
+    const editingCommand = req.query.editar
+      ? (config.customCommands || []).find((cmd) => cmd.name === req.query.editar) || null
+      : null;
     res.send(
       views.customCommandsPage({
         user: req.session.user,
         config,
+        editingCommand,
         guildName: guildName(req),
         flash: req.query.saved ? 'Guardado.' : req.query.error || null,
       }),
@@ -1105,6 +1129,9 @@ function createApp({ client }) {
     const response = (req.body.response || '').trim();
     const adminOnly = req.body.adminOnly === 'on';
     const cooldownSeconds = Math.max(0, Number(req.body.cooldownSeconds) || 0);
+    // presente solo cuando se edita un comando existente (ver "Editar" en la lista);
+    // permite renombrar sin duplicar y sin perder el comando viejo en Discord
+    const originalName = (req.body.originalName || '').trim();
 
     if (!name) {
       return res.redirect(`/dashboard/comandos?error=${encodeURIComponent('Ponele un nombre al comando.')}`);
@@ -1116,7 +1143,14 @@ function createApp({ client }) {
     }
 
     const config = await db.getGuildConfig(req.session.activeGuildId);
-    const existing = (config.customCommands || []).filter((cmd) => cmd.name !== name);
+    // si el nuevo nombre ya lo usa OTRO comando (no el que se esta editando),
+    // se rechaza en vez de pisarlo en silencio
+    const collision = (config.customCommands || []).find((cmd) => cmd.name === name && cmd.name !== originalName);
+    if (collision) {
+      return res.redirect(`/dashboard/comandos?error=${encodeURIComponent('Ya existe un comando con ese nombre.')}`);
+    }
+
+    const existing = (config.customCommands || []).filter((cmd) => cmd.name !== name && cmd.name !== originalName);
     const newCommand = { name, description, response, adminOnly, cooldownSeconds };
     await db.updateGuildConfig(req.session.activeGuildId, {
       customCommands: [...existing, newCommand],
@@ -1128,6 +1162,14 @@ function createApp({ client }) {
     // "cargando" — el guardado en la base ya paso, que es lo que importa
     const guild = getGuild(req);
     if (guild) {
+      // si se renombro, el comando viejo queda huerfano en Discord (upsert
+      // busca por nombre, no encuentra el nuevo y crea uno aparte) — hay que
+      // borrar el de antes explicitamente
+      if (originalName && originalName !== name) {
+        customCommands
+          .deleteGuildCommandByName(guild, originalName)
+          .catch((err) => console.error('No se pudo borrar el comando anterior en Discord tras renombrarlo:', err));
+      }
       customCommands
         .upsertGuildCommand(guild, newCommand)
         .catch((err) => console.error('No se pudo registrar el comando personalizado en Discord:', err));

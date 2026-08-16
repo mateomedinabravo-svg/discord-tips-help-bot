@@ -187,14 +187,19 @@ const APP_SCRIPT = `
   });
 
   document.querySelectorAll('form').forEach(function (form) {
-    form.addEventListener('submit', function () {
+    form.addEventListener('submit', function (e) {
+      if (form.dataset.confirm && !window.confirm(form.dataset.confirm)) {
+        e.preventDefault();
+        return;
+      }
       var btn = form.querySelector('button[type=submit], button:not([type])');
       if (btn && !btn.disabled) {
         btn.dataset.label = btn.textContent;
-        btn.textContent = 'Guardando…';
+        btn.textContent = form.dataset.confirm ? 'Eliminando…' : 'Guardando…';
         btn.disabled = true;
         btn.classList.add('btn-loading');
       }
+      window.__sfx[form.dataset.confirm ? 'delete' : 'click']();
       document.body.classList.add('page-exit');
     });
   });
@@ -639,7 +644,7 @@ function messagesPage({ user, config, editingTopic, guildName, flash }) {
         <span class="name">${escapeHtml(t.name)} · ${t.keywords.length} palabra(s) clave</span>
         <span>
           <a class="btn" href="/dashboard/mensajes?editar=${encodeURIComponent(t.name)}">Editar</a>
-          <form method="post" action="/dashboard/mensajes/ayuda/tema/eliminar" style="display:inline; margin:0;">
+          <form method="post" action="/dashboard/mensajes/ayuda/tema/eliminar" style="display:inline; margin:0;" data-confirm="¿Eliminar el tema \"${escapeHtml(t.name)}\"?">
             <input type="hidden" name="name" value="${escapeHtml(t.name)}">
             <button type="submit" style="margin:0; background:#ed4245;">Eliminar</button>
           </form>
@@ -1053,18 +1058,23 @@ function logsPage({ user, config, channels, guildName, flash }) {
   return layout({ title: 'Logs', user, body, flash, guildName });
 }
 
-function customCommandsPage({ user, config, guildName, flash }) {
+function customCommandsPage({ user, config, editingCommand, guildName, flash }) {
   const rows = (config.customCommands || [])
     .map(
       (cmd) => `<div class="server-row">
         <span class="name">/${escapeHtml(cmd.name)} ${cmd.adminOnly ? '· solo admins' : `· cooldown ${cmd.cooldownSeconds}s`}</span>
-        <form method="post" action="/dashboard/comandos/eliminar" style="margin:0;">
-          <input type="hidden" name="name" value="${escapeHtml(cmd.name)}">
-          <button type="submit" style="margin:0; background:#ed4245;">Eliminar</button>
-        </form>
+        <span>
+          <a class="btn" href="/dashboard/comandos?editar=${encodeURIComponent(cmd.name)}">Editar</a>
+          <form method="post" action="/dashboard/comandos/eliminar" style="display:inline; margin:0;" data-confirm="¿Eliminar el comando /${escapeHtml(cmd.name)}? Se borra también de Discord.">
+            <input type="hidden" name="name" value="${escapeHtml(cmd.name)}">
+            <button type="submit" style="margin:0; background:#ed4245;">Eliminar</button>
+          </form>
+        </span>
       </div>`,
     )
     .join('');
+
+  const cmd = editingCommand || { name: '', description: '', response: '', adminOnly: false, cooldownSeconds: 10 };
 
   const body = `
   <h1>Comandos personalizados</h1>
@@ -1087,18 +1097,20 @@ function customCommandsPage({ user, config, guildName, flash }) {
   </div>
 
   <form class="card" method="post" action="/dashboard/comandos">
-    <h2>Crear comando</h2>
+    <h2>${editingCommand ? `Editando: /${escapeHtml(cmd.name)}` : 'Crear comando'}</h2>
+    <input type="hidden" name="originalName" value="${escapeHtml(cmd.name)}">
     <label>Nombre (se ajusta automáticamente a minúsculas y sin espacios)</label>
-    <input type="text" name="name" required maxlength="32">
+    <input type="text" name="name" value="${escapeHtml(cmd.name)}" required maxlength="32">
     <label>Descripción (se ve en el autocompletado de Discord)</label>
-    <input type="text" name="description" maxlength="100">
+    <input type="text" name="description" value="${escapeHtml(cmd.description)}" maxlength="100">
     <label>Respuesta (podés usar <code>{user}</code>)</label>
-    <textarea name="response" required></textarea>
-    <div class="checkbox-row"><input type="checkbox" name="adminOnly" id="cc-admin">
+    <textarea name="response" required>${escapeHtml(cmd.response)}</textarea>
+    <div class="checkbox-row"><input type="checkbox" name="adminOnly" id="cc-admin" ${cmd.adminOnly ? 'checked' : ''}>
       <label for="cc-admin" style="margin:0;">Solo para administradores</label></div>
     <label>Cooldown para usuarios normales (segundos, ignorado si es solo-admin)</label>
-    <input type="number" name="cooldownSeconds" min="0" value="10">
-    <button type="submit">Crear</button>
+    <input type="number" name="cooldownSeconds" min="0" value="${cmd.cooldownSeconds}">
+    <button type="submit">${editingCommand ? 'Guardar cambios' : 'Crear'}</button>
+    ${editingCommand ? '<a class="btn" href="/dashboard/comandos" style="margin-left:10px; background:#4a4d53;">Cancelar edición</a>' : ''}
   </form>`;
   return layout({ title: 'Comandos', user, body, flash, guildName });
 }
@@ -1482,7 +1494,7 @@ function serverGuidePage({ user, config, channels, guildName, flash, editingSect
   return layout({ title: 'Guía', user, body, flash, guildName });
 }
 
-function ticketConfigPage({ user, config, editingPanel, channels, categoryChannels, roles, guildName, flash }) {
+function ticketConfigPage({ user, config, editingPanel, editingCategory, channels, categoryChannels, roles, guildName, flash }) {
   const channelOptions = (selected) =>
     channels.map((c) => `<option value="${c.id}" ${c.id === selected ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`).join('');
 
@@ -1506,10 +1518,13 @@ function ticketConfigPage({ user, config, editingPanel, channels, categoryChanne
     .map(
       (cat) => `<div class="server-row">
         <span class="name">${escapeHtml(cat.emoji || '🎫')} ${escapeHtml(cat.label)} ${cat.staffRoleIds?.length ? `· ${cat.staffRoleIds.length} rol(es)` : '· sin rol (usa Manage Server)'}</span>
-        <form method="post" action="/dashboard/tickets/config/categoria/eliminar" style="margin:0;">
-          <input type="hidden" name="id" value="${escapeHtml(cat.id)}">
-          <button type="submit" style="margin:0; background:#ed4245;">Eliminar</button>
-        </form>
+        <span style="display:flex; gap:8px;">
+          <a class="btn" href="/dashboard/tickets/config?editarCategoria=${encodeURIComponent(cat.id)}">Editar</a>
+          <form method="post" action="/dashboard/tickets/config/categoria/eliminar" style="margin:0;" data-confirm="¿Eliminar la categoría \"${escapeHtml(cat.label)}\"? Los paneles que la usan van a dejar de mostrarla.">
+            <input type="hidden" name="id" value="${escapeHtml(cat.id)}">
+            <button type="submit" style="margin:0; background:#ed4245;">Eliminar</button>
+          </form>
+        </span>
       </div>`,
     )
     .join('');
@@ -1531,7 +1546,7 @@ function ticketConfigPage({ user, config, editingPanel, channels, categoryChanne
             <input type="hidden" name="id" value="${escapeHtml(panel.id)}">
             <button type="submit" style="margin:0;">${panel.messageId ? 'Actualizar' : 'Publicar'}</button>
           </form>
-          <form method="post" action="/dashboard/tickets/config/panel/eliminar" style="margin:0;">
+          <form method="post" action="/dashboard/tickets/config/panel/eliminar" style="margin:0;" data-confirm="¿Eliminar el panel \"${escapeHtml(panel.title)}\"?${panel.messageId ? ' El mensaje publicado en Discord queda huerfano (no se borra solo).' : ''}">
             <input type="hidden" name="id" value="${escapeHtml(panel.id)}">
             <button type="submit" style="margin:0; background:#ed4245;">Eliminar</button>
           </form>
@@ -1550,16 +1565,18 @@ function ticketConfigPage({ user, config, editingPanel, channels, categoryChanne
   </div>
 
   <form class="card" method="post" action="/dashboard/tickets/config/categoria">
-    <h2>Nueva categoría</h2>
+    <h2>${editingCategory ? `Editando: ${escapeHtml(editingCategory.label)}` : 'Nueva categoría'}</h2>
+    ${editingCategory ? `<input type="hidden" name="originalId" value="${escapeHtml(editingCategory.id)}">` : ''}
     <label>Nombre</label>
-    <input type="text" name="label" required maxlength="80">
+    <input type="text" name="label" required maxlength="80" value="${escapeHtml(editingCategory ? editingCategory.label : '')}">
     <label>Emoji</label>
-    <input type="text" name="emoji" placeholder="🎫" maxlength="10">
+    <input type="text" name="emoji" placeholder="🎫" maxlength="10" value="${escapeHtml(editingCategory ? editingCategory.emoji || '' : '')}">
     <label>Descripción (se muestra dentro del ticket)</label>
-    <textarea name="description" style="min-height:70px;"></textarea>
+    <textarea name="description" style="min-height:70px;">${escapeHtml(editingCategory ? editingCategory.description || '' : '')}</textarea>
     <label>Roles de staff con acceso (opcional, podés elegir varios)</label>
-    <select name="staffRoleIds" multiple size="5">${roleOptions([])}</select>
-    <button type="submit">Crear categoría</button>
+    <select name="staffRoleIds" multiple size="5">${roleOptions(editingCategory ? editingCategory.staffRoleIds || [] : [])}</select>
+    <button type="submit">${editingCategory ? 'Guardar cambios' : 'Crear categoría'}</button>
+    ${editingCategory ? '<a class="btn" href="/dashboard/tickets/config" style="margin-left:10px; background:#4a4d53;">Cancelar edición</a>' : ''}
   </form>
 
   <div class="card">
