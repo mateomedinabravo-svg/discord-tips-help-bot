@@ -230,6 +230,44 @@ async function deleteWithWarning(message, reason) {
   }
 }
 
+// reemplaza las menciones de OTROS usuarios por su nombre visible (para que
+// la IA entienda "hablale a Juan" en vez de ver un id crudo) y saca la
+// mencion al propio bot, que ya se maneja aparte
+function prepareAiText(message) {
+  let content = message.content;
+  for (const [id, user] of message.mentions.users) {
+    if (id === client.user.id) continue;
+    const name = message.mentions.members?.get(id)?.displayName || user.username;
+    content = content.split(`<@${id}>`).join(name).split(`<@!${id}>`).join(name);
+  }
+  return content.replace(/<@!?\d+>/g, '').trim();
+}
+
+// nombre del server, nombre del bot, nombre de quien escribe, y los ultimos
+// mensajes del canal (para que la IA tenga contexto de la conversacion en
+// vez de responder cada mensaje como si fuera la primera vez que le hablan)
+async function buildAiContext(message, config) {
+  let recentMessages = '';
+  try {
+    const recent = await message.channel.messages.fetch({ limit: 6 });
+    recentMessages = [...recent.values()]
+      .filter((m) => m.id !== message.id)
+      .reverse()
+      .slice(-5)
+      .map((m) => `${m.member?.displayName || m.author.username}: ${m.content}`.replace(/\s+/g, ' ').slice(0, 200))
+      .join('\n');
+  } catch (err) {
+    console.error('No se pudo traer contexto reciente para la IA:', err.message);
+  }
+
+  return {
+    serverName: message.guild.name,
+    botName: config?.branding?.nickname || message.guild.members.me?.displayName || client.user.username,
+    userName: message.member?.displayName || message.author.username,
+    recentMessages,
+  };
+}
+
 async function applyAutomod(message, config) {
   const automod = config?.automod;
 
@@ -361,7 +399,8 @@ client.on('messageCreate', async (message) => {
     if (response === NEEDS_FALLBACK) {
       let reply = config?.helpResponses?.fallbackResponse;
       if (config?.ai?.enabled && config.ai.helpFallback && aiHelper.isConfigured(config)) {
-        const aiReply = await aiHelper.answerHelpQuestion(client, config, message.content);
+        const aiContext = await buildAiContext(message, config);
+        const aiReply = await aiHelper.answerHelpQuestion(client, config, prepareAiText(message), aiContext);
         if (aiReply) reply = aiReply;
       }
       if (reply) await message.reply(reply);
@@ -370,9 +409,10 @@ client.on('messageCreate', async (message) => {
     } else if (mentionsBot && config?.ai?.enabled && config.ai.helpFallback && aiHelper.isConfigured(config)) {
       // lo mencionaron directo y no matcheo ningun tema de ayuda: charla en
       // modo mas general en vez de quedarse callado
-      const cleanedContent = message.content.replace(/<@!?\d+>/g, '').trim();
+      const cleanedContent = prepareAiText(message);
       if (cleanedContent) {
-        const chatReply = await aiHelper.chatReply(client, config, cleanedContent);
+        const aiContext = await buildAiContext(message, config);
+        const chatReply = await aiHelper.chatReply(client, config, cleanedContent, aiContext);
         if (chatReply) await message.reply(chatReply);
       }
     }
