@@ -66,6 +66,29 @@ async function registerGuildCommands(guild, config, staticDefinitions) {
   await guild.commands.set([...staticDefinitions, ...customDefinitions]);
 }
 
+// crear/borrar UN comando personalizado no necesita reenviar la lista
+// completa (comandos propios del bot + todos los personalizados) a Discord:
+// eso pasa por el endpoint de sobreescritura masiva, que tiene un limite de
+// tasa bastante estricto y puede demorar mucho si se llama seguido (cada vez
+// que se crea o borra un comando desde el dashboard). Crear/editar/borrar de
+// a uno usa endpoints normales, mucho mas livianos y rapidos
+async function upsertGuildCommand(guild, cmd) {
+  const commands = await guild.commands.fetch();
+  const existing = commands.find((c) => c.name === cmd.name);
+  const payload = buildCustomCommandDefinition(cmd).toJSON();
+  if (existing) {
+    await guild.commands.edit(existing.id, payload);
+  } else {
+    await guild.commands.create(payload);
+  }
+}
+
+async function deleteGuildCommandByName(guild, name) {
+  const commands = await guild.commands.fetch();
+  const existing = commands.find((c) => c.name === name);
+  if (existing) await guild.commands.delete(existing.id);
+}
+
 function findCustomCommand(config, name) {
   return (config.customCommands || []).find((cmd) => cmd.name === name);
 }
@@ -103,6 +126,8 @@ module.exports = {
   validateCommandName,
   buildCustomCommandDefinition,
   registerGuildCommands,
+  upsertGuildCommand,
+  deleteGuildCommandByName,
   findCustomCommand,
   handleCustomCommand,
 };

@@ -16,7 +16,6 @@ const db = require('../db');
 const reactionRoles = require('../reactionRoles');
 const selectRoles = require('../selectRoles');
 const customCommands = require('../customCommands');
-const commandRegistry = require('../commandRegistry');
 const housesCommand = require('../housesCommand');
 const ticketCommand = require('../ticketCommand');
 const aiHelper = require('../aiHelper');
@@ -1012,12 +1011,21 @@ function createApp({ client }) {
 
     const config = await db.getGuildConfig(req.session.activeGuildId);
     const existing = (config.customCommands || []).filter((cmd) => cmd.name !== name);
-    const updatedConfig = await db.updateGuildConfig(req.session.activeGuildId, {
-      customCommands: [...existing, { name, description, response, adminOnly, cooldownSeconds }],
+    const newCommand = { name, description, response, adminOnly, cooldownSeconds };
+    await db.updateGuildConfig(req.session.activeGuildId, {
+      customCommands: [...existing, newCommand],
     });
 
+    // no se espera a Discord antes de redirigir: registrar de a un comando ya
+    // es rapido (a diferencia de la sobreescritura masiva de antes), pero si
+    // Discord llega a tardar igual no queremos que el dashboard se quede
+    // "cargando" — el guardado en la base ya paso, que es lo que importa
     const guild = getGuild(req);
-    if (guild) await commandRegistry.registerGuildCommands(guild, updatedConfig);
+    if (guild) {
+      customCommands
+        .upsertGuildCommand(guild, newCommand)
+        .catch((err) => console.error('No se pudo registrar el comando personalizado en Discord:', err));
+    }
 
     res.redirect('/dashboard/comandos?saved=1');
   });
@@ -1032,12 +1040,16 @@ function createApp({ client }) {
 
   app.post('/dashboard/comandos/eliminar', requireAuth, requireActiveGuild, async (req, res) => {
     const config = await db.getGuildConfig(req.session.activeGuildId);
-    const updatedConfig = await db.updateGuildConfig(req.session.activeGuildId, {
+    await db.updateGuildConfig(req.session.activeGuildId, {
       customCommands: (config.customCommands || []).filter((cmd) => cmd.name !== req.body.name),
     });
 
     const guild = getGuild(req);
-    if (guild) await commandRegistry.registerGuildCommands(guild, updatedConfig);
+    if (guild) {
+      customCommands
+        .deleteGuildCommandByName(guild, req.body.name)
+        .catch((err) => console.error('No se pudo borrar el comando personalizado en Discord:', err));
+    }
 
     res.redirect('/dashboard/comandos?saved=1');
   });
