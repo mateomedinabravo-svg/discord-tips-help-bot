@@ -444,11 +444,21 @@ client.on('messageCreate', async (message) => {
       // modo mas general en vez de quedarse callado
       const cleanedContent = prepareAiText(message);
       if (cleanedContent) {
-        const aiContext = await buildAiContext(message, config);
-        const chatReply = await aiHelper.chatReply(client, config, cleanedContent, aiContext);
-        // si la IA falla (timeout, rate limit, etc.) igual contesta algo en
-        // vez de quedarse en silencio total despues de que la mencionaron
-        await message.reply(chatReply || '🤖 No pude pensar una respuesta ahora, mencioname de nuevo en un rato.');
+        if (/\bmemes?\b/i.test(cleanedContent)) {
+          // pidio un meme por chat: se manda un meme real (misma logica que
+          // /meme) en vez de que la IA "hable" de mandarlo, que es lo que
+          // generaba el link falso de imgur.com
+          await memeCommand.handleMemeCommand(
+            { deferReply: async () => {}, editReply: (payload) => message.reply(payload) },
+            config,
+          );
+        } else {
+          const aiContext = await buildAiContext(message, config);
+          const chatReply = await aiHelper.chatReply(client, config, cleanedContent, aiContext);
+          // si la IA falla (timeout, rate limit, etc.) igual contesta algo en
+          // vez de quedarse en silencio total despues de que la mencionaron
+          await message.reply(chatReply || '🤖 No pude pensar una respuesta ahora, mencioname de nuevo en un rato.');
+        }
       }
     }
   } catch (err) {
