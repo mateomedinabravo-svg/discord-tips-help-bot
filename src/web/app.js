@@ -116,6 +116,16 @@ function createApp({ client }) {
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
+  // best-effort: solo mira el cache de miembros ya cargado (no dispara un
+  // fetch a la API por cada fila de un leaderboard), cae al ID si no esta
+  function withDisplayNames(req, entries) {
+    const guild = getGuild(req);
+    return entries.map((entry) => ({
+      ...entry,
+      displayName: guild?.members.cache.get(entry.userId)?.user.username || null,
+    }));
+  }
+
   function guildName(req) {
     return getGuild(req)?.name || null;
   }
@@ -436,10 +446,13 @@ function createApp({ client }) {
 
   app.get('/dashboard/estadisticas', requireAuth, requireActiveGuild, async (req, res) => {
     const stats = await db.getStats(req.session.activeGuildId);
-    const leaderboard = await db.getLeaderboard(req.session.activeGuildId, 5);
+    const leaderboard = withDisplayNames(req, await db.getLeaderboard(req.session.activeGuildId, 5));
+    const economyLeaderboard = withDisplayNames(req, await db.getEconomyLeaderboard(req.session.activeGuildId, 5));
     const channelNames = {};
     for (const c of getTextChannels(req)) channelNames[c.id] = c.name;
-    res.send(views.statsPage({ user: req.session.user, stats, channelNames, leaderboard, guildName: guildName(req) }));
+    res.send(
+      views.statsPage({ user: req.session.user, stats, channelNames, leaderboard, economyLeaderboard, guildName: guildName(req) }),
+    );
   });
 
   app.get('/dashboard/tickets', requireAuth, requireActiveGuild, async (req, res) => {

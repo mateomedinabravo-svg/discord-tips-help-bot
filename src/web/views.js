@@ -8,6 +8,80 @@ function escapeHtml(value) {
   }[ch]));
 }
 
+const NAV_GROUPS = [
+  {
+    label: 'General',
+    icon: '🏠',
+    links: [
+      { href: '/dashboard', label: 'General' },
+      { href: '/dashboard/estadisticas', label: 'Estadísticas' },
+      { href: '/dashboard/contador', label: 'Contador de miembros' },
+      { href: '/dashboard/debug', label: 'Estado / Debug' },
+    ],
+  },
+  {
+    label: 'Comunidad',
+    icon: '💬',
+    links: [
+      { href: '/dashboard/bienvenida', label: 'Bienvenida/Despedida' },
+      { href: '/dashboard/mensajes', label: 'Tips y ayuda' },
+      { href: '/dashboard/anuncio', label: 'Anuncios' },
+      { href: '/dashboard/houses', label: 'Houses' },
+      { href: '/dashboard/starboard', label: 'Starboard' },
+      { href: '/dashboard/sugerencias', label: 'Sugerencias' },
+      { href: '/dashboard/cumpleanos', label: 'Cumpleaños' },
+      { href: '/dashboard/invitaciones', label: 'Invite Tracker' },
+    ],
+  },
+  {
+    label: 'Moderación',
+    icon: '🛡️',
+    links: [
+      { href: '/dashboard/automoderacion', label: 'Automoderación' },
+      { href: '/dashboard/logs', label: 'Logs' },
+      { href: '/dashboard/moderacion', label: 'Roles protegidos' },
+    ],
+  },
+  {
+    label: 'Tickets',
+    icon: '🎫',
+    links: [
+      { href: '/dashboard/tickets', label: 'Tickets' },
+      { href: '/dashboard/tickets/config', label: 'Configurar' },
+    ],
+  },
+  {
+    label: 'Progresión',
+    icon: '📈',
+    links: [
+      { href: '/dashboard/niveles', label: 'Niveles' },
+      { href: '/dashboard/roles-reaccion', label: 'Roles por reacción' },
+      { href: '/dashboard/roles-menu', label: 'Roles por menú' },
+    ],
+  },
+  {
+    label: 'Economía y juegos',
+    icon: '🎮',
+    links: [
+      { href: '/dashboard/economia', label: 'Economía' },
+      { href: '/dashboard/casino', label: 'Casino' },
+      { href: '/dashboard/mascotas', label: 'Mascotas' },
+      { href: '/dashboard/trivia', label: 'Trivia' },
+      { href: '/dashboard/eventos', label: 'Eventos' },
+    ],
+  },
+  {
+    label: 'A medida',
+    icon: '🎨',
+    links: [
+      { href: '/dashboard/comandos', label: 'Comandos' },
+      { href: '/dashboard/ia', label: 'IA' },
+      { href: '/dashboard/guia', label: 'Guía' },
+      { href: '/dashboard/apariencia', label: 'Apariencia' },
+    ],
+  },
+];
+
 function layout({ title, user, body, flash, guildName }) {
   return `<!doctype html>
 <html lang="es">
@@ -16,142 +90,138 @@ function layout({ title, user, body, flash, guildName }) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)} · Panel del bot</title>
 <style>
-  :root { color-scheme: dark; }
+  :root {
+    color-scheme: dark;
+    --bg: #1e1f22;
+    --bg-raised: #2b2d31;
+    --bg-sunken: #17181a;
+    --bg-header: #111214;
+    --border: #35373c;
+    --text: #dbdee1;
+    --text-muted: #949ba4;
+    --brand: #5865f2;
+    --brand-hover: #4752c4;
+    --success: #3ba55d;
+    --danger: #ed4245;
+  }
   * { box-sizing: border-box; }
-  body { margin: 0; background: #1e1f22; color: #dbdee1; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
-  header { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; background: #111214; border-bottom: 1px solid #2b2d31; }
-  header a.brand { color: #fff; font-weight: 700; text-decoration: none; font-size: 18px; }
-  header .user { display: flex; align-items: center; gap: 10px; font-size: 14px; color: #b5bac1; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; background: var(--bg-header); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; }
+  header a.brand { color: #fff; font-weight: 700; text-decoration: none; font-size: 18px; display: flex; align-items: center; gap: 8px; }
+  header .user { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text-muted); }
   header .user a { color: #f2b8b5; text-decoration: none; }
-  header .guild-badge { color: #949ba4; }
-  header .guild-badge a { color: #b5bac1; }
+  header .guild-badge { color: var(--text-muted); }
+  header .guild-badge a { color: var(--text); }
+  .app-layout { display: flex; align-items: flex-start; }
   .server-list { display: flex; flex-direction: column; gap: 10px; }
-  .server-row { display: flex; align-items: center; justify-content: space-between; background: #1e1f22;
-    padding: 12px 16px; border-radius: 8px; }
+  .server-row { display: flex; align-items: center; justify-content: space-between; background: var(--bg-sunken);
+    padding: 12px 16px; border-radius: 8px; border: 1px solid var(--border); }
   .server-row .name { font-weight: 600; }
-  .server-row a.btn, a.btn { background: #5865f2; color: #fff; text-decoration: none; padding: 8px 16px;
-    border-radius: 6px; font-size: 13px; font-weight: 600; }
-  .server-row a.btn.invite { background: #3ba55d; }
+  .server-row a.btn, a.btn { background: var(--brand); color: #fff; text-decoration: none; padding: 8px 16px;
+    border-radius: 6px; font-size: 13px; font-weight: 600; display: inline-block; }
+  .server-row a.btn.invite { background: var(--success); }
   .row-grid { display: grid; grid-template-columns: 1.2fr 1.5fr 1fr auto; gap: 8px; align-items: center; margin-top: 8px; }
   .row-grid input, .row-grid select { margin: 0; }
-  nav { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; padding: 12px 24px 14px; background: #111214; border-bottom: 1px solid #2b2d31; }
-  nav .nav-group { display: flex; flex-direction: column; gap: 2px; }
-  nav .nav-group-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #72767d;
-    padding: 4px 10px 2px; font-weight: 700; }
-  nav .nav-group-links { display: flex; flex-wrap: wrap; gap: 2px; }
-  nav a { color: #b5bac1; text-decoration: none; padding: 6px 10px; border-radius: 6px; font-size: 13px; white-space: nowrap; }
-  nav a:hover { background: #2b2d31; color: #fff; }
-  nav a.active { background: #3a3d44; color: #fff; }
-  main { max-width: 900px; margin: 0 auto; padding: 28px 24px 60px; }
-  h1 { font-size: 22px; margin-bottom: 4px; }
-  .muted { color: #949ba4; font-size: 14px; margin-bottom: 24px; }
-  .card { background: #2b2d31; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
-  .card h2 { margin-top: 0; font-size: 16px; }
+  .sidebar { width: 236px; flex-shrink: 0; background: var(--bg-header); border-right: 1px solid var(--border);
+    padding: 16px 10px 40px; position: sticky; top: 57px; align-self: flex-start; height: calc(100vh - 57px); overflow-y: auto; }
+  .sidebar .nav-group { margin-bottom: 4px; }
+  .sidebar .nav-group-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted);
+    padding: 14px 10px 4px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+  .sidebar .nav-group-links { display: flex; flex-direction: column; gap: 1px; }
+  .sidebar a { color: #b5bac1; text-decoration: none; padding: 7px 10px; border-radius: 6px; font-size: 13.5px; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; display: block; }
+  .sidebar a:hover { background: var(--bg-raised); color: #fff; }
+  .sidebar a.active { background: var(--brand); color: #fff; font-weight: 600; }
+  main { flex: 1; min-width: 0; max-width: 900px; margin: 0 auto; padding: 28px 24px 60px; }
+  h1 { font-size: 23px; margin-bottom: 4px; letter-spacing: -0.01em; }
+  .muted { color: var(--text-muted); font-size: 14px; margin-bottom: 24px; }
+  .card { background: var(--bg-raised); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+  .card h2 { margin-top: 0; font-size: 15px; }
   label { display: block; font-size: 13px; color: #b5bac1; margin: 14px 0 6px; }
   input[type=text], input[type=number], input[type=url], select, textarea {
-    width: 100%; padding: 9px 10px; border-radius: 6px; border: 1px solid #1e1f22;
-    background: #1e1f22; color: #dbdee1; font-size: 14px; font-family: inherit;
+    width: 100%; padding: 9px 10px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--bg-sunken); color: var(--text); font-size: 14px; font-family: inherit;
+  }
+  input[type=text]:focus, input[type=number]:focus, input[type=url]:focus, select:focus, textarea:focus {
+    outline: none; border-color: var(--brand);
   }
   textarea { min-height: 110px; resize: vertical; }
-  input[type=color] { width: 60px; height: 38px; padding: 3px; border-radius: 6px; border: 1px solid #1e1f22; background: #1e1f22; cursor: pointer; }
+  input[type=color] { width: 60px; height: 38px; padding: 3px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-sunken); cursor: pointer; }
   .color-row { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
   .color-row label { margin: 0; min-width: 90px; }
   .checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
   .checkbox-row input { width: auto; }
-  button { margin-top: 18px; background: #5865f2; color: #fff; border: none; padding: 10px 18px;
-    border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: 600; }
-  button:hover { background: #4752c4; }
+  button { margin-top: 18px; background: var(--brand); color: #fff; border: none; padding: 10px 18px;
+    border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: 600; transition: background 0.15s; }
+  button:hover { background: var(--brand-hover); }
   .flash { background: #2f5d3a; color: #d7ffe0; padding: 10px 14px; border-radius: 6px; margin-bottom: 20px; font-size: 14px; }
   .warning-banner { background: #4a3b1f; color: #f2d9a0; padding: 10px 14px; border-radius: 6px; margin-bottom: 20px; font-size: 14px; }
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #1e1f22; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); }
   .pill { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 12px; }
   .pill.open { background: #3a4a2f; color: #b9f2a0; }
   .pill.closed { background: #4a3a3a; color: #f2a0a0; }
+  .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+  .stat-tile { background: var(--bg-sunken); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .stat-tile .stat-value { font-size: 22px; font-weight: 700; color: #fff; }
+  .stat-tile .stat-label { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
   .login-wrap { display: flex; align-items: center; justify-content: center; height: 100vh; }
-  .login-card { background: #2b2d31; padding: 40px; border-radius: 12px; text-align: center; }
-  .login-card a { display: inline-block; margin-top: 20px; background: #5865f2; color: #fff; padding: 12px 24px;
+  .login-card { background: var(--bg-raised); padding: 40px; border-radius: 12px; text-align: center; border: 1px solid var(--border); }
+  .login-card a { display: inline-block; margin-top: 20px; background: var(--brand); color: #fff; padding: 12px 24px;
     border-radius: 6px; text-decoration: none; font-weight: 600; }
+  @media (max-width: 820px) {
+    .app-layout { flex-direction: column; }
+    .sidebar { width: 100%; height: auto; position: static; border-right: none; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+    .sidebar .nav-group-links { flex-direction: row; flex-wrap: wrap; }
+  }
 </style>
 </head>
 <body>
-${user ? `<header>
+${
+  user
+    ? `<header>
   <a class="brand" href="/dashboard">🤖 Panel del bot</a>
   <div class="user">
     ${guildName ? `<span class="guild-badge">${escapeHtml(guildName)} · <a href="/servers">cambiar de server</a> ·</span>` : ''}
     ${escapeHtml(user.username)} · <a href="/logout">salir</a>
   </div>
 </header>
-<nav>
-  <div class="nav-group">
-    <div class="nav-group-label">General</div>
+<div class="app-layout">
+<nav class="sidebar">
+${NAV_GROUPS.map(
+  (group) => `  <div class="nav-group">
+    <div class="nav-group-label">${group.icon} ${group.label}</div>
     <div class="nav-group-links">
-      <a href="/dashboard">General</a>
-      <a href="/dashboard/estadisticas">Estadísticas</a>
-      <a href="/dashboard/contador">Contador de miembros</a>
-      <a href="/dashboard/debug">Estado / Debug</a>
+${group.links.map((link) => `      <a href="${link.href}">${escapeHtml(link.label)}</a>`).join('\n')}
     </div>
-  </div>
-  <div class="nav-group">
-    <div class="nav-group-label">Comunidad</div>
-    <div class="nav-group-links">
-      <a href="/dashboard/bienvenida">Bienvenida/Despedida</a>
-      <a href="/dashboard/mensajes">Tips y ayuda</a>
-      <a href="/dashboard/anuncio">Anuncios</a>
-      <a href="/dashboard/houses">Houses</a>
-      <a href="/dashboard/starboard">Starboard</a>
-      <a href="/dashboard/sugerencias">Sugerencias</a>
-      <a href="/dashboard/cumpleanos">Cumpleaños</a>
-      <a href="/dashboard/invitaciones">Invite Tracker</a>
-    </div>
-  </div>
-  <div class="nav-group">
-    <div class="nav-group-label">Moderación</div>
-    <div class="nav-group-links">
-      <a href="/dashboard/automoderacion">Automoderación</a>
-      <a href="/dashboard/logs">Logs</a>
-      <a href="/dashboard/moderacion">Roles protegidos</a>
-    </div>
-  </div>
-  <div class="nav-group">
-    <div class="nav-group-label">Tickets</div>
-    <div class="nav-group-links">
-      <a href="/dashboard/tickets">Tickets</a>
-      <a href="/dashboard/tickets/config">Configurar</a>
-    </div>
-  </div>
-  <div class="nav-group">
-    <div class="nav-group-label">Progresión</div>
-    <div class="nav-group-links">
-      <a href="/dashboard/niveles">Niveles</a>
-      <a href="/dashboard/roles-reaccion">Roles por reacción</a>
-      <a href="/dashboard/roles-menu">Roles por menú</a>
-    </div>
-  </div>
-  <div class="nav-group">
-    <div class="nav-group-label">Economía y juegos</div>
-    <div class="nav-group-links">
-      <a href="/dashboard/economia">Economía</a>
-      <a href="/dashboard/casino">Casino</a>
-      <a href="/dashboard/mascotas">Mascotas</a>
-      <a href="/dashboard/trivia">Trivia</a>
-      <a href="/dashboard/eventos">Eventos</a>
-    </div>
-  </div>
-  <div class="nav-group">
-    <div class="nav-group-label">A medida</div>
-    <div class="nav-group-links">
-      <a href="/dashboard/comandos">Comandos</a>
-      <a href="/dashboard/ia">IA</a>
-      <a href="/dashboard/guia">Guía</a>
-      <a href="/dashboard/apariencia">Apariencia</a>
-    </div>
-  </div>
-</nav>` : ''}
+  </div>`,
+).join('\n')}
+</nav>
 <main>
 ${flash ? `<div class="flash">${escapeHtml(flash)}</div>` : ''}
 ${body}
 </main>
+</div>
+<script>
+  (function () {
+    var path = window.location.pathname;
+    var links = document.querySelectorAll('.sidebar a');
+    var best = null;
+    links.forEach(function (a) {
+      var href = a.getAttribute('href');
+      if (path === href || (href !== '/dashboard' && path.startsWith(href))) {
+        if (!best || href.length > best.getAttribute('href').length) best = a;
+      }
+    });
+    if (best) best.classList.add('active');
+  })();
+</script>`
+    : `<main>
+${flash ? `<div class="flash">${escapeHtml(flash)}</div>` : ''}
+${body}
+</main>`
+}
 </body>
 </html>`;
 }
@@ -342,32 +412,94 @@ function announcePage({ user, channels, guildName, flash }) {
   return layout({ title: 'Anuncios', user, body, flash });
 }
 
-function statsPage({ user, stats, channelNames, leaderboard, guildName }) {
-  const rows = Object.entries(stats.channelMessageCounts || {})
-    .sort((a, b) => b[1] - a[1])
+function safeChartJson(value) {
+  return JSON.stringify(value).replace(/</g, '\\u003c');
+}
+
+function statsPage({ user, stats, channelNames, leaderboard, economyLeaderboard, guildName }) {
+  const channelEntries = Object.entries(stats.channelMessageCounts || {}).sort((a, b) => b[1] - a[1]);
+  const topChannels = channelEntries.slice(0, 10);
+
+  const rows = channelEntries
     .map(([channelId, count]) => `<tr><td>#${escapeHtml(channelNames[channelId] || channelId)}</td><td>${count}</td></tr>`)
     .join('');
 
   const leaderboardRows = (leaderboard || [])
-    .map((entry, i) => `<tr><td>${i + 1}</td><td>ID ${escapeHtml(entry.userId)}</td><td>${entry.xp} XP</td></tr>`)
+    .map((entry, i) => `<tr><td>${i + 1}</td><td>${escapeHtml(entry.displayName || entry.userId)}</td><td>${entry.xp} XP</td></tr>`)
     .join('');
+
+  const economyRows = (economyLeaderboard || [])
+    .map((entry, i) => `<tr><td>${i + 1}</td><td>${escapeHtml(entry.displayName || entry.userId)}</td><td>${entry.balance}</td></tr>`)
+    .join('');
+
+  const hasCharts = topChannels.length || (leaderboard || []).length || (economyLeaderboard || []).length;
 
   const body = `
   <h1>Estadísticas</h1>
+
   <div class="card">
     <h2>Resumen</h2>
-    <p>Mensajes totales registrados: <strong>${stats.totalMessages}</strong></p>
-    <p>Tickets abiertos: <strong>${stats.openTickets}</strong> · Tickets cerrados: <strong>${stats.closedTickets}</strong></p>
+    <div class="stat-row">
+      <div class="stat-tile"><div class="stat-value">${stats.totalMessages}</div><div class="stat-label">Mensajes totales</div></div>
+      <div class="stat-tile"><div class="stat-value">${stats.openTickets}</div><div class="stat-label">Tickets abiertos</div></div>
+      <div class="stat-tile"><div class="stat-value">${stats.closedTickets}</div><div class="stat-label">Tickets cerrados</div></div>
+    </div>
   </div>
+
   <div class="card">
     <h2>Mensajes por canal</h2>
-    <table><thead><tr><th>Canal</th><th>Mensajes</th></tr></thead><tbody>${rows || '<tr><td colspan="2">Todavía no hay datos</td></tr>'}</tbody></table>
+    <div style="max-width:100%; overflow-x:auto;"><canvas id="chart-channels" height="${Math.max(120, topChannels.length * 34)}"></canvas></div>
+    <table style="margin-top:16px;"><thead><tr><th>Canal</th><th>Mensajes</th></tr></thead><tbody>${rows || '<tr><td colspan="2">Todavía no hay datos</td></tr>'}</tbody></table>
   </div>
+
   <div class="card">
     <h2>Top experiencia</h2>
-    <table><thead><tr><th>#</th><th>Usuario</th><th>XP</th></tr></thead>
+    <canvas id="chart-xp" height="140"></canvas>
+    <table style="margin-top:16px;"><thead><tr><th>#</th><th>Usuario</th><th>XP</th></tr></thead>
     <tbody>${leaderboardRows || '<tr><td colspan="3">Todavía no hay datos</td></tr>'}</tbody></table>
-  </div>`;
+  </div>
+
+  <div class="card">
+    <h2>Top economía</h2>
+    <canvas id="chart-economy" height="140"></canvas>
+    <table style="margin-top:16px;"><thead><tr><th>#</th><th>Usuario</th><th>Saldo</th></tr></thead>
+    <tbody>${economyRows || '<tr><td colspan="3">Todavía no hay datos</td></tr>'}</tbody></table>
+  </div>
+
+  ${
+    hasCharts
+      ? `<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    (function () {
+      var gridColor = 'rgba(255,255,255,0.06)';
+      var textColor = '#b5bac1';
+      Chart.defaults.color = textColor;
+      Chart.defaults.font.family = "-apple-system, 'Segoe UI', Roboto, sans-serif";
+
+      function barChart(id, labels, data, color, horizontal) {
+        var el = document.getElementById(id);
+        if (!el || !labels.length) return;
+        new Chart(el, {
+          type: 'bar',
+          data: { labels: labels, datasets: [{ data: data, backgroundColor: color, borderRadius: 4, maxBarThickness: 28 }] },
+          options: {
+            indexAxis: horizontal ? 'y' : 'x',
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { grid: { color: gridColor }, ticks: { precision: 0 } },
+              y: { grid: { color: gridColor }, ticks: { precision: 0 } },
+            },
+          },
+        });
+      }
+
+      barChart('chart-channels', ${safeChartJson(topChannels.map(([id]) => `#${channelNames[id] || id}`))}, ${safeChartJson(topChannels.map(([, count]) => count))}, '#5865f2', true);
+      barChart('chart-xp', ${safeChartJson((leaderboard || []).map((e) => e.displayName || e.userId))}, ${safeChartJson((leaderboard || []).map((e) => e.xp))}, '#3ba55d', false);
+      barChart('chart-economy', ${safeChartJson((economyLeaderboard || []).map((e) => e.displayName || e.userId))}, ${safeChartJson((economyLeaderboard || []).map((e) => e.balance))}, '#f0b232', false);
+    })();
+  </script>`
+      : ''
+  }`;
   return layout({ title: 'Estadísticas', user, body, guildName });
 }
 
