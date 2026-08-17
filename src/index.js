@@ -538,9 +538,18 @@ function findMentionedRoleByName(guild, content) {
     .sort((a, b) => b.name.length - a.name.length)[0] || null;
 }
 
-// cuenta/lista real de quienes tienen un rol — 100% datos reales del cache
-// de miembros, nunca pasa por la IA (asi no se inventa un numero ni nombres)
-function buildRoleMembersReply(role) {
+// cuenta/lista real de quienes tienen un rol — nunca pasa por la IA (asi no
+// se inventa un numero ni nombres). role.members solo refleja a los
+// miembros que el bot ya tiene en cache (los que estuvieron activos desde
+// que arrancó el proceso) — sin este fetch, el conteo da bajo en servers
+// con miembros inactivos que igual tienen el rol
+async function buildRoleMembersReply(role) {
+  try {
+    await role.guild.members.fetch();
+  } catch (err) {
+    console.error('No se pudo traer la lista completa de miembros del server:', err.message);
+  }
+
   const memberNames = role.members.map((m) => m.displayName);
   const count = memberNames.length;
   const MAX_LISTED = 40;
@@ -1054,7 +1063,13 @@ client.on('messageCreate', async (message) => {
               // cache de miembros, nunca por la IA (asi no se inventa un
               // numero ni nombres que no tienen ese rol)
               const role = findMentionedRoleByName(message.guild, cleanedContent);
-              const payload = buildAiReplyPayload(config, buildRoleMembersReply(role));
+              const roleReply = await buildRoleMembersReply(role).catch((err) => {
+                console.error('No se pudo armar el conteo del rol:', err.message);
+                return null;
+              });
+              const payload = roleReply
+                ? buildAiReplyPayload(config, roleReply)
+                : '⚠️ No pude contar los miembros de ese rol ahora, probá de nuevo en un rato.';
               if (thinking) await thinking.stop(payload);
               else await message.reply(payload);
             } else if (/\btraduc/i.test(cleanedContent)) {
