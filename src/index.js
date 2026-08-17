@@ -52,6 +52,10 @@ if (!TOKEN) {
 // cambiar o falsificar) — si no esta seteada, nadie tiene este acceso extra
 const CREATOR_USER_ID = process.env.CREATOR_USER_ID || null;
 
+function isCreatorUser(userId) {
+  return Boolean(CREATOR_USER_ID) && userId === CREATOR_USER_ID;
+}
+
 const CONFIG_REFRESH_MS = 60 * 1000;
 const GIVEAWAY_CHECK_MS = 30 * 1000;
 const SCHEDULED_ANNOUNCEMENT_CHECK_MS = 60 * 1000;
@@ -341,7 +345,7 @@ function buildBaseAiContext(guild, member, user, config) {
     forbiddenTopics: config?.ai?.forbiddenTopics,
     staffDirectory: buildStaffDirectory(guild, config),
     serverFacts: buildServerFacts(guild),
-    isCreator: Boolean(CREATOR_USER_ID) && user.id === CREATOR_USER_ID,
+    isCreator: isCreatorUser(user.id),
   };
 }
 
@@ -710,7 +714,7 @@ async function handlePreguntarCommand(interaction, config) {
   }
 
   const question = interaction.options.getString('pregunta', true);
-  if (matchForbiddenTopic(question, config?.ai?.forbiddenTopics)) {
+  if (!isCreatorUser(interaction.user.id) && matchForbiddenTopic(question, config?.ai?.forbiddenTopics)) {
     await interaction.reply({ content: 'No puedo hablar de ese tema.', ephemeral: true });
     return;
   }
@@ -929,7 +933,7 @@ client.on('messageCreate', async (message) => {
     if (response === NEEDS_FALLBACK) {
       let reply = config?.helpResponses?.fallbackResponse;
       let aiGenerated = false;
-      if (matchForbiddenTopic(message.content, config?.ai?.forbiddenTopics)) {
+      if (!isCreatorUser(message.author.id) && matchForbiddenTopic(message.content, config?.ai?.forbiddenTopics)) {
         reply = 'No puedo hablar de ese tema.';
       } else if (
         config?.ai?.enabled &&
@@ -1050,7 +1054,7 @@ client.on('messageCreate', async (message) => {
                 if (thinking) await thinking.stop(payload);
                 else await message.reply(payload);
               }
-            } else if (matchForbiddenTopic(cleanedContent, config?.ai?.forbiddenTopics)) {
+            } else if (!isCreatorUser(message.author.id) && matchForbiddenTopic(cleanedContent, config?.ai?.forbiddenTopics)) {
               if (thinking) await thinking.stop('No puedo hablar de ese tema.');
               else await message.reply('No puedo hablar de ese tema.');
             } else {
