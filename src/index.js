@@ -559,6 +559,52 @@ async function buildRoleMembersReply(role) {
   return `**${role.name}** — ${count} usuario${count === 1 ? '' : 's'}:\n${listText}`;
 }
 
+// las tres funciones de abajo conectan la IA a sistemas del bot que antes
+// no conocia (tickets, tienda, houses) — todas 100% datos reales, nunca
+// pasan por la IA para decidir el numero/lista, mismo patron que roles
+const TICKETS_INFO_WORDS = '(cuant[oa]s?|categor[ií]as?|categoria|abiert[oa]s?|cerrad[oa]s?|estado)';
+const TICKETS_INFO_TRIGGER = new RegExp(`\\btickets?\\b.*\\b${TICKETS_INFO_WORDS}\\b|\\b${TICKETS_INFO_WORDS}\\b.*\\btickets?\\b`, 'i');
+
+async function buildTicketsInfoReply(message, config) {
+  const stats = await db.getStats(message.guild.id);
+  const categories = config?.ticketCategories || [];
+  const categoriesText = categories.length
+    ? categories.map((c) => `${c.emoji || '🎫'} ${c.label}`).join(', ')
+    : '(sin categorías configuradas)';
+
+  const lines = [`Tickets abiertos: ${stats.openTickets} — cerrados: ${stats.closedTickets}`, `Categorías disponibles: ${categoriesText}`];
+
+  const currentTicket = await db.getTicketByChannelId(message.channel.id).catch(() => null);
+  if (currentTicket) {
+    lines.push(
+      `Este canal es el ticket #${currentTicket.number} (categoría: ${currentTicket.categoryLabel || 'sin categoría'}, estado: ${currentTicket.status}).`,
+    );
+  }
+
+  return lines.join('\n');
+}
+
+const SHOP_TRIGGER = /\btienda\b/i;
+
+function buildShopReply(config) {
+  const items = config?.economy?.shopItems || [];
+  if (!items.length) return 'La tienda todavía no tiene items.';
+  const currencySymbol = config?.economy?.currencySymbol || '';
+  const currencyName = config?.economy?.currencyName || 'monedas';
+  return items
+    .map((item) => `**${item.name}** — ${item.price} ${currencySymbol}${currencyName}${item.description ? `\n${item.description}` : ''}`)
+    .join('\n\n');
+}
+
+const HOUSES_INFO_WORDS = '(cuant[oa]s?|que|cual|informaci[oó]n|info)';
+const HOUSES_INFO_TRIGGER = new RegExp(`\\bhouses?\\b.*\\b${HOUSES_INFO_WORDS}\\b|\\b${HOUSES_INFO_WORDS}\\b.*\\bhouses?\\b`, 'i');
+
+async function buildHousesInfoReply(message, config) {
+  if (!config?.houses?.enabled) return 'Este server no tiene el sistema de Houses activado.';
+  const stats = await db.getHouseApplicationStats(message.guild.id);
+  return `Este server tiene un programa de Houses por solicitud (no son roles separados, es un formulario que revisa el staff): "${config.houses.requestTitle || 'Solicitud de House'}".\nSolicitudes: ${stats.pending} pendientes, ${stats.accepted} aceptadas, ${stats.rejected} rechazadas.`;
+}
+
 async function buildChannelSummaryTranscript(message) {
   const recent = await message.channel.messages.fetch({ limit: 25 });
   return [...recent.values()]
@@ -1070,6 +1116,30 @@ client.on('messageCreate', async (message) => {
               const payload = roleReply
                 ? buildAiReplyPayload(config, roleReply)
                 : '⚠️ No pude contar los miembros de ese rol ahora, probá de nuevo en un rato.';
+              if (thinking) await thinking.stop(payload);
+              else await message.reply(payload);
+            } else if (TICKETS_INFO_TRIGGER.test(cleanedContent)) {
+              const ticketsReply = await buildTicketsInfoReply(message, config).catch((err) => {
+                console.error('No se pudo armar la info de tickets:', err.message);
+                return null;
+              });
+              const payload = ticketsReply
+                ? buildAiReplyPayload(config, ticketsReply)
+                : '⚠️ No pude traer la info de tickets ahora, probá de nuevo en un rato.';
+              if (thinking) await thinking.stop(payload);
+              else await message.reply(payload);
+            } else if (SHOP_TRIGGER.test(cleanedContent)) {
+              const payload = buildAiReplyPayload(config, buildShopReply(config));
+              if (thinking) await thinking.stop(payload);
+              else await message.reply(payload);
+            } else if (HOUSES_INFO_TRIGGER.test(cleanedContent)) {
+              const housesReply = await buildHousesInfoReply(message, config).catch((err) => {
+                console.error('No se pudo armar la info de houses:', err.message);
+                return null;
+              });
+              const payload = housesReply
+                ? buildAiReplyPayload(config, housesReply)
+                : '⚠️ No pude traer la info de houses ahora, probá de nuevo en un rato.';
               if (thinking) await thinking.stop(payload);
               else await message.reply(payload);
             } else if (/\btraduc/i.test(cleanedContent)) {

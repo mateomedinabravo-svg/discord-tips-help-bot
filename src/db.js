@@ -672,6 +672,17 @@ async function getHouseApplication(applicationId) {
   return database.collection('houseApplications').findOne({ _id: new ObjectId(applicationId) });
 }
 
+async function getHouseApplicationStats(guildId) {
+  const database = await connect();
+  const collection = database.collection('houseApplications');
+  const [pending, accepted, rejected] = await Promise.all([
+    collection.countDocuments({ guildId, status: 'pending' }),
+    collection.countDocuments({ guildId, status: 'accepted' }),
+    collection.countDocuments({ guildId, status: 'rejected' }),
+  ]);
+  return { pending, accepted, rejected };
+}
+
 // --- Economia ---
 
 async function getEconomyAccount(guildId, userId) {
@@ -1135,6 +1146,7 @@ module.exports = {
   createHouseApplication,
   decideHouseApplication,
   getHouseApplication,
+  getHouseApplicationStats,
   getEconomyAccount,
   addBalance,
   setEconomyCooldown,
