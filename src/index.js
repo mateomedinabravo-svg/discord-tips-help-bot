@@ -266,6 +266,30 @@ function prepareAiText(message) {
 // nombre del server, nombre del bot, nombre de quien escribe, y los ultimos
 // mensajes del canal (para que la IA tenga contexto de la conversacion en
 // vez de responder cada mensaje como si fuera la primera vez que le hablan)
+// arma un directorio de "quien es quien" a partir de los roles etiquetados
+// en el dashboard (Owner/CEO, Staff, Helper, etc). Los nombres se resuelven
+// EN VIVO desde el cache de miembros del server — nunca se guardan nombres
+// en la config, asi nunca queda desactualizado si alguien entra/sale del rol
+function buildStaffDirectory(message, config) {
+  const tags = config?.ai?.staffRoleTags || [];
+  if (!tags.length) return '';
+  return tags
+    .map((tag) => {
+      const role = message.guild.roles.cache.get(tag.roleId);
+      if (!role) return `- ${tag.label}: (el rol ya no existe en el server)`;
+      const memberNames = role.members.map((m) => m.displayName).slice(0, 20);
+      return `- ${tag.label} (rol @${role.name}): ${memberNames.length ? memberNames.join(', ') : 'nadie tiene este rol actualmente'}`;
+    })
+    .join('\n');
+}
+
+// datos basicos y reales del server (para preguntas tipo "cuantos somos" o
+// "hace cuanto existe el server"), siempre presentes sin depender de keywords
+function buildServerFacts(message) {
+  const guild = message.guild;
+  return `Miembros totales: ${guild.memberCount}. Server creado el: ${guild.createdAt.toLocaleDateString('es-AR')}.`;
+}
+
 async function buildAiContext(message, config) {
   let recentMessages = '';
   try {
@@ -305,6 +329,8 @@ async function buildAiContext(message, config) {
     tone: config?.ai?.tone,
     customPersonality: config?.ai?.customPersonality,
     forbiddenTopics: config?.ai?.forbiddenTopics,
+    staffDirectory: buildStaffDirectory(message, config),
+    serverFacts: buildServerFacts(message),
     isCreator: Boolean(CREATOR_USER_ID) && message.author.id === CREATOR_USER_ID,
   };
 }

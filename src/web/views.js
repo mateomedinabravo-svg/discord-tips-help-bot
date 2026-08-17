@@ -1482,7 +1482,7 @@ function miniEventsPage({ user, config, channels, guildName, flash }) {
   return layout({ title: 'Eventos', user, body, flash, guildName });
 }
 
-function aiPage({ user, config, channels, aiConfigured, usageStats, guildName, flash }) {
+function aiPage({ user, config, channels, roles, aiConfigured, usageStats, guildName, flash }) {
   const hasOwnKey = Boolean(config.ai.apiKey);
   const setupWarning = !aiConfigured
     ? `<div class="warning-banner">⚠️ Todavía no configuraste una clave de Groq. Podés activar estas opciones, pero no van a hacer nada hasta que pongas una clave abajo.</div>`
@@ -1569,6 +1569,34 @@ function aiPage({ user, config, channels, aiConfigured, usageStats, guildName, f
     <p class="muted" style="margin-top:-8px;">Activá el Modo de desarrollador en Discord (Configuración → Avanzado) para poder copiar el ID de cualquier usuario con clic derecho → "Copiar ID de usuario".</p>
 
     <button type="submit">Guardar</button>
+  </form>
+
+  <div class="card">
+    <h2>Roles importantes (para que la IA sepa quién es quién)</h2>
+    <p class="muted">Etiquetá roles del server (Owner/CEO, Staff, Helper, etc). La IA va a poder responder con los nombres reales de quienes tienen ese rol si le preguntan cosas como "quién es el owner" o "quiénes son staff".</p>
+    <div class="server-list">${
+      (config.ai.staffRoleTags || [])
+        .map((tag) => {
+          const role = roles.find((r) => r.id === tag.roleId);
+          return `<div class="server-row">
+            <span class="name">${escapeHtml(tag.label)} → ${role ? escapeHtml(role.name) : '(rol eliminado)'}</span>
+            <form method="post" action="/dashboard/ia/staff-roles/eliminar" style="margin:0;" data-confirm="¿Quitar la etiqueta \"${escapeHtml(tag.label)}\"?">
+              <input type="hidden" name="roleId" value="${escapeHtml(tag.roleId)}">
+              <button type="submit" style="margin:0; background:#ed4245;">Eliminar</button>
+            </form>
+          </div>`;
+        })
+        .join('') || '<p class="muted">Todavía no etiquetaste ningún rol.</p>'
+    }</div>
+  </div>
+
+  <form class="card" method="post" action="/dashboard/ia/staff-roles">
+    <h2>Etiquetar un rol</h2>
+    <label>Etiqueta (cómo lo llama la IA)</label>
+    <input type="text" name="label" required maxlength="60" placeholder="Owner / CEO">
+    <label>Rol de Discord</label>
+    <select name="roleId" required><option value="">-- elegir --</option>${roles.map((r) => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('')}</select>
+    <button type="submit">Agregar</button>
   </form>`;
   return layout({ title: 'IA', user, body, flash, guildName });
 }

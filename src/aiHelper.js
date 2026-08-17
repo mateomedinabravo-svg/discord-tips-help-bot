@@ -85,7 +85,7 @@ async function askAI(apiKey, systemPrompt, userPrompt, { maxTokens = 200, temper
 // temas de ayuda cargados, secciones de la guia del server (si esta
 // habilitada), roles y canales reales del server, y quien es quien (nombre
 // del bot, nombre de quien escribe)
-function buildKnowledgeBlock(config, { botName, userName, roleNames, channelNames, isCreator }) {
+function buildKnowledgeBlock(config, { botName, userName, roleNames, channelNames, isCreator, staffDirectory, serverFacts }) {
   const topicsSummary = (config.helpResponses?.topics || []).map((t) => `- ${t.name}: ${t.response}`).join('\n');
 
   const guideSummary = config.serverGuide?.enabled
@@ -95,8 +95,10 @@ function buildKnowledgeBlock(config, { botName, userName, roleNames, channelName
   const whoIsWho = `Te llamás "${botName || 'el bot'}". Fuiste creado y programado por Slytherking. ${userName ? `Quien te escribe se llama "${userName}"${isCreator ? ', y es justamente Slytherking, tu creador y programador' : ''}; podés usar su nombre si suena natural.` : ''}`;
 
   return `${whoIsWho}
+${serverFacts ? `\n${serverFacts}` : ''}
 ${channelNames ? `\nCanales del server: ${channelNames}` : ''}
 ${roleNames ? `\nRoles del server: ${roleNames}` : ''}
+${staffDirectory ? `\nQuién es quién en este server (usalo tal cual si te preguntan quién es el owner/staff/helper/etc; nunca inventes otro nombre ni otro rol):\n${staffDirectory}` : ''}
 
 Temas de ayuda conocidos del server:
 ${topicsSummary || '(sin temas cargados)'}
@@ -124,10 +126,10 @@ async function answerHelpQuestion(client, config, question, context = {}) {
   const apiKey = resolveApiKey(config);
   if (!apiKey) return null;
 
-  const { serverName, botName, userName, recentMessages, roleNames, channelNames, realData, tone, isCreator, customPersonality, forbiddenTopics } = context;
+  const { serverName, botName, userName, recentMessages, roleNames, channelNames, realData, tone, isCreator, customPersonality, forbiddenTopics, staffDirectory, serverFacts } = context;
   const systemPrompt = `Sos el bot de ayuda del server de Discord "${serverName || 'este server'}". Respondés en español neutro (evitá modismos muy regionales de un solo país, para que se entienda en cualquier país hispanohablante). ${personalityInstruction(tone, customPersonality)}
 
-${buildKnowledgeBlock(config, { botName, userName, roleNames, channelNames, isCreator })}
+${buildKnowledgeBlock(config, { botName, userName, roleNames, channelNames, isCreator, staffDirectory, serverFacts })}
 ${buildRecentContextBlock(recentMessages)}
 ${buildRealDataBlock(realData)}
 ${buildForbiddenTopicsRule(forbiddenTopics)}
@@ -163,10 +165,10 @@ async function chatReply(client, config, message, context = {}) {
   const apiKey = resolveApiKey(config);
   if (!apiKey) return null;
 
-  const { serverName, botName, userName, recentMessages, roleNames, channelNames, realData, tone, isCreator, customPersonality, forbiddenTopics } = context;
+  const { serverName, botName, userName, recentMessages, roleNames, channelNames, realData, tone, isCreator, customPersonality, forbiddenTopics, staffDirectory, serverFacts } = context;
   const systemPrompt = `Sos un bot de Discord charlando en el server "${serverName || 'este server'}". Respondés en español neutro (evitá modismos muy regionales de un solo país, para que se entienda en cualquier país hispanohablante). ${personalityInstruction(tone, customPersonality)} Te acaban de mencionar directamente en un mensaje.
 
-${buildKnowledgeBlock(config, { botName, userName, roleNames, channelNames, isCreator })}
+${buildKnowledgeBlock(config, { botName, userName, roleNames, channelNames, isCreator, staffDirectory, serverFacts })}
 ${buildRecentContextBlock(recentMessages)}
 ${buildRealDataBlock(realData)}
 ${buildForbiddenTopicsRule(forbiddenTopics)}

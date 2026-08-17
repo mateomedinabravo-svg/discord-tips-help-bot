@@ -1472,12 +1472,34 @@ function createApp({ client }) {
         user: req.session.user,
         config,
         channels: getTextChannels(req),
+        roles: getAssignableRoles(req),
         aiConfigured: aiHelper.isConfigured(config),
         usageStats,
         guildName: guildName(req),
-        flash: req.query.saved ? 'Guardado.' : null,
+        flash: req.query.saved ? 'Guardado.' : req.query.error || null,
       }),
     );
+  });
+
+  app.post('/dashboard/ia/staff-roles', requireAuth, requireActiveGuild, async (req, res) => {
+    const roleId = (req.body.roleId || '').trim();
+    const label = (req.body.label || '').trim().slice(0, 60);
+    if (!roleId || !label) {
+      return res.redirect(`/dashboard/ia?error=${encodeURIComponent('Elegí un rol y ponele una etiqueta.')}`);
+    }
+
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    const staffRoleTags = (config.ai.staffRoleTags || []).filter((tag) => tag.roleId !== roleId);
+    staffRoleTags.push({ roleId, label });
+    await db.updateGuildConfig(req.session.activeGuildId, { ai: { ...config.ai, staffRoleTags } });
+    res.redirect('/dashboard/ia?saved=1');
+  });
+
+  app.post('/dashboard/ia/staff-roles/eliminar', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    const staffRoleTags = (config.ai.staffRoleTags || []).filter((tag) => tag.roleId !== req.body.roleId);
+    await db.updateGuildConfig(req.session.activeGuildId, { ai: { ...config.ai, staffRoleTags } });
+    res.redirect('/dashboard/ia?saved=1');
   });
 
   app.post('/dashboard/ia', requireAuth, requireActiveGuild, async (req, res) => {

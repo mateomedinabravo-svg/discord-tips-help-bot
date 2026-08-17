@@ -165,6 +165,11 @@ function defaultConfig(guildId) {
       forbiddenTopics: [],
       // segundos de cooldown por usuario entre pedidos a la IA
       cooldownSeconds: 8,
+      // roles etiquetados para que la IA sepa "quien es quien" (ej: rol de
+      // Owner/CEO, rol de Staff, rol de Helper). Cada item: { roleId, label }.
+      // Los miembros reales con ese rol se resuelven en vivo, no se guardan
+      // nombres aca (para no desactualizarse)
+      staffRoleTags: [],
       // IDs de Discord de quienes pueden pedirle a la IA por chat que
       // banee/expulse/silencie/advierta (ademas del creador del bot via
       // CREATOR_USER_ID). Vacio = nadie puede usar esto por chat todavia
