@@ -523,6 +523,33 @@ async function buildProfileEmbed(message, config) {
   });
 }
 
+// pregunta por CUANTOS/QUIENES tienen un rol (distinto de "que roles tiene
+// fulano", que ya cubre buildRealDataForQuery). Necesita el nombre del rol
+// real, matcheado contra los roles reales del server — si no encuentra
+// ninguno, no dispara nada (cae al chat normal)
+const ROLE_MEMBERS_TRIGGER = /\b(cuant[oa]s?|list(a|ado)?|quien(es)?(\s+tienen?)?|usuarios?\s+con)\b.*\brol/i;
+
+function findMentionedRoleByName(guild, content) {
+  const normalizedContent = normalizeForMatch(content);
+  const roles = [...guild.roles.cache.filter((role) => role.id !== guild.id && !role.managed).values()];
+  // el nombre de rol mas largo que matchea gana (evita que "VIP" gane sobre "VIP Plus" si ambos aparecen)
+  return roles
+    .filter((role) => role.name && normalizedContent.includes(normalizeForMatch(role.name)))
+    .sort((a, b) => b.name.length - a.name.length)[0] || null;
+}
+
+// cuenta/lista real de quienes tienen un rol — 100% datos reales del cache
+// de miembros, nunca pasa por la IA (asi no se inventa un numero ni nombres)
+function buildRoleMembersReply(role) {
+  const memberNames = role.members.map((m) => m.displayName);
+  const count = memberNames.length;
+  const MAX_LISTED = 40;
+  const listText = count
+    ? memberNames.slice(0, MAX_LISTED).join(', ') + (count > MAX_LISTED ? `, y ${count - MAX_LISTED} más` : '')
+    : '(nadie tiene este rol actualmente)';
+  return `**${role.name}** — ${count} usuario${count === 1 ? '' : 's'}:\n${listText}`;
+}
+
 async function buildChannelSummaryTranscript(message) {
   const recent = await message.channel.messages.fetch({ limit: 25 });
   return [...recent.values()]
@@ -1020,6 +1047,14 @@ client.on('messageCreate', async (message) => {
                 return null;
               });
               const payload = embed ? { embeds: [embed] } : '⚠️ No pude armar el perfil ahora, probá de nuevo en un rato.';
+              if (thinking) await thinking.stop(payload);
+              else await message.reply(payload);
+            } else if (ROLE_MEMBERS_TRIGGER.test(cleanedContent) && findMentionedRoleByName(message.guild, cleanedContent)) {
+              // "cuantos/quienes tienen el rol X": conteo y lista REAL del
+              // cache de miembros, nunca por la IA (asi no se inventa un
+              // numero ni nombres que no tienen ese rol)
+              const role = findMentionedRoleByName(message.guild, cleanedContent);
+              const payload = buildAiReplyPayload(config, buildRoleMembersReply(role));
               if (thinking) await thinking.stop(payload);
               else await message.reply(payload);
             } else if (/\btraduc/i.test(cleanedContent)) {
