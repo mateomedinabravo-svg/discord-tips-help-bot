@@ -760,25 +760,29 @@ function createApp({ client }) {
 
   app.get('/dashboard/roles-menu', requireAuth, requireActiveGuild, async (req, res) => {
     const sets = await db.listSelectRoleSets(req.session.activeGuildId);
+    const editingSet = req.query.editar ? sets.find((s) => s.messageId === req.query.editar) || null : null;
     res.send(
       views.selectRolesPage({
         user: req.session.user,
         sets,
+        editingSet,
         channels: getTextChannels(req),
         roles: getAssignableRoles(req),
         guildName: guildName(req),
         flash: req.query.saved
           ? 'Menú creado y publicado.'
-          : req.query.deleted
-            ? 'Eliminado.'
-            : req.query.error || null,
+          : req.query.updated
+            ? 'Menú actualizado.'
+            : req.query.deleted
+              ? 'Eliminado.'
+              : req.query.error || null,
       }),
     );
   });
 
   app.post('/dashboard/roles-menu', requireAuth, requireActiveGuild, async (req, res) => {
     const options = [];
-    for (let i = 1; i <= 10; i++) {
+    for (let i = 1; i <= 25; i++) {
       const label = (req.body[`label_${i}`] || '').trim();
       const roleId = req.body[`role_${i}`];
       const emoji = (req.body[`emoji_${i}`] || '').trim();
@@ -797,8 +801,21 @@ function createApp({ client }) {
     }
 
     const guild = getGuild(req);
+    const originalMessageId = (req.body.originalMessageId || '').trim();
     try {
       const config = await db.getGuildConfig(req.session.activeGuildId);
+      if (originalMessageId) {
+        await selectRoles.updateSelectRoleMessage(guild, {
+          originalMessageId,
+          channelId: req.body.channelId,
+          title: req.body.titulo,
+          description: req.body.descripcion,
+          placeholder: req.body.placeholder,
+          options,
+          config,
+        });
+        return res.redirect('/dashboard/roles-menu?updated=1');
+      }
       await selectRoles.postSelectRoleMessage(guild, {
         channelId: req.body.channelId,
         title: req.body.titulo,
@@ -809,8 +826,8 @@ function createApp({ client }) {
       });
       res.redirect('/dashboard/roles-menu?saved=1');
     } catch (err) {
-      console.error('No se pudo crear el menú de roles:', err);
-      res.redirect(`/dashboard/roles-menu?error=${encodeURIComponent('No se pudo crear el menú: ' + err.message)}`);
+      console.error('No se pudo guardar el menú de roles:', err);
+      res.redirect(`/dashboard/roles-menu?error=${encodeURIComponent('No se pudo guardar el menú: ' + err.message)}`);
     }
   });
 

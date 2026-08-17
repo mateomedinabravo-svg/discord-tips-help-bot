@@ -1111,32 +1111,40 @@ function reactionRolesPage({ user, sets, channels, roles, guildName, flash }) {
   return layout({ title: 'Roles por reacción', user, body, flash, guildName });
 }
 
-function selectRolesPage({ user, sets, channels, roles, guildName, flash }) {
-  const channelOptions = channels.map((c) => `<option value="${c.id}">#${escapeHtml(c.name)}</option>`).join('');
-  const roleOptions =
+function selectRolesPage({ user, sets, editingSet, channels, roles, guildName, flash }) {
+  const channelOptions = (selected) =>
+    channels.map((c) => `<option value="${c.id}" ${c.id === selected ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`).join('');
+  const roleOptions = (selected) =>
     `<option value="">--</option>` +
     roles
-      .map((r) => `<option value="${r.id}" data-name="${escapeHtml(r.name)}" data-emoji="${escapeHtml(r.emoji || '')}">${escapeHtml(r.name)}</option>`)
+      .map(
+        (r) =>
+          `<option value="${r.id}" data-name="${escapeHtml(r.name)}" data-emoji="${escapeHtml(r.emoji || '')}" ${r.id === selected ? 'selected' : ''}>${escapeHtml(r.name)}</option>`,
+      )
       .join('');
 
-  const optionRows = Array.from(
-    { length: 10 },
-    (_, i) => `<div class="row-grid" style="grid-template-columns: 1.4fr 1fr 0.5fr 1.6fr;">
-      <input type="text" name="label_${i + 1}" class="role-autofill-label" placeholder="Nombre (ej: House Roja)">
-      <select name="role_${i + 1}" class="role-autofill-select">${roleOptions}</select>
-      <input type="text" name="emoji_${i + 1}" class="role-autofill-emoji" placeholder="Emoji">
-      <input type="text" name="desc_${i + 1}" placeholder="Descripción (opcional)">
-    </div>`,
-  ).join('');
+  const MAX_OPTIONS = 25;
+  const optionRows = Array.from({ length: MAX_OPTIONS }, (_, i) => {
+    const opt = editingSet?.options?.[i];
+    return `<div class="row-grid" style="grid-template-columns: 1.4fr 1fr 0.5fr 1.6fr;">
+      <input type="text" name="label_${i + 1}" class="role-autofill-label" placeholder="Nombre (ej: House Roja)" value="${escapeHtml(opt?.label || '')}">
+      <select name="role_${i + 1}" class="role-autofill-select">${roleOptions(opt?.roleId)}</select>
+      <input type="text" name="emoji_${i + 1}" class="role-autofill-emoji" placeholder="Emoji" value="${escapeHtml(opt?.emoji || '')}">
+      <input type="text" name="desc_${i + 1}" placeholder="Descripción (opcional)" value="${escapeHtml(opt?.description || '')}">
+    </div>`;
+  }).join('');
 
   const existingRows = sets
     .map(
       (s) => `<div class="server-row">
         <span class="name">${escapeHtml(s.title || 'Sin título')} — #${escapeHtml(channels.find((c) => c.id === s.channelId)?.name || s.channelId)} · ${s.options.length} opción(es)</span>
-        <form method="post" action="/dashboard/roles-menu/eliminar" style="margin:0;">
-          <input type="hidden" name="messageId" value="${escapeHtml(s.messageId)}">
-          <button type="submit" style="margin:0; background:#ed4245;">Eliminar</button>
-        </form>
+        <span style="display:flex; gap:8px;">
+          <a class="btn" href="/dashboard/roles-menu?editar=${encodeURIComponent(s.messageId)}">Editar</a>
+          <form method="post" action="/dashboard/roles-menu/eliminar" style="margin:0;" data-confirm="¿Eliminar el menú \"${escapeHtml(s.title || 'Sin título')}\"? Se borra tambien el mensaje publicado en Discord.">
+            <input type="hidden" name="messageId" value="${escapeHtml(s.messageId)}">
+            <button type="submit" style="margin:0; background:#ed4245;">Eliminar</button>
+          </form>
+        </span>
       </div>`,
     )
     .join('');
@@ -1151,18 +1159,21 @@ function selectRolesPage({ user, sets, channels, roles, guildName, flash }) {
   </div>
 
   <form class="card" method="post" action="/dashboard/roles-menu">
-    <h2>Crear menú nuevo</h2>
+    <h2>${editingSet ? `Editando: ${escapeHtml(editingSet.title || 'Sin título')}` : 'Crear menú nuevo'}</h2>
+    ${editingSet ? `<input type="hidden" name="originalMessageId" value="${escapeHtml(editingSet.messageId)}">` : ''}
     <label>Canal</label>
-    <select name="channelId" required>${channelOptions}</select>
+    <select name="channelId" required>${channelOptions(editingSet?.channelId)}</select>
+    ${editingSet ? '<p class="muted" style="margin-top:-8px;">Si cambiás el canal, se borra el mensaje viejo y se publica uno nuevo ahí. Si lo dejás igual, se edita el mensaje existente.</p>' : ''}
     <label>Título</label>
-    <input type="text" name="titulo" placeholder="Menú de Artist's houses">
+    <input type="text" name="titulo" placeholder="Menú de Artist's houses" value="${escapeHtml(editingSet?.title || '')}">
     <label>Descripción</label>
-    <textarea name="descripcion" style="min-height:70px;" placeholder="Aquí podés seguir la artist house que quieras"></textarea>
+    <textarea name="descripcion" style="min-height:70px;" placeholder="Aquí podés seguir la artist house que quieras">${escapeHtml(editingSet?.description || '')}</textarea>
     <label>Texto del menú (placeholder)</label>
-    <input type="text" name="placeholder" placeholder="Click aquí para elegir una house">
-    <label>Opciones (hasta 10, dejá vacío lo que no uses)</label>
+    <input type="text" name="placeholder" placeholder="Click aquí para elegir una house" value="${escapeHtml(editingSet?.placeholder || '')}">
+    <label>Opciones (hasta ${MAX_OPTIONS} — es el máximo que permite Discord en un solo menú; dejá vacío lo que no uses)</label>
     ${optionRows}
-    <button type="submit">Crear y publicar</button>
+    <button type="submit">${editingSet ? 'Guardar cambios' : 'Crear y publicar'}</button>
+    ${editingSet ? '<a class="btn" href="/dashboard/roles-menu" style="margin-left:10px; background:#4a4d53;">Cancelar edición</a>' : ''}
   </form>
   <script>
     document.querySelectorAll('.role-autofill-select').forEach((select) => {

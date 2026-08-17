@@ -4,10 +4,7 @@ const { buildEmbed } = require('./embedStyle');
 
 const SELECT_MENU_ID = 'self-role-menu';
 
-async function postSelectRoleMessage(guild, { channelId, title, description, placeholder, options, config }) {
-  const channel = await guild.channels.fetch(channelId);
-  if (!channel || !channel.isTextBased()) throw new Error('Canal inválido');
-
+function buildSelectRoleComponents({ title, description, placeholder, options, config }) {
   const embed = buildEmbed({ type: 'brand', title: title || 'Elegí tus roles', description, config });
 
   const menu = new StringSelectMenuBuilder()
@@ -24,9 +21,37 @@ async function postSelectRoleMessage(guild, { channelId, title, description, pla
       })),
     );
 
-  const message = await channel.send({ embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] });
+  return { embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] };
+}
+
+async function postSelectRoleMessage(guild, { channelId, title, description, placeholder, options, config }) {
+  const channel = await guild.channels.fetch(channelId);
+  if (!channel || !channel.isTextBased()) throw new Error('Canal inválido');
+
+  const message = await channel.send(buildSelectRoleComponents({ title, description, placeholder, options, config }));
 
   await db.createSelectRoleSet({ guildId: guild.id, channelId, messageId: message.id, title, description, placeholder, options });
+  return message;
+}
+
+// si el canal no cambio, edita el mensaje ya publicado en el lugar (no
+// pierde reacciones/historial del canal); si cambio de canal (o el mensaje
+// original ya no existe), borra el viejo y publica uno nuevo
+async function updateSelectRoleMessage(guild, { originalMessageId, channelId, title, description, placeholder, options, config }) {
+  const existing = originalMessageId ? await db.getSelectRoleSet(originalMessageId) : null;
+
+  if (!existing || existing.channelId !== channelId) {
+    if (existing) await deleteSelectRoleSet(guild, originalMessageId);
+    return postSelectRoleMessage(guild, { channelId, title, description, placeholder, options, config });
+  }
+
+  const channel = await guild.channels.fetch(channelId);
+  if (!channel || !channel.isTextBased()) throw new Error('Canal inválido');
+
+  const message = await channel.messages.fetch(originalMessageId);
+  await message.edit(buildSelectRoleComponents({ title, description, placeholder, options, config }));
+
+  await db.updateSelectRoleSet(originalMessageId, { title, description, placeholder, options });
   return message;
 }
 
@@ -84,4 +109,4 @@ async function handleSelectMenu(interaction) {
   await interaction.reply({ content, ephemeral: true });
 }
 
-module.exports = { SELECT_MENU_ID, postSelectRoleMessage, deleteSelectRoleSet, handleSelectMenu };
+module.exports = { SELECT_MENU_ID, postSelectRoleMessage, updateSelectRoleMessage, deleteSelectRoleSet, handleSelectMenu };

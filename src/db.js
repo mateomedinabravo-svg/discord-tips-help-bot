@@ -604,6 +604,11 @@ async function getSelectRoleSet(messageId) {
   return database.collection('selectRoleSets').findOne({ messageId });
 }
 
+async function updateSelectRoleSet(messageId, fields) {
+  const database = await connect();
+  await database.collection('selectRoleSets').updateOne({ messageId }, { $set: fields });
+}
+
 async function listSelectRoleSets(guildId) {
   const database = await connect();
   return database.collection('selectRoleSets').find({ guildId }).sort({ createdAt: -1 }).toArray();
@@ -1122,6 +1127,7 @@ module.exports = {
   deleteReactionRoleSet,
   createSelectRoleSet,
   getSelectRoleSet,
+  updateSelectRoleSet,
   listSelectRoleSets,
   deleteSelectRoleSet,
   addWarning,
