@@ -270,12 +270,12 @@ function prepareAiText(message) {
 // en el dashboard (Owner/CEO, Staff, Helper, etc). Los nombres se resuelven
 // EN VIVO desde el cache de miembros del server — nunca se guardan nombres
 // en la config, asi nunca queda desactualizado si alguien entra/sale del rol
-function buildStaffDirectory(message, config) {
+function buildStaffDirectory(guild, config) {
   const tags = config?.ai?.staffRoleTags || [];
   if (!tags.length) return '';
   return tags
     .map((tag) => {
-      const role = message.guild.roles.cache.get(tag.roleId);
+      const role = guild.roles.cache.get(tag.roleId);
       if (!role) return `- ${tag.label}: (el rol ya no existe en el server)`;
       const memberNames = role.members.map((m) => m.displayName).slice(0, 20);
       return `- ${tag.label} (rol @${role.name}): ${memberNames.length ? memberNames.join(', ') : 'nadie tiene este rol actualmente'}`;
@@ -285,8 +285,7 @@ function buildStaffDirectory(message, config) {
 
 // datos basicos y reales del server (para preguntas tipo "cuantos somos" o
 // "hace cuanto existe el server"), siempre presentes sin depender de keywords
-function buildServerFacts(message) {
-  const guild = message.guild;
+function buildServerFacts(guild) {
   return `Miembros totales: ${guild.memberCount}. Server creado el: ${guild.createdAt.toLocaleDateString('es-AR')}.`;
 }
 
@@ -304,34 +303,45 @@ async function buildAiContext(message, config) {
     console.error('No se pudo traer contexto reciente para la IA:', err.message);
   }
 
+  return {
+    ...buildBaseAiContext(message.guild, message.member, message.author, config),
+    recentMessages,
+  };
+}
+
+// parte del contexto de la IA que solo depende del guild/quien escribe, sin
+// necesitar un mensaje puntual — la reusan tanto el flujo por mencion
+// (buildAiContext de arriba, que le suma el historial reciente del canal)
+// como los comandos de barra (/preguntar), que no tienen un canal del que
+// sacar contexto reciente de la misma forma
+function buildBaseAiContext(guild, member, user, config) {
   // nombres de roles y canales de texto (limitados a 30 c/u para no inflar
   // demasiado el prompt en servers grandes), asi la IA puede mencionarlos con
   // propiedad si le preguntan "que canales hay" o "que roles hay"
-  const roleNames = message.guild.roles.cache
-    .filter((role) => role.id !== message.guild.id && !role.managed)
+  const roleNames = guild.roles.cache
+    .filter((role) => role.id !== guild.id && !role.managed)
     .map((role) => role.name)
     .slice(0, 30)
     .join(', ');
 
-  const channelNames = message.guild.channels.cache
+  const channelNames = guild.channels.cache
     .filter((channel) => channel.type === ChannelType.GuildText)
     .map((channel) => `#${channel.name}`)
     .slice(0, 30)
     .join(', ');
 
   return {
-    serverName: message.guild.name,
-    botName: config?.branding?.nickname || message.guild.members.me?.displayName || client.user.username,
-    userName: message.member?.displayName || message.author.username,
-    recentMessages,
+    serverName: guild.name,
+    botName: config?.branding?.nickname || guild.members.me?.displayName || client.user.username,
+    userName: member?.displayName || user.username,
     roleNames,
     channelNames,
     tone: config?.ai?.tone,
     customPersonality: config?.ai?.customPersonality,
     forbiddenTopics: config?.ai?.forbiddenTopics,
-    staffDirectory: buildStaffDirectory(message, config),
-    serverFacts: buildServerFacts(message),
-    isCreator: Boolean(CREATOR_USER_ID) && message.author.id === CREATOR_USER_ID,
+    staffDirectory: buildStaffDirectory(guild, config),
+    serverFacts: buildServerFacts(guild),
+    isCreator: Boolean(CREATOR_USER_ID) && user.id === CREATOR_USER_ID,
   };
 }
 
@@ -379,13 +389,54 @@ const AI_EMBED_MIN_LENGTH = 150;
 
 // las respuestas cortas van como texto plano (mas livianas en el chat); las
 // largas se envuelven en embed con la marca para que se lean mejor
-async function sendAiReply(message, config, text) {
+// arma el payload (texto plano o embed) segun el largo, sin mandarlo — lo
+// reusan tanto sendAiReply (manda un mensaje nuevo) como la animacion de
+// "pensando" (edita el mensaje placeholder)
+function buildAiReplyPayload(config, text) {
   if (text.length >= AI_EMBED_MIN_LENGTH) {
-    const embed = buildEmbed({ type: 'brand', description: text, config });
-    await message.reply({ embeds: [embed] });
-  } else {
-    await message.reply(text);
+    return { embeds: [buildEmbed({ type: 'brand', description: text, config })] };
   }
+  return { content: text, embeds: [] };
+}
+
+async function sendAiReply(message, config, text) {
+  await message.reply(buildAiReplyPayload(config, text));
+}
+
+// reemplaza la vieja reaccion "🤔" por un mensaje que se anima solo
+// (Pensando. / Pensando.. / Pensando...) mientras la IA procesa, y despues
+// se convierte en la respuesta final editando ese mismo mensaje — mas visible
+// y prolijo que una reaccion que aparece y desaparece
+const THINKING_FRAMES = ['🤔 Pensando.', '🤔 Pensando..', '🤔 Pensando...'];
+const THINKING_FRAME_MS = 650;
+
+async function startThinking(message) {
+  const placeholder = await message.reply(THINKING_FRAMES[0]).catch(() => null);
+  if (!placeholder) return null;
+
+  let frame = 0;
+  const interval = setInterval(() => {
+    frame = (frame + 1) % THINKING_FRAMES.length;
+    placeholder.edit(THINKING_FRAMES[frame]).catch(() => {});
+  }, THINKING_FRAME_MS);
+
+  let stopped = false;
+  return {
+    message: placeholder,
+    // convierte el placeholder en la respuesta final. payload puede ser un
+    // string, o un objeto { content, embeds } como el que arma buildAiReplyPayload
+    stop: async (payload) => {
+      if (stopped) return placeholder;
+      stopped = true;
+      clearInterval(interval);
+      try {
+        await placeholder.edit(payload);
+      } catch (err) {
+        console.error('No se pudo editar el mensaje de "pensando":', err.message);
+      }
+      return placeholder;
+    },
+  };
 }
 
 function trackAiUsage(guildId, success) {
@@ -432,6 +483,40 @@ async function buildRealDataForQuery(message) {
     if (parts.length) lines.push(`- ${target.name}: ${parts.join(' | ')}`);
   }
   return lines.join('\n');
+}
+
+// tarjeta de perfil prolija (embed) con datos 100% reales — igual que el
+// resto de los triggers deterministicos (meme/trivia), no pasa por la IA
+async function buildProfileEmbed(message, config) {
+  const target = message.mentions.members?.find((m) => m.id !== client.user.id) || message.member;
+
+  const [levelInfo, account] = await Promise.all([
+    db.getUserLevel(message.guild.id, target.id),
+    db.getEconomyAccount(message.guild.id, target.id),
+  ]);
+
+  const roleNames =
+    target.roles.cache
+      .filter((role) => role.id !== message.guild.id)
+      .map((role) => role.name)
+      .join(', ') || 'Sin roles';
+
+  return buildEmbed({
+    type: 'brand',
+    title: `Perfil de ${target.displayName}`,
+    thumbnail: target.user.displayAvatarURL(),
+    fields: [
+      { name: 'Nivel', value: `${levelInfo.level} (${levelInfo.xp} XP)`, inline: true },
+      { name: 'Balance', value: `${account.balance}`, inline: true },
+      {
+        name: 'Se unió',
+        value: target.joinedAt ? `<t:${Math.floor(target.joinedAt.getTime() / 1000)}:D>` : 'Desconocido',
+        inline: true,
+      },
+      { name: 'Roles', value: roleNames.slice(0, 1000) },
+    ],
+    config,
+  });
 }
 
 async function buildChannelSummaryTranscript(message) {
@@ -607,6 +692,81 @@ async function handleStaffActionRequest(message, config) {
   }
 }
 
+// /preguntar: version privada (efimera) de charlar con la IA, sin tener que
+// mencionarla en publico. Comparte las mismas protecciones (canal permitido,
+// cooldown, temas prohibidos) que el resto de los caminos de IA
+async function handlePreguntarCommand(interaction, config) {
+  if (!config?.ai?.enabled || !aiHelper.isConfigured(config)) {
+    await interaction.reply({ content: '⚠️ La IA no está activada en este server.', ephemeral: true });
+    return;
+  }
+  if (!isAiChannelAllowed(config, interaction.channel.id)) {
+    await interaction.reply({ content: '⚠️ La IA no responde en este canal.', ephemeral: true });
+    return;
+  }
+  if (!canUseAiNow(interaction.user.id, aiCooldownMs(config))) {
+    await interaction.reply({ content: '⏳ Esperá unos segundos antes de preguntar de nuevo.', ephemeral: true });
+    return;
+  }
+
+  const question = interaction.options.getString('pregunta', true);
+  if (matchForbiddenTopic(question, config?.ai?.forbiddenTopics)) {
+    await interaction.reply({ content: 'No puedo hablar de ese tema.', ephemeral: true });
+    return;
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+  const aiContext = buildBaseAiContext(interaction.guild, interaction.member, interaction.user, config);
+  const reply = await aiHelper.chatReply(interaction.client, config, question, aiContext);
+  trackAiUsage(interaction.guild.id, Boolean(reply));
+  if (reply) await interaction.editReply(buildAiReplyPayload(config, reply));
+  else await interaction.editReply('🤖 No pude pensar una respuesta ahora, probá de nuevo en un rato.');
+}
+
+// /explicar: la IA redacta una explicacion a partir de datos REALES del
+// comando (nombre/descripcion/opciones tal cual estan registrados, o de
+// config.customCommands) — nunca inventa un comando que no existe
+async function handleExplicarCommand(interaction, config) {
+  const commandName = interaction.options
+    .getString('comando', true)
+    .trim()
+    .replace(/^\//, '')
+    .toLowerCase();
+
+  const staticDef = commandRegistry.STATIC_DEFINITIONS.find((d) => d.name === commandName);
+  const customDef = config ? (config.customCommands || []).find((c) => c.name === commandName) : null;
+
+  if (!staticDef && !customDef) {
+    await interaction.reply({ content: `⚠️ No encontré ningún comando llamado "${commandName}".`, ephemeral: true });
+    return;
+  }
+
+  const commandInfo = staticDef
+    ? `Nombre: /${staticDef.name}\nDescripción real: ${staticDef.description}\nOpciones: ${
+        (staticDef.options || []).map((o) => `${o.name} (${o.required ? 'obligatoria' : 'opcional'}): ${o.description}`).join('; ') ||
+        'ninguna'
+      }`
+    : `Nombre: /${customDef.name} (comando personalizado creado en este server)\nDescripción real: ${customDef.description}\nEste comando responde siempre el mismo texto configurado${customDef.adminOnly ? ', y solo lo pueden usar administradores' : ''}.`;
+
+  const fallback = staticDef ? `**/${staticDef.name}** — ${staticDef.description}` : `**/${customDef.name}** — ${customDef.description}`;
+
+  if (!config?.ai?.enabled || !aiHelper.isConfigured(config)) {
+    // sin IA configurada igual mostramos la info real, solo que sin redactar
+    await interaction.reply({ content: fallback, ephemeral: true });
+    return;
+  }
+  if (!canUseAiNow(interaction.user.id, aiCooldownMs(config))) {
+    await interaction.reply({ content: '⏳ Esperá unos segundos antes de pedir otra explicación.', ephemeral: true });
+    return;
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+  const aiContext = buildBaseAiContext(interaction.guild, interaction.member, interaction.user, config);
+  const explanation = await aiHelper.explainCommand(interaction.client, config, commandInfo, aiContext);
+  trackAiUsage(interaction.guild.id, Boolean(explanation));
+  await interaction.editReply(explanation || fallback);
+}
+
 async function applyAutomod(message, config) {
   const automod = config?.automod;
 
@@ -619,12 +779,38 @@ async function applyAutomod(message, config) {
 
     if (hasBannedWord || hasInvite || isMentionSpam) {
       const reason = hasBannedWord ? 'contenido no permitido' : hasInvite ? 'links de invitación' : 'demasiadas menciones';
+      const originalContent = message.content;
       await deleteWithWarning(message, reason);
+      // no se espera esto: el borrado ya paso (lo que importa para el
+      // usuario), la nota de la IA es informativa y puede llegar unos
+      // segundos despues al canal de logs sin bloquear nada
+      if (automod.aiAssist) {
+        assistAutomodLog(message, config, reason, originalContent).catch((err) =>
+          console.error('No se pudo generar el análisis de IA para automod:', err.message),
+        );
+      }
       return true;
     }
   }
 
   return false;
+}
+
+async function assistAutomodLog(message, config, reason, originalContent) {
+  if (!config?.ai?.enabled || !aiHelper.isConfigured(config)) return;
+  const assessment = await aiHelper.assessAutomodFlag(client, config, originalContent, reason);
+  trackAiUsage(message.guild.id, Boolean(assessment));
+  if (!assessment) return;
+  await logging.sendLog(client, config, {
+    type: 'warning',
+    title: '🤖 Análisis de IA sobre un mensaje moderado',
+    description: assessment,
+    fields: [
+      { name: 'Usuario', value: `<@${message.author.id}>`, inline: true },
+      { name: 'Canal', value: `<#${message.channel.id}>`, inline: true },
+      { name: 'Motivo automático', value: reason, inline: true },
+    ],
+  });
 }
 
 async function setUpGuild(guild) {
@@ -780,16 +966,20 @@ client.on('messageCreate', async (message) => {
         if (!canUseAiNow(message.author.id, aiCooldownMs(config))) {
           await message.reply('⏳ Esperá unos segundos antes de volver a preguntarme algo.');
         } else {
-          // reacciona mientras procesa (puede tardar unos segundos), y la
-          // saca pase lo que pase al terminar
-          const reaction = await message.react('🤔').catch(() => null);
+          // el placeholder "Pensando..." reemplaza la vieja reaccion 🤔: se
+          // anima solo mientras la IA procesa, y termina convertido en la
+          // respuesta final (o en el resultado real de meme/trivia/etc)
+          const thinking = await startThinking(message);
           try {
             if (/\bmemes?\b/i.test(cleanedContent)) {
               // pidio un meme por chat: se manda un meme real (misma logica
               // que /meme) en vez de que la IA "hable" de mandarlo, que es lo
               // que generaba el link falso de imgur.com
               await memeCommand.handleMemeCommand(
-                { deferReply: async () => {}, editReply: (payload) => message.reply(payload) },
+                {
+                  deferReply: async () => {},
+                  editReply: (payload) => (thinking ? thinking.stop(payload) : message.reply(payload)),
+                },
                 config,
               );
             } else if (/\btrivia\b/i.test(cleanedContent)) {
@@ -799,7 +989,7 @@ client.on('messageCreate', async (message) => {
               await triviaCommand.handleTriviaCommand(
                 {
                   reply: async (payload) => {
-                    sentMessage = await message.reply(payload);
+                    sentMessage = thinking ? await thinking.stop(payload) : await message.reply(payload);
                     return sentMessage;
                   },
                   fetchReply: async () => sentMessage,
@@ -815,10 +1005,54 @@ client.on('messageCreate', async (message) => {
               const aiContext = await buildAiContext(message, config);
               const summary = await aiHelper.summarizeChannel(client, config, transcript, aiContext);
               trackAiUsage(guildId, Boolean(summary));
-              if (summary) await sendAiReply(message, config, summary);
-              else await message.reply('🤖 No pude armar el resumen ahora, probá de nuevo en un rato.');
+              const payload = summary ? buildAiReplyPayload(config, summary) : '🤖 No pude armar el resumen ahora, probá de nuevo en un rato.';
+              if (thinking) await thinking.stop(payload);
+              else await message.reply(payload);
+            } else if (/\bperfil\b/i.test(cleanedContent)) {
+              // tarjeta de perfil: 100% datos reales de la base, sin pasar
+              // por la IA — mismo patron que meme/trivia
+              const embed = await buildProfileEmbed(message, config).catch((err) => {
+                console.error('No se pudo armar el perfil:', err.message);
+                return null;
+              });
+              const payload = embed ? { embeds: [embed] } : '⚠️ No pude armar el perfil ahora, probá de nuevo en un rato.';
+              if (thinking) await thinking.stop(payload);
+              else await message.reply(payload);
+            } else if (/\btraduc/i.test(cleanedContent)) {
+              const aiContext = await buildAiContext(message, config);
+              const translation = await aiHelper.translateText(client, config, cleanedContent, aiContext);
+              trackAiUsage(guildId, Boolean(translation));
+              const payload = translation ? buildAiReplyPayload(config, translation) : '🤖 No pude traducir eso ahora, probá de nuevo en un rato.';
+              if (thinking) await thinking.stop(payload);
+              else await message.reply(payload);
+            } else if (
+              /\bsuger\w*\b.*\brespuesta\b/i.test(cleanedContent) &&
+              (await db.getTicketByChannelId(message.channel.id).catch(() => null))?.status === 'open'
+            ) {
+              // asistente de tickets: solo staff autorizado (misma lista que
+              // usa la moderacion por chat) y solo dentro de un ticket
+              // abierto — sugiere una respuesta, nunca la manda ni cierra nada
+              if (!isAiStaffAuthorized(config, message.author.id)) {
+                const payload = '❌ Solo el staff autorizado puede pedirme esto.';
+                if (thinking) await thinking.stop(payload);
+                else await message.reply(payload);
+              } else {
+                const transcript = await buildChannelSummaryTranscript(message).catch((err) => {
+                  console.error('No se pudo traer mensajes del ticket:', err.message);
+                  return '';
+                });
+                const aiContext = await buildAiContext(message, config);
+                const suggestion = await aiHelper.suggestTicketReply(client, config, transcript, aiContext);
+                trackAiUsage(guildId, Boolean(suggestion));
+                const payload = suggestion
+                  ? buildAiReplyPayload(config, suggestion)
+                  : '🤖 No pude armar una sugerencia ahora, probá de nuevo en un rato.';
+                if (thinking) await thinking.stop(payload);
+                else await message.reply(payload);
+              }
             } else if (matchForbiddenTopic(cleanedContent, config?.ai?.forbiddenTopics)) {
-              await message.reply('No puedo hablar de ese tema.');
+              if (thinking) await thinking.stop('No puedo hablar de ese tema.');
+              else await message.reply('No puedo hablar de ese tema.');
             } else {
               const aiContext = await buildAiContext(message, config);
               aiContext.realData = await buildRealDataForQuery(message);
@@ -826,11 +1060,15 @@ client.on('messageCreate', async (message) => {
               trackAiUsage(guildId, Boolean(chatReply));
               // si la IA falla (timeout, rate limit, etc.) igual contesta algo
               // en vez de quedarse en silencio total despues de que la mencionaron
-              if (chatReply) await sendAiReply(message, config, chatReply);
-              else await message.reply('🤖 No pude pensar una respuesta ahora, mencioname de nuevo en un rato.');
+              const payload = chatReply
+                ? buildAiReplyPayload(config, chatReply)
+                : '🤖 No pude pensar una respuesta ahora, mencioname de nuevo en un rato.';
+              if (thinking) await thinking.stop(payload);
+              else await message.reply(payload);
             }
-          } finally {
-            if (reaction) await reaction.users.remove(client.user.id).catch(() => {});
+          } catch (err) {
+            if (thinking) await thinking.stop('⚠️ Ocurrió un error procesando tu pedido.');
+            throw err;
           }
         }
       }
@@ -1050,6 +1288,12 @@ async function handleInteraction(interaction) {
         break;
       case 'programar':
         await sayCommand.handleProgramarCommand(interaction);
+        break;
+      case 'preguntar':
+        await handlePreguntarCommand(interaction, config);
+        break;
+      case 'explicar':
+        await handleExplicarCommand(interaction, config);
         break;
       default: {
         const custom = config ? customCommands.findCustomCommand(config, interaction.commandName) : null;

@@ -218,4 +218,119 @@ Reglas:
   }
 }
 
-module.exports = { isConfigured, answerHelpQuestion, chatReply, summarizeChannel };
+// le sugiere al staff una respuesta para el usuario de un ticket, basandose
+// en la conversacion real (transcript armado por index.js). Solo sugiere
+// texto — nunca cierra el ticket ni manda nada por su cuenta
+async function suggestTicketReply(client, config, transcript, context = {}) {
+  const apiKey = resolveApiKey(config);
+  if (!apiKey) return null;
+
+  if (!transcript) return 'No encontré mensajes en este ticket para basarme.';
+
+  const { serverName, botName, tone, customPersonality } = context;
+  const systemPrompt = `Sos "${botName || 'el bot'}", asistente interno para el equipo de staff del server "${serverName || 'este server'}". Un miembro del staff te pidió una sugerencia de respuesta para el usuario de este ticket de soporte. Respondés en español neutro. ${personalityInstruction(tone, customPersonality)}
+
+Conversación real del ticket (mas vieja primero):
+${transcript}
+
+Reglas:
+- Sugerí un borrador de respuesta breve y profesional para el usuario, basado unicamente en lo que dice la conversación real de arriba.
+- No inventes datos, plazos ni promesas que no esten respaldados por la conversación.
+- Dejalo claro como una SUGERENCIA (el staff la va a revisar y mandar si le sirve, vos no la mandás).`;
+
+  try {
+    return await askAI(apiKey, systemPrompt, 'Sugerime una respuesta para este ticket.', { maxTokens: 350 });
+  } catch (err) {
+    console.error('No se pudo generar la sugerencia del ticket:', err.message);
+    await errorReporter.reportError(client, config, 'aiHelper.suggestTicketReply', err);
+    return null;
+  }
+}
+
+// explica un comando REAL del bot (nombre/descripcion/opciones ya resueltos
+// por index.js desde la definicion real o desde config.customCommands) — la
+// IA solo lo redacta mas natural, nunca inventa un comando ni un parametro
+async function explainCommand(client, config, commandInfo, context = {}) {
+  const apiKey = resolveApiKey(config);
+  if (!apiKey) return null;
+
+  const { botName, tone, customPersonality } = context;
+  const systemPrompt = `Sos "${botName || 'el bot'}". Te pidieron explicar cómo se usa un comando real de este bot. Respondés en español neutro. ${personalityInstruction(tone, customPersonality)}
+
+Datos reales del comando (usalos tal cual; NUNCA inventes otro nombre, parámetro o comportamiento que no esté acá):
+${commandInfo}
+
+Reglas:
+- Explicá en 2-4 líneas cómo se usa, con un ejemplo si tiene parámetros.
+- No inventes efectos, permisos ni parámetros que no estén en los datos de arriba.`;
+
+  try {
+    return await askAI(apiKey, systemPrompt, 'Explicame este comando.', { maxTokens: 250 });
+  } catch (err) {
+    console.error('No se pudo generar la explicación del comando:', err.message);
+    await errorReporter.reportError(client, config, 'aiHelper.explainCommand', err);
+    return null;
+  }
+}
+
+// traduce texto tal cual lo pidieron (el pedido completo, ej. "traduci esto
+// al ingles: hola como andan"), sin agregar comentarios ni opiniones propias
+async function translateText(client, config, request, context = {}) {
+  const apiKey = resolveApiKey(config);
+  if (!apiKey) return null;
+
+  const { botName, tone, customPersonality } = context;
+  const systemPrompt = `Sos "${botName || 'el bot'}", te acaban de pedir una traducción por chat. ${personalityInstruction(tone, customPersonality)}
+
+Reglas:
+- Traducí fielmente el texto que te pasen, al idioma que te pidan (si no especifican idioma destino, traducí al inglés si el texto está en español, o al español si está en otro idioma).
+- Respondé SOLO con la traducción, sin explicaciones, comentarios ni saludos adicionales — a menos que te pidan explícitamente una aclaración sobre la traducción.
+- No agregues opiniones ni cambies el sentido del texto original.`;
+
+  try {
+    return await askAI(apiKey, systemPrompt, request, { maxTokens: 400, temperature: 0.2 });
+  } catch (err) {
+    console.error('No se pudo generar la traducción:', err.message);
+    await errorReporter.reportError(client, config, 'aiHelper.translateText', err);
+    return null;
+  }
+}
+
+// evalua un mensaje que YA fue borrado por el filtro de palabras/invites/
+// mencion-spam, para darle al staff una segunda opinion de contexto y
+// severidad en el canal de logs. Nunca ejecuta ninguna accion — index.js ni
+// siquiera le da la posibilidad, solo le pasa el texto y usa la respuesta
+// como una nota informativa
+async function assessAutomodFlag(client, config, messageContent, reason) {
+  const apiKey = resolveApiKey(config);
+  if (!apiKey) return null;
+
+  const systemPrompt = `Sos un asistente de moderación para el staff de un server de Discord. El filtro automático acaba de borrar un mensaje (motivo: "${reason}"). Te piden una segunda opinión de contexto para que el staff decida si hace falta algo mas.
+
+Mensaje real que fue borrado:
+"${messageContent}"
+
+Reglas:
+- Respondé en 1-2 líneas: decí si te parece un caso leve, grave, o un posible falso positivo del filtro, y por qué (basado solo en el texto de arriba).
+- No sugieras una acción de moderación específica (eso lo decide el staff) — solo dá tu evaluación de contexto/severidad.
+- No inventes contexto, intención ni historial que no esté en el mensaje.`;
+
+  try {
+    return await askAI(apiKey, systemPrompt, 'Evaluá este mensaje borrado.', { maxTokens: 150 });
+  } catch (err) {
+    console.error('No se pudo generar el análisis de automod:', err.message);
+    await errorReporter.reportError(client, config, 'aiHelper.assessAutomodFlag', err);
+    return null;
+  }
+}
+
+module.exports = {
+  isConfigured,
+  answerHelpQuestion,
+  chatReply,
+  summarizeChannel,
+  explainCommand,
+  translateText,
+  suggestTicketReply,
+  assessAutomodFlag,
+};

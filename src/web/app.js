@@ -371,6 +371,7 @@ function createApp({ client }) {
           .filter(Boolean),
         blockInvites: req.body.blockInvites === 'on',
         mentionSpamLimit: Math.max(0, Number(req.body.mentionSpamLimit) || 0),
+        aiAssist: req.body.aiAssist === 'on',
       },
     });
     res.redirect('/dashboard/automoderacion?saved=1');

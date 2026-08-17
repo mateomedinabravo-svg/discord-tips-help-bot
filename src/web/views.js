@@ -778,6 +778,10 @@ function automodPage({ user, config, guildName, flash }) {
     <label>Límite de menciones en un mismo mensaje (0 = sin límite)</label>
     <input type="number" name="mentionSpamLimit" min="0" value="${escapeHtml(config.automod.mentionSpamLimit)}">
 
+    <div class="checkbox-row"><input type="checkbox" name="aiAssist" id="a-ai-assist" ${config.automod.aiAssist ? 'checked' : ''}>
+      <label for="a-ai-assist" style="margin:0;">Pedirle a la IA una segunda opinión cuando se borra un mensaje</label></div>
+    <p class="muted" style="margin-top:-8px;">Necesita la IA activada y configurada (página de IA). Solo agrega una nota de contexto/severidad en el canal de logs — nunca banea, silencia ni toma ninguna acción por su cuenta.</p>
+
     <button type="submit">Guardar</button>
   </form>`;
   return layout({ title: 'Automoderación', user, body, flash, guildName });

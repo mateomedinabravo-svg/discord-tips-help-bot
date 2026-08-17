@@ -40,6 +40,10 @@ function defaultConfig(guildId) {
       bannedWords: [],
       blockInvites: false,
       mentionSpamLimit: 5,
+      // si esta activo (y la IA esta configurada), cuando el filtro borra un
+      // mensaje se le pide a la IA una evaluacion de contexto/severidad para
+      // el canal de logs — nunca ejecuta ninguna accion, solo avisa al staff
+      aiAssist: false,
     },
     leveling: {
       enabled: false,
