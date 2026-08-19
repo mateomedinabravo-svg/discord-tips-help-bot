@@ -267,6 +267,19 @@ function prepareAiText(message) {
   return content.replace(/<@!?\d+>/g, '').trim();
 }
 
+// guild.members.cache / role.members solo reflejan a los miembros que el
+// bot ya tiene en cache (los que estuvieron activos desde que arranco el
+// proceso) — sin este fetch, cualquier lista/conteo/ranking por TODOS los
+// miembros del server queda incompleta (o le faltan nombres reales) y en la
+// practica terminaba mostrando casi siempre solo a quien le hablaba al bot
+async function ensureFullMemberCache(guild) {
+  try {
+    await guild.members.fetch();
+  } catch (err) {
+    console.error('No se pudo traer la lista completa de miembros del server:', err.message);
+  }
+}
+
 // nombre del server, nombre del bot, nombre de quien escribe, y los ultimos
 // mensajes del canal (para que la IA tenga contexto de la conversacion en
 // vez de responder cada mensaje como si fuera la primera vez que le hablan)
@@ -274,9 +287,12 @@ function prepareAiText(message) {
 // en el dashboard (Owner/CEO, Staff, Helper, etc). Los nombres se resuelven
 // EN VIVO desde el cache de miembros del server — nunca se guardan nombres
 // en la config, asi nunca queda desactualizado si alguien entra/sale del rol
-function buildStaffDirectory(guild, config) {
+async function buildStaffDirectory(guild, config) {
   const tags = config?.ai?.staffRoleTags || [];
   if (!tags.length) return '';
+
+  await ensureFullMemberCache(guild);
+
   return tags
     .map((tag) => {
       const role = guild.roles.cache.get(tag.roleId);
@@ -308,7 +324,7 @@ async function buildAiContext(message, config) {
   }
 
   return {
-    ...buildBaseAiContext(message.guild, message.member, message.author, config),
+    ...(await buildBaseAiContext(message.guild, message.member, message.author, config)),
     recentMessages,
   };
 }
@@ -318,7 +334,7 @@ async function buildAiContext(message, config) {
 // (buildAiContext de arriba, que le suma el historial reciente del canal)
 // como los comandos de barra (/preguntar), que no tienen un canal del que
 // sacar contexto reciente de la misma forma
-function buildBaseAiContext(guild, member, user, config) {
+async function buildBaseAiContext(guild, member, user, config) {
   // nombres de roles y canales de texto (limitados a 30 c/u para no inflar
   // demasiado el prompt en servers grandes), asi la IA puede mencionarlos con
   // propiedad si le preguntan "que canales hay" o "que roles hay"
@@ -343,7 +359,7 @@ function buildBaseAiContext(guild, member, user, config) {
     tone: config?.ai?.tone,
     customPersonality: config?.ai?.customPersonality,
     forbiddenTopics: config?.ai?.forbiddenTopics,
-    staffDirectory: buildStaffDirectory(guild, config),
+    staffDirectory: await buildStaffDirectory(guild, config),
     serverFacts: buildServerFacts(guild),
     isCreator: isCreatorUser(user.id),
   };
@@ -591,11 +607,7 @@ function findMentionedRoleByName(guild, content) {
 // que arrancó el proceso) — sin este fetch, el conteo da bajo en servers
 // con miembros inactivos que igual tienen el rol
 async function buildRoleMembersReply(role) {
-  try {
-    await role.guild.members.fetch();
-  } catch (err) {
-    console.error('No se pudo traer la lista completa de miembros del server:', err.message);
-  }
+  await ensureFullMemberCache(role.guild);
 
   const memberNames = role.members.map((m) => m.displayName);
   const count = memberNames.length;
@@ -662,6 +674,7 @@ const LEVELS_LEADERBOARD_TRIGGER = new RegExp(
 async function buildLevelsLeaderboardReply(message) {
   const entries = await db.getLeaderboard(message.guild.id, 10);
   if (!entries.length) return 'Todavía nadie tiene experiencia registrada.';
+  await ensureFullMemberCache(message.guild);
   const lines = entries.map((entry, i) => {
     const info = db.levelInfoFromXp(entry.xp);
     const name = message.guild.members.cache.get(entry.userId)?.displayName || `Usuario ${entry.userId}`;
@@ -680,6 +693,7 @@ const ECONOMY_LEADERBOARD_TRIGGER = new RegExp(
 async function buildEconomyLeaderboardReply(message, config) {
   const entries = await db.getEconomyLeaderboard(message.guild.id, 10);
   if (!entries.length) return 'Todavía nadie tiene balance registrado.';
+  await ensureFullMemberCache(message.guild);
   const currencySymbol = config?.economy?.currencySymbol || '';
   const currencyName = config?.economy?.currencyName || 'monedas';
   const lines = entries.map((entry, i) => {
@@ -957,7 +971,7 @@ async function handlePreguntarCommand(interaction, config) {
   }
 
   await interaction.deferReply({ ephemeral: true });
-  const aiContext = buildBaseAiContext(interaction.guild, interaction.member, interaction.user, config);
+  const aiContext = await buildBaseAiContext(interaction.guild, interaction.member, interaction.user, config);
   const reply = await aiHelper.chatReply(interaction.client, config, question, aiContext);
   trackAiUsage(interaction.guild.id, Boolean(reply));
   if (reply) await interaction.editReply(buildAiReplyPayload(config, reply));
@@ -1002,7 +1016,7 @@ async function handleExplicarCommand(interaction, config) {
   }
 
   await interaction.deferReply({ ephemeral: true });
-  const aiContext = buildBaseAiContext(interaction.guild, interaction.member, interaction.user, config);
+  const aiContext = await buildBaseAiContext(interaction.guild, interaction.member, interaction.user, config);
   const explanation = await aiHelper.explainCommand(interaction.client, config, commandInfo, aiContext);
   trackAiUsage(interaction.guild.id, Boolean(explanation));
   await interaction.editReply(explanation || fallback);
