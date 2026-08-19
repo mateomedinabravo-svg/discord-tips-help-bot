@@ -413,6 +413,16 @@ function layout({ title, user, body, flash, guildName }) {
   textarea { min-height: 110px; resize: vertical; }
   input[type=color] { width: 60px; height: 38px; padding: 3px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-sunken); cursor: pointer; }
   .color-row { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+  .embed-preview {
+    display: flex; gap: 12px; background: var(--bg-sunken); border-radius: 8px; padding: 12px 16px;
+    border-left: 4px solid var(--success); margin: 10px 0 4px; max-width: 480px;
+  }
+  .embed-preview .embed-preview-body { flex: 1; min-width: 0; }
+  .embed-preview .embed-preview-title { font-weight: 700; color: #fff; font-size: 15px; margin-bottom: 4px; word-break: break-word; }
+  .embed-preview .embed-preview-desc { font-size: 13.5px; color: var(--text); white-space: pre-wrap; word-break: break-word; line-height: 1.45; }
+  .embed-preview .embed-preview-thumb { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: var(--bg-raised); }
+  .embed-preview .embed-preview-image { width: 100%; max-height: 220px; object-fit: cover; border-radius: 6px; margin-top: 10px; display: block; }
+  .embed-preview .embed-preview-plain { font-size: 14px; color: var(--text); white-space: pre-wrap; word-break: break-word; max-width: 480px; }
   .color-row label { margin: 0; min-width: 90px; }
   .checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
   .checkbox-row input { width: auto; }
@@ -727,15 +737,20 @@ function welcomePage({ user, config, channels, roles, guildName, flash }) {
   const goodbyeMismatch = config.goodbye.enabled && !config.goodbye.channelId;
 
   const PLACEHOLDER_TOKENS = [
-    { token: '{user}', label: '{user} — menciona al usuario' },
-    { token: '{username}', label: '{username} — nombre de usuario' },
-    { token: '{server}', label: '{server} — nombre del server' },
-    { token: '{membercount}', label: '{membercount} — número de miembro' },
+    { token: '{user}', label: '{user} — menciona al usuario', sample: '@Ejemplo' },
+    { token: '{username}', label: '{username} — nombre de usuario', sample: 'usuario_ejemplo' },
+    { token: '{server}', label: '{server} — nombre del server', sample: guildName || 'Tu Server' },
+    { token: '{membercount}', label: '{membercount} — número de miembro', sample: '1464' },
+    { token: '{joindate}', label: '{joindate} — fecha en que se unió', sample: new Date().toLocaleDateString('es-AR') },
   ];
   const placeholderButtons = (targetId) =>
     PLACEHOLDER_TOKENS.map(
       (p) => `<button type="button" class="btn placeholder-btn" data-target="${targetId}" data-token="${escapeHtml(p.token)}" style="background:#4a4d53; padding:4px 10px; font-size:12px; margin:0 6px 6px 0;">${escapeHtml(p.label)}</button>`,
     ).join('');
+  // los mismos tokens/samples, como JSON para que el script del preview los
+  // use del lado del cliente (nunca pasa por el server, es solo para mostrar
+  // un ejemplo mientras se edita)
+  const placeholderSamplesJson = escapeHtml(JSON.stringify(Object.fromEntries(PLACEHOLDER_TOKENS.map((p) => [p.token, p.sample]))));
 
   const body = `
   <h1>Bienvenida y despedida</h1>
@@ -753,15 +768,27 @@ function welcomePage({ user, config, channels, roles, guildName, flash }) {
     <div class="checkbox-row"><input type="checkbox" name="useEmbed" id="w-embed" ${config.welcome.useEmbed ? 'checked' : ''}>
       <label for="w-embed" style="margin:0;">Mandar como embed (con foto de perfil del usuario)</label></div>
     <label>Título del embed</label>
-    <input type="text" name="embedTitle" value="${escapeHtml(config.welcome.embedTitle || '')}" placeholder="👋 ¡Nuevo miembro!">
+    <input type="text" name="embedTitle" id="w-embedTitle" value="${escapeHtml(config.welcome.embedTitle || '')}" placeholder="👋 ¡Nuevo miembro!">
     <label>Imagen/banner del embed (opcional)</label>
-    <input type="text" name="imageUrl" value="${escapeHtml(config.welcome.imageUrl || '')}" placeholder="https://...">
+    <input type="text" name="imageUrl" id="w-imageUrl" value="${escapeHtml(config.welcome.imageUrl || '')}" placeholder="https://...">
     <p class="muted" style="margin-top:-8px;">Pegá el link de una imagen ya subida a algún lado (Discord, Imgur, etc.). Solo se usa si "Mandar como embed" está activado.</p>
     <div class="checkbox-row"><input type="checkbox" name="aiPersonalized" id="w-ai" ${config.welcome.aiPersonalized ? 'checked' : ''}>
       <label for="w-ai" style="margin:0;">Usar la IA para redactar una bienvenida distinta cada vez</label></div>
     <p class="muted" style="margin-top:-8px;">Necesita la IA activada y configurada (página de IA). Si falla o no está configurada, se usa el mensaje fijo de arriba como respaldo.</p>
     <label>Rol automático al unirse (opcional)</label>
     <select name="roleId"><option value="">-- ninguno --</option>${roleOptions(config.welcome.roleId)}</select>
+
+    <label>Vista previa (con datos de ejemplo)</label>
+    <div class="embed-preview" id="w-preview">
+      <div class="embed-preview-body">
+        <div class="embed-preview-title" id="w-preview-title"></div>
+        <div class="embed-preview-desc" id="w-preview-desc"></div>
+        <img class="embed-preview-image" id="w-preview-image" style="display:none;">
+      </div>
+      <img class="embed-preview-thumb" src="https://cdn.discordapp.com/embed/avatars/0.png" alt="">
+    </div>
+    <div class="embed-preview-plain" id="w-preview-plain"></div>
+
     <button type="submit">Guardar bienvenida</button>
   </form>
 
@@ -777,8 +804,19 @@ function welcomePage({ user, config, channels, roles, guildName, flash }) {
     <textarea name="message" id="g-message">${escapeHtml(config.goodbye.message)}</textarea>
     <div class="checkbox-row"><input type="checkbox" name="useEmbed" id="g-embed" ${config.goodbye.useEmbed ? 'checked' : ''}>
       <label for="g-embed" style="margin:0;">Mandar como embed (con foto de perfil del usuario)</label></div>
+
+    <label>Vista previa (con datos de ejemplo)</label>
+    <div class="embed-preview" id="g-preview">
+      <div class="embed-preview-body">
+        <div class="embed-preview-desc" id="g-preview-desc"></div>
+      </div>
+      <img class="embed-preview-thumb" src="https://cdn.discordapp.com/embed/avatars/0.png" alt="">
+    </div>
+    <div class="embed-preview-plain" id="g-preview-plain"></div>
+
     <button type="submit">Guardar despedida</button>
   </form>
+  <div id="placeholder-samples" data-samples="${placeholderSamplesJson}" style="display:none"></div>
   <script>
     document.querySelectorAll('.placeholder-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -790,8 +828,65 @@ function welcomePage({ user, config, channels, roles, guildName, flash }) {
         target.focus();
         const cursor = start + btn.dataset.token.length;
         target.setSelectionRange(cursor, cursor);
+        target.dispatchEvent(new Event('input'));
       });
     });
+
+    const placeholderSamples = JSON.parse(document.getElementById('placeholder-samples').dataset.samples);
+    function applyPlaceholderSamples(text) {
+      return Object.keys(placeholderSamples).reduce(
+        (acc, token) => acc.split(token).join(placeholderSamples[token]),
+        text,
+      );
+    }
+
+    function updateWelcomePreview() {
+      const message = document.getElementById('w-message').value;
+      const useEmbed = document.getElementById('w-embed').checked;
+      const preview = document.getElementById('w-preview');
+      const previewPlain = document.getElementById('w-preview-plain');
+      const text = applyPlaceholderSamples(message);
+      if (useEmbed) {
+        preview.style.display = 'flex';
+        previewPlain.style.display = 'none';
+        document.getElementById('w-preview-title').textContent = document.getElementById('w-embedTitle').value || '👋 ¡Nuevo miembro!';
+        document.getElementById('w-preview-desc').textContent = text;
+        const imageUrl = document.getElementById('w-imageUrl').value.trim();
+        const imageNode = document.getElementById('w-preview-image');
+        if (imageUrl) { imageNode.src = imageUrl; imageNode.style.display = 'block'; }
+        else { imageNode.removeAttribute('src'); imageNode.style.display = 'none'; }
+      } else {
+        preview.style.display = 'none';
+        previewPlain.style.display = 'block';
+        previewPlain.textContent = text;
+      }
+    }
+
+    function updateGoodbyePreview() {
+      const message = document.getElementById('g-message').value;
+      const useEmbed = document.getElementById('g-embed').checked;
+      const preview = document.getElementById('g-preview');
+      const previewPlain = document.getElementById('g-preview-plain');
+      const text = applyPlaceholderSamples(message);
+      if (useEmbed) {
+        preview.style.display = 'flex';
+        previewPlain.style.display = 'none';
+        document.getElementById('g-preview-desc').textContent = text;
+      } else {
+        preview.style.display = 'none';
+        previewPlain.style.display = 'block';
+        previewPlain.textContent = text;
+      }
+    }
+
+    ['w-message', 'w-embed', 'w-embedTitle', 'w-imageUrl'].forEach((id) => {
+      document.getElementById(id).addEventListener('input', updateWelcomePreview);
+    });
+    ['g-message', 'g-embed'].forEach((id) => {
+      document.getElementById(id).addEventListener('input', updateGoodbyePreview);
+    });
+    updateWelcomePreview();
+    updateGoodbyePreview();
   </script>`;
   return layout({ title: 'Bienvenida / Despedida', user, body, flash, guildName });
 }

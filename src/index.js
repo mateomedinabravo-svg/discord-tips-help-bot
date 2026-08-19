@@ -162,11 +162,16 @@ async function refreshAllConfigs() {
 }
 
 function formatTemplate(template, member) {
+  // member.joinedAt puede venir null si el miembro ya no esta en cache (ej.
+  // en la despedida, si el evento llega sin el dato) — se cae a la fecha
+  // actual en vez de romper el reemplazo
+  const joinDate = (member.joinedAt || new Date()).toLocaleDateString('es-AR');
   return template
     .replace(/\{user\}/g, `<@${member.id}>`)
     .replace(/\{username\}/g, member.user.username)
     .replace(/\{server\}/g, member.guild.name)
-    .replace(/\{membercount\}/g, String(member.guild.memberCount));
+    .replace(/\{membercount\}/g, String(member.guild.memberCount))
+    .replace(/\{joindate\}/g, joinDate);
 }
 
 function startTipLoop(guildId) {
