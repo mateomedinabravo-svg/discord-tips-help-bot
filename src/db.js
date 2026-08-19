@@ -886,6 +886,12 @@ async function getStarboardPost(guildId, originalMessageId) {
   return database.collection('starboardPosts').findOne({ guildId, originalMessageId });
 }
 
+async function getTopStarredPost(guildId) {
+  const database = await connect();
+  const [top] = await database.collection('starboardPosts').find({ guildId }).sort({ starCount: -1 }).limit(1).toArray();
+  return top || null;
+}
+
 async function createStarboardPost({ guildId, originalMessageId, originalChannelId, starboardMessageId, authorId, starCount }) {
   const database = await connect();
   await database.collection('starboardPosts').insertOne({
@@ -940,6 +946,11 @@ async function getExpiredGiveaways() {
   return database.collection('giveaways').find({ ended: false, endsAt: { $lte: new Date() } }).toArray();
 }
 
+async function listActiveGiveaways(guildId) {
+  const database = await connect();
+  return database.collection('giveaways').find({ guildId, ended: false }).sort({ endsAt: 1 }).toArray();
+}
+
 async function endGiveaway(messageId, winnerIds) {
   const database = await connect();
   await database.collection('giveaways').updateOne({ messageId }, { $set: { ended: true, winnerIds } });
@@ -962,6 +973,14 @@ async function createPoll({ guildId, channelId, messageId, question, options, ho
 async function getPoll(messageId) {
   const database = await connect();
   return database.collection('polls').findOne({ messageId });
+}
+
+// las encuestas de este bot no tienen fecha de cierre ni estado (quedan
+// abiertas para siempre), asi que no hay un concepto real de "activas" —
+// se devuelven las mas recientes tal cual son
+async function listRecentPolls(guildId, limit = 5) {
+  const database = await connect();
+  return database.collection('polls').find({ guildId }).sort({ createdAt: -1 }).limit(limit).toArray();
 }
 
 async function setPollVote(messageId, userId, optionIndex) {
@@ -989,6 +1008,11 @@ async function createSuggestion({ guildId, channelId, messageId, authorId, autho
 async function getSuggestion(messageId) {
   const database = await connect();
   return database.collection('suggestions').findOne({ messageId });
+}
+
+async function getPendingSuggestionsCount(guildId) {
+  const database = await connect();
+  return database.collection('suggestions').countDocuments({ guildId, status: 'pending' });
 }
 
 async function setSuggestionVote(messageId, userId, value) {
@@ -1164,18 +1188,22 @@ module.exports = {
   createPet,
   updatePet,
   getStarboardPost,
+  getTopStarredPost,
   createStarboardPost,
   updateStarboardPostCount,
   createGiveaway,
   getGiveaway,
   addGiveawayEntry,
   getExpiredGiveaways,
+  listActiveGiveaways,
   endGiveaway,
   createPoll,
   getPoll,
+  listRecentPolls,
   setPollVote,
   createSuggestion,
   getSuggestion,
+  getPendingSuggestionsCount,
   setSuggestionVote,
   removeSuggestionVote,
   setSuggestionStatus,

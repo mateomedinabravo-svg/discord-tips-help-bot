@@ -451,10 +451,19 @@ function trackAiUsage(guildId, success) {
 // la base (o en el propio member de discord) para el que escribe y para
 // cualquier usuario mencionado, asi la IA contesta con el dato real en vez
 // de inventarlo
+const BIRTHDAY_MONTH_NAMES = [
+  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+];
+
 async function buildRealDataForQuery(message) {
   const wantsStats = /\b(nivel|balance|monedas|plata|perfil|experiencia|xp)\b/i.test(message.content);
   const wantsRoles = /\b(rol|roles|permiso|permisos)\b/i.test(message.content);
-  if (!wantsStats && !wantsRoles) return '';
+  const wantsBirthday = /\bcumplea[nñ]os\b|\bcumple\b/i.test(message.content);
+  const wantsAfk = /\bafk\b/i.test(message.content);
+  const wantsPareja = /\bpareja\b|\bcasad[oa]\b|\besposx?\b|\besposa\b|\besposo\b/i.test(message.content);
+  const wantsPet = /\bmascota\b/i.test(message.content);
+  if (!wantsStats && !wantsRoles && !wantsBirthday && !wantsAfk && !wantsPareja && !wantsPet) return '';
 
   const targets = [{ id: message.author.id, name: message.member?.displayName || message.author.username, member: message.member }];
   for (const [id, user] of message.mentions.users) {
@@ -483,6 +492,44 @@ async function buildRealDataForQuery(message) {
         .map((role) => role.name)
         .join(', ');
       parts.push(`roles: ${roleNames || '(sin roles)'}`);
+    }
+    if (wantsBirthday) {
+      try {
+        const birthday = await db.getBirthday(message.guild.id, target.id);
+        parts.push(`cumpleaños: ${birthday ? `${birthday.day} de ${BIRTHDAY_MONTH_NAMES[birthday.month - 1]}` : 'no cargado'}`);
+      } catch (err) {
+        console.error('No se pudo traer el cumpleaños para la IA:', err.message);
+      }
+    }
+    if (wantsAfk) {
+      try {
+        const afk = await db.getAfk(message.guild.id, target.id);
+        parts.push(`afk: ${afk ? `sí, motivo: ${afk.reason}` : 'no'}`);
+      } catch (err) {
+        console.error('No se pudo traer el estado AFK para la IA:', err.message);
+      }
+    }
+    if (wantsPareja) {
+      try {
+        const marriage = await db.getMarriage(message.guild.id, target.id);
+        if (marriage) {
+          const partnerId = marriage.user1Id === target.id ? marriage.user2Id : marriage.user1Id;
+          const partnerMember = message.guild.members.cache.get(partnerId);
+          parts.push(`pareja: ${partnerMember?.displayName || `<@${partnerId}>`}`);
+        } else {
+          parts.push('pareja: no está casado/a');
+        }
+      } catch (err) {
+        console.error('No se pudo traer la pareja para la IA:', err.message);
+      }
+    }
+    if (wantsPet) {
+      try {
+        const pet = await db.getPet(message.guild.id, target.id);
+        parts.push(`mascota: ${pet ? `${pet.name} (${pet.species}, nivel ${db.petLevelInfoFromXp(pet.xp).level})` : 'no tiene'}`);
+      } catch (err) {
+        console.error('No se pudo traer la mascota para la IA:', err.message);
+      }
     }
     if (parts.length) lines.push(`- ${target.name}: ${parts.join(' | ')}`);
   }
@@ -603,6 +650,114 @@ async function buildHousesInfoReply(message, config) {
   if (!config?.houses?.enabled) return 'Este server no tiene el sistema de Houses activado.';
   const stats = await db.getHouseApplicationStats(message.guild.id);
   return `Este server tiene un programa de Houses por solicitud (no son roles separados, es un formulario que revisa el staff): "${config.houses.requestTitle || 'Solicitud de House'}".\nSolicitudes: ${stats.pending} pendientes, ${stats.accepted} aceptadas, ${stats.rejected} rechazadas.`;
+}
+
+const LEVEL_RANK_WORDS = '(ranking|top|mejores)';
+const LEVEL_TOPIC_WORDS = '(nivel(es)?|xp|experiencia)';
+const LEVELS_LEADERBOARD_TRIGGER = new RegExp(
+  `\\b${LEVEL_RANK_WORDS}\\b.*\\b${LEVEL_TOPIC_WORDS}\\b|\\b${LEVEL_TOPIC_WORDS}\\b.*\\b${LEVEL_RANK_WORDS}\\b`,
+  'i',
+);
+
+async function buildLevelsLeaderboardReply(message) {
+  const entries = await db.getLeaderboard(message.guild.id, 10);
+  if (!entries.length) return 'Todavía nadie tiene experiencia registrada.';
+  const lines = entries.map((entry, i) => {
+    const info = db.levelInfoFromXp(entry.xp);
+    const name = message.guild.members.cache.get(entry.userId)?.displayName || `Usuario ${entry.userId}`;
+    return `${i + 1}. ${name} — nivel ${info.level} (${entry.xp} XP)`;
+  });
+  return `**Ranking de niveles**\n${lines.join('\n')}`;
+}
+
+const ECONOMY_RANK_WORDS = '(ranking|top|mas)';
+const ECONOMY_TOPIC_WORDS = '(plata|dinero|ric[oa]|economia|econom[ií]a|monedas?)';
+const ECONOMY_LEADERBOARD_TRIGGER = new RegExp(
+  `\\b${ECONOMY_RANK_WORDS}\\b.*\\b${ECONOMY_TOPIC_WORDS}\\b|\\b${ECONOMY_TOPIC_WORDS}\\b.*\\b${ECONOMY_RANK_WORDS}\\b`,
+  'i',
+);
+
+async function buildEconomyLeaderboardReply(message, config) {
+  const entries = await db.getEconomyLeaderboard(message.guild.id, 10);
+  if (!entries.length) return 'Todavía nadie tiene balance registrado.';
+  const currencySymbol = config?.economy?.currencySymbol || '';
+  const currencyName = config?.economy?.currencyName || 'monedas';
+  const lines = entries.map((entry, i) => {
+    const name = message.guild.members.cache.get(entry.userId)?.displayName || `Usuario ${entry.userId}`;
+    return `${i + 1}. ${name} — ${entry.balance} ${currencySymbol}${currencyName}`;
+  });
+  return `**Ranking de economía**\n${lines.join('\n')}`;
+}
+
+const GIVEAWAYS_WORDS = '(activ[oa]s?|hay|cuant[oa]s?|cual|que)';
+const GIVEAWAYS_TRIGGER = new RegExp(`\\bsorteos?\\b.*\\b${GIVEAWAYS_WORDS}\\b|\\b${GIVEAWAYS_WORDS}\\b.*\\bsorteos?\\b`, 'i');
+
+async function buildGiveawaysReply(message) {
+  const giveaways = await db.listActiveGiveaways(message.guild.id);
+  if (!giveaways.length) return 'No hay ningún sorteo activo ahora mismo.';
+  return giveaways
+    .map((g) => {
+      const endsAt = Math.floor(new Date(g.endsAt).getTime() / 1000);
+      return `🎉 **${g.prize}** — ${g.winnerCount} ganador(es), ${g.entries?.length || 0} participante(s), termina <t:${endsAt}:R>`;
+    })
+    .join('\n');
+}
+
+const POLLS_WORDS = '(activ[oa]s?|hay|cuant[oa]s?|cual|que)';
+const POLLS_TRIGGER = new RegExp(`\\bencuestas?\\b.*\\b${POLLS_WORDS}\\b|\\b${POLLS_WORDS}\\b.*\\bencuestas?\\b`, 'i');
+
+async function buildPollsReply(message) {
+  const polls = await db.listRecentPolls(message.guild.id, 5);
+  if (!polls.length) return 'Todavía no se creó ninguna encuesta en este server.';
+  const lines = polls.map((p) => {
+    const totalVotes = Object.keys(p.votes || {}).length;
+    return `📊 **${p.question}** — ${p.options.length} opciones, ${totalVotes} voto(s) hasta ahora`;
+  });
+  // las encuestas de este bot no tienen fecha de cierre ni estado (quedan
+  // publicadas para siempre) — se lo aclaramos a la IA para que no invente
+  // que "terminaron" o "siguen activas" como si tuvieran plazo
+  return `Encuestas más recientes de este server (no tienen fecha de cierre, quedan abiertas para votar indefinidamente):\n${lines.join('\n')}`;
+}
+
+const COMMANDS_LIST_WORDS = '(que|cuales|cu[aá]les|cual|lista(do)?|todos)';
+const COMMANDS_LIST_TRIGGER = new RegExp(`\\bcomandos?\\b.*\\b${COMMANDS_LIST_WORDS}\\b|\\b${COMMANDS_LIST_WORDS}\\b.*\\bcomandos?\\b`, 'i');
+
+function buildCommandsListReply(config) {
+  const staticNames = commandRegistry.STATIC_DEFINITIONS.map((d) => `/${d.name}`);
+  const customNames = (config?.customCommands || []).map((c) => `/${c.name}`);
+  const all = [...new Set([...staticNames, ...customNames])].sort();
+  return `Comandos disponibles en este server (${all.length}): ${all.join(', ')}`;
+}
+
+const SERVER_STATS_TRIGGER = /\b(estadisticas?|stats)\b|\bmensajes\s+totales\b|\bcanal\s+mas\s+activo\b/i;
+
+async function buildServerStatsReply(message) {
+  const stats = await db.getStats(message.guild.id);
+  const channelCounts = stats.channelMessageCounts || {};
+  const topEntry = Object.entries(channelCounts).sort((a, b) => b[1] - a[1])[0];
+  const topChannelText = topEntry
+    ? `#${message.guild.channels.cache.get(topEntry[0])?.name || topEntry[0]} (${topEntry[1]} mensajes)`
+    : '(sin datos todavía)';
+  return `Miembros: ${message.guild.memberCount}\nMensajes totales registrados: ${stats.totalMessages}\nCanal más activo: ${topChannelText}`;
+}
+
+const SUGGESTIONS_WORDS = '(pendientes?|cuant[oa]s?|hay)';
+const SUGGESTIONS_TRIGGER = new RegExp(`\\bsugerencias?\\b.*\\b${SUGGESTIONS_WORDS}\\b|\\b${SUGGESTIONS_WORDS}\\b.*\\bsugerencias?\\b`, 'i');
+
+async function buildSuggestionsReply(message) {
+  const pending = await db.getPendingSuggestionsCount(message.guild.id);
+  return `Sugerencias pendientes de revisión: ${pending}.`;
+}
+
+const STARBOARD_TOP_TRIGGER = /\bmensaje\s+m[aá]s\s+destacado\b|\bdestacados?\b|\bstarboard\b/i;
+
+async function buildStarboardTopReply(message, config) {
+  const top = await db.getTopStarredPost(message.guild.id);
+  if (!top) return 'Todavía no hay ningún mensaje destacado en el starboard.';
+  const emoji = config?.starboard?.emoji || '⭐';
+  const jumpLink = `https://discord.com/channels/${message.guild.id}/${top.originalChannelId}/${top.originalMessageId}`;
+  const author = message.guild.members.cache.get(top.authorId)?.displayName || `<@${top.authorId}>`;
+  return `El mensaje más destacado tiene ${emoji} **${top.starCount}** y es de ${author}: ${jumpLink}`;
 }
 
 async function buildChannelSummaryTranscript(message) {
@@ -1140,6 +1295,80 @@ client.on('messageCreate', async (message) => {
               const payload = housesReply
                 ? buildAiReplyPayload(config, housesReply)
                 : '⚠️ No pude traer la info de houses ahora, probá de nuevo en un rato.';
+              if (thinking) await thinking.stop(payload);
+              else await message.reply(payload);
+            } else if (LEVELS_LEADERBOARD_TRIGGER.test(cleanedContent)) {
+              const levelsReply = await buildLevelsLeaderboardReply(message).catch((err) => {
+                console.error('No se pudo armar el ranking de niveles:', err.message);
+                return null;
+              });
+              const payload = levelsReply
+                ? buildAiReplyPayload(config, levelsReply)
+                : '⚠️ No pude traer el ranking ahora, probá de nuevo en un rato.';
+              if (thinking) await thinking.stop(payload);
+              else await message.reply(payload);
+            } else if (ECONOMY_LEADERBOARD_TRIGGER.test(cleanedContent)) {
+              const economyReply = await buildEconomyLeaderboardReply(message, config).catch((err) => {
+                console.error('No se pudo armar el ranking de economía:', err.message);
+                return null;
+              });
+              const payload = economyReply
+                ? buildAiReplyPayload(config, economyReply)
+                : '⚠️ No pude traer el ranking ahora, probá de nuevo en un rato.';
+              if (thinking) await thinking.stop(payload);
+              else await message.reply(payload);
+            } else if (GIVEAWAYS_TRIGGER.test(cleanedContent)) {
+              const giveawaysReply = await buildGiveawaysReply(message).catch((err) => {
+                console.error('No se pudo armar la info de sorteos:', err.message);
+                return null;
+              });
+              const payload = giveawaysReply
+                ? buildAiReplyPayload(config, giveawaysReply)
+                : '⚠️ No pude traer la info de sorteos ahora, probá de nuevo en un rato.';
+              if (thinking) await thinking.stop(payload);
+              else await message.reply(payload);
+            } else if (POLLS_TRIGGER.test(cleanedContent)) {
+              const pollsReply = await buildPollsReply(message).catch((err) => {
+                console.error('No se pudo armar la info de encuestas:', err.message);
+                return null;
+              });
+              const payload = pollsReply
+                ? buildAiReplyPayload(config, pollsReply)
+                : '⚠️ No pude traer la info de encuestas ahora, probá de nuevo en un rato.';
+              if (thinking) await thinking.stop(payload);
+              else await message.reply(payload);
+            } else if (COMMANDS_LIST_TRIGGER.test(cleanedContent)) {
+              const payload = buildAiReplyPayload(config, buildCommandsListReply(config));
+              if (thinking) await thinking.stop(payload);
+              else await message.reply(payload);
+            } else if (SERVER_STATS_TRIGGER.test(cleanedContent)) {
+              const statsReply = await buildServerStatsReply(message).catch((err) => {
+                console.error('No se pudo armar las estadísticas del server:', err.message);
+                return null;
+              });
+              const payload = statsReply
+                ? buildAiReplyPayload(config, statsReply)
+                : '⚠️ No pude traer las estadísticas ahora, probá de nuevo en un rato.';
+              if (thinking) await thinking.stop(payload);
+              else await message.reply(payload);
+            } else if (SUGGESTIONS_TRIGGER.test(cleanedContent)) {
+              const suggestionsReply = await buildSuggestionsReply(message).catch((err) => {
+                console.error('No se pudo armar la info de sugerencias:', err.message);
+                return null;
+              });
+              const payload = suggestionsReply
+                ? buildAiReplyPayload(config, suggestionsReply)
+                : '⚠️ No pude traer la info de sugerencias ahora, probá de nuevo en un rato.';
+              if (thinking) await thinking.stop(payload);
+              else await message.reply(payload);
+            } else if (STARBOARD_TOP_TRIGGER.test(cleanedContent)) {
+              const starboardReply = await buildStarboardTopReply(message, config).catch((err) => {
+                console.error('No se pudo armar la info de starboard:', err.message);
+                return null;
+              });
+              const payload = starboardReply
+                ? buildAiReplyPayload(config, starboardReply)
+                : '⚠️ No pude traer la info de starboard ahora, probá de nuevo en un rato.';
               if (thinking) await thinking.stop(payload);
               else await message.reply(payload);
             } else if (/\btraduc/i.test(cleanedContent)) {
