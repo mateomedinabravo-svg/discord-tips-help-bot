@@ -120,7 +120,7 @@ function buildKnowledgeBlock(config, { botName, userName, roleNames, channelName
   return `${whoIsWho}
 ${serverFacts ? `\n${serverFacts}` : ''}
 ${channelNames ? `\nCanales del server: ${channelNames}` : ''}
-${roleNames ? `\nRoles del server: ${roleNames}` : ''}
+${roleNames ? `\nRoles del server: ${roleNames}\n(Esta lista es SOLO para decir qué roles existen si te preguntan eso puntualmente. Un nombre de rol no es una persona: nunca la uses para responder quién es "el mejor", "el que más se destaca", "el más top" ni nada parecido — eso es una opinión que no tenés forma de dar con datos reales. Si te preguntan algo así, decí simplemente que no tenés forma de opinar sobre eso, sin mencionar roles ni inventar nombres.)` : ''}
 ${staffDirectory ? `\nQuién es quién en este server (usalo tal cual si te preguntan quién es el owner/staff/helper/etc; nunca inventes otro nombre ni otro rol):\n${staffDirectory}` : ''}
 
 Temas de ayuda conocidos del server:
