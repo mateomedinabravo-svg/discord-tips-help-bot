@@ -28,6 +28,10 @@ function defaultConfig(guildId) {
       message: '👋 ¡Bienvenido/a {user} al server! Ya somos {membercount} en {server}.',
       roleId: null,
       useEmbed: false,
+      // si esta activo (y la IA esta configurada), en vez del mensaje fijo de
+      // arriba, la IA redacta una bienvenida distinta para cada persona. Si
+      // la IA falla o no esta configurada, usa el mensaje fijo como respaldo
+      aiPersonalized: false,
     },
     goodbye: {
       enabled: false,
@@ -179,6 +183,15 @@ function defaultConfig(guildId) {
       // CREATOR_USER_ID). Vacio = nadie puede usar esto por chat todavia
       // (se sigue pudiendo moderar con los comandos normales)
       staffUserIds: [],
+      // resumen automatico (diario o semanal) publicado en un canal, armado
+      // con datos reales del server y redactado por la IA. lastSentAt lo
+      // actualiza el bot solo, no se toca desde el dashboard
+      digest: {
+        enabled: false,
+        channelId: null,
+        frequency: 'daily', // 'daily' o 'weekly'
+        lastSentAt: null,
+      },
     },
     serverGuide: {
       enabled: false,
@@ -498,6 +511,11 @@ async function listTickets(guildId, status) {
   const database = await connect();
   const query = status ? { guildId, status } : { guildId };
   return database.collection('tickets').find(query).sort({ createdAt: -1 }).limit(100).toArray();
+}
+
+async function countUserTickets(guildId, userId) {
+  const database = await connect();
+  return database.collection('tickets').countDocuments({ guildId, userId });
 }
 
 // --- Niveles / XP ---
@@ -1150,6 +1168,7 @@ module.exports = {
   rateTicket,
   getTicketByChannelId,
   listTickets,
+  countUserTickets,
   defaultConfig,
   levelInfoFromXp,
   addXp,

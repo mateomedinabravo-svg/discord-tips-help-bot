@@ -741,6 +741,9 @@ function welcomePage({ user, config, channels, roles, guildName, flash }) {
     <textarea name="message">${escapeHtml(config.welcome.message)}</textarea>
     <div class="checkbox-row"><input type="checkbox" name="useEmbed" id="w-embed" ${config.welcome.useEmbed ? 'checked' : ''}>
       <label for="w-embed" style="margin:0;">Mandar como embed (con foto de perfil del usuario)</label></div>
+    <div class="checkbox-row"><input type="checkbox" name="aiPersonalized" id="w-ai" ${config.welcome.aiPersonalized ? 'checked' : ''}>
+      <label for="w-ai" style="margin:0;">Usar la IA para redactar una bienvenida distinta cada vez</label></div>
+    <p class="muted" style="margin-top:-8px;">Necesita la IA activada y configurada (página de IA). Si falla o no está configurada, se usa el mensaje fijo de arriba como respaldo.</p>
     <label>Rol automático al unirse (opcional)</label>
     <select name="roleId"><option value="">-- ninguno --</option>${roleOptions(config.welcome.roleId)}</select>
     <button type="submit">Guardar bienvenida</button>
@@ -1509,6 +1512,9 @@ function aiPage({ user, config, channels, roles, aiConfigured, usageStats, guild
   const channelOptions = channels
     .map((c) => `<option value="${c.id}" ${selectedChannelIds.includes(c.id) ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`)
     .join('');
+  const digestChannelOptions = channels
+    .map((c) => `<option value="${c.id}" ${c.id === config.ai.digest?.channelId ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`)
+    .join('');
 
   const toneOptions = [
     ['amigable', 'Amigable'],
@@ -1612,6 +1618,21 @@ function aiPage({ user, config, channels, roles, aiConfigured, usageStats, guild
     <label>Rol de Discord</label>
     <select name="roleId" required><option value="">-- elegir --</option>${roles.map((r) => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('')}</select>
     <button type="submit">Agregar</button>
+  </form>
+
+  <form class="card" method="post" action="/dashboard/ia/resumen">
+    <h2>Resumen automático</h2>
+    <p class="muted">Publica solo, sin que nadie lo pida, un resumen con datos reales del server (mensajes, tickets, sorteos, sugerencias) redactado por la IA. Necesita la IA activada y configurada.</p>
+    <div class="checkbox-row"><input type="checkbox" name="enabled" id="digest-enabled" ${config.ai.digest?.enabled ? 'checked' : ''}>
+      <label for="digest-enabled" style="margin:0;">Activado</label></div>
+    <label>Canal donde se publica</label>
+    <select name="channelId"><option value="">-- elegir --</option>${digestChannelOptions}</select>
+    <label>Frecuencia</label>
+    <select name="frequency">
+      <option value="daily" ${config.ai.digest?.frequency !== 'weekly' ? 'selected' : ''}>Diario</option>
+      <option value="weekly" ${config.ai.digest?.frequency === 'weekly' ? 'selected' : ''}>Semanal</option>
+    </select>
+    <button type="submit">Guardar</button>
   </form>`;
   return layout({ title: 'IA', user, body, flash, guildName });
 }

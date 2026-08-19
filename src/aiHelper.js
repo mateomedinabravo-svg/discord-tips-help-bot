@@ -326,6 +326,63 @@ Reglas:
   }
 }
 
+// bienvenida personalizada para un miembro nuevo. Los datos del miembro
+// (nombre, cuantos son ya) son reales, se los pasa index.js — la IA solo los
+// redacta de forma distinta cada vez, nunca inventa un dato del server
+async function buildWelcomeMessage(client, config, context = {}) {
+  const apiKey = resolveApiKey(config);
+  if (!apiKey) return null;
+
+  const { serverName, botName, memberName, memberCount, tone, customPersonality } = context;
+  const systemPrompt = `Sos "${botName || 'el bot'}", asistente de Discord del server "${serverName || 'este server'}". Un miembro nuevo se acaba de unir y te toca darle la bienvenida en el canal correspondiente. Respondés en español neutro. ${personalityInstruction(tone, customPersonality)}
+
+Datos reales para esta bienvenida (usalos tal cual, nunca inventes otro dato):
+Nombre del nuevo miembro: ${memberName}
+Cantidad de miembros del server ahora (incluyéndolo a él/ella): ${memberCount}
+
+Reglas:
+- Escribí 1-2 oraciones de bienvenida, cálidas y distintas cada vez (no repitas siempre la misma fórmula).
+- Mencioná al nuevo miembro escribiendo exactamente esto (sin comillas): ${memberName}
+- No inventes reglas del server, canales ni nada que no te haya dado.`;
+
+  try {
+    return await askAI(apiKey, systemPrompt, 'Escribí la bienvenida.', { maxTokens: 150, temperature: 0.9 });
+  } catch (err) {
+    console.error('No se pudo generar la bienvenida personalizada:', err.message);
+    await errorReporter.reportError(client, config, 'aiHelper.buildWelcomeMessage', err);
+    return null;
+  }
+}
+
+// resumen periodico (diario/semanal) para publicar solo, armado a partir de
+// datos reales del server que ya junto index.js (mensajes, tickets, sorteos,
+// sugerencias) — la IA solo lo redacta como una nota de novedades
+async function buildDailyDigest(client, config, realDataSummary, context = {}) {
+  const apiKey = resolveApiKey(config);
+  if (!apiKey) return null;
+  if (!realDataSummary) return null;
+
+  const { serverName, botName, tone, customPersonality, frequency } = context;
+  const periodo = frequency === 'weekly' ? 'semanal' : 'diario';
+  const systemPrompt = `Sos "${botName || 'el bot'}", asistente de "${serverName || 'este server'}". Te piden armar el resumen ${periodo} de novedades para publicar en un canal, sin que nadie lo haya pedido puntualmente. Respondés en español neutro. ${personalityInstruction(tone, customPersonality)}
+
+Datos reales del server ahora mismo (usalos tal cual; NUNCA inventes otro numero ni otro dato):
+${realDataSummary}
+
+Reglas:
+- Escribí un resumen ameno de 4-6 líneas, como un parte de novedades del server.
+- No inventes datos, tendencias ni comparaciones con periodos anteriores que no esten en la lista de arriba.
+- Si algún dato está en cero o vacío, mencionalo con naturalidad (no lo omitas ni lo disimules).`;
+
+  try {
+    return await askAI(apiKey, systemPrompt, 'Armá el resumen.', { maxTokens: 400 });
+  } catch (err) {
+    console.error('No se pudo generar el resumen automático:', err.message);
+    await errorReporter.reportError(client, config, 'aiHelper.buildDailyDigest', err);
+    return null;
+  }
+}
+
 module.exports = {
   isConfigured,
   answerHelpQuestion,
@@ -335,4 +392,6 @@ module.exports = {
   translateText,
   suggestTicketReply,
   assessAutomodFlag,
+  buildWelcomeMessage,
+  buildDailyDigest,
 };

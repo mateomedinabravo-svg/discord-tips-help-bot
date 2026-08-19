@@ -336,6 +336,7 @@ function createApp({ client }) {
         message: req.body.message || config.welcome.message,
         useEmbed: req.body.useEmbed === 'on',
         roleId: req.body.roleId || null,
+        aiPersonalized: req.body.aiPersonalized === 'on',
       },
     });
     res.redirect('/dashboard/bienvenida?saved=1');
@@ -1517,6 +1518,24 @@ function createApp({ client }) {
     const config = await db.getGuildConfig(req.session.activeGuildId);
     const staffRoleTags = (config.ai.staffRoleTags || []).filter((tag) => tag.roleId !== req.body.roleId);
     await db.updateGuildConfig(req.session.activeGuildId, { ai: { ...config.ai, staffRoleTags } });
+    res.redirect('/dashboard/ia?saved=1');
+  });
+
+  app.post('/dashboard/ia/resumen', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    await db.updateGuildConfig(req.session.activeGuildId, {
+      ai: {
+        ...config.ai,
+        digest: {
+          // lastSentAt se mantiene: cambiar el canal/frecuencia no deberia
+          // disparar un resumen antes de tiempo
+          ...config.ai.digest,
+          enabled: req.body.enabled === 'on',
+          channelId: req.body.channelId || null,
+          frequency: req.body.frequency === 'weekly' ? 'weekly' : 'daily',
+        },
+      },
+    });
     res.redirect('/dashboard/ia?saved=1');
   });
 

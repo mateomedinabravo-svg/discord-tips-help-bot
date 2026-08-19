@@ -61,6 +61,7 @@ const GIVEAWAY_CHECK_MS = 30 * 1000;
 const SCHEDULED_ANNOUNCEMENT_CHECK_MS = 60 * 1000;
 const MEMBER_COUNTER_INTERVAL_MS = 10 * 60 * 1000;
 const BIRTHDAY_CHECK_MS = 60 * 60 * 1000;
+const AI_DIGEST_CHECK_MS = 60 * 60 * 1000;
 const WHITELIST = (process.env.TIPS_CHANNEL_WHITELIST || '')
   .split(',')
   .map((id) => id.trim())
@@ -271,10 +272,19 @@ function prepareAiText(message) {
 // bot ya tiene en cache (los que estuvieron activos desde que arranco el
 // proceso) — sin este fetch, cualquier lista/conteo/ranking por TODOS los
 // miembros del server queda incompleta (o le faltan nombres reales) y en la
-// practica terminaba mostrando casi siempre solo a quien le hablaba al bot
+// practica terminaba mostrando casi siempre solo a quien le hablaba al bot.
+// El fetch completo es una llamada pesada a la API de Discord, asi que se
+// cachea por server: si ya se hizo hace poco, no se repite (evita pegarle a
+// la API en cada pregunta de ranking/staff en servers activos)
+const MEMBER_FETCH_CACHE_MS = 5 * 60 * 1000;
+const lastMemberFetchByGuild = new Map();
+
 async function ensureFullMemberCache(guild) {
+  const last = lastMemberFetchByGuild.get(guild.id) || 0;
+  if (Date.now() - last < MEMBER_FETCH_CACHE_MS) return;
   try {
     await guild.members.fetch();
+    lastMemberFetchByGuild.set(guild.id, Date.now());
   } catch (err) {
     console.error('No se pudo traer la lista completa de miembros del server:', err.message);
   }
@@ -479,7 +489,8 @@ async function buildRealDataForQuery(message) {
   const wantsAfk = /\bafk\b/i.test(message.content);
   const wantsPareja = /\bpareja\b|\bcasad[oa]\b|\besposx?\b|\besposa\b|\besposo\b/i.test(message.content);
   const wantsPet = /\bmascota\b/i.test(message.content);
-  if (!wantsStats && !wantsRoles && !wantsBirthday && !wantsAfk && !wantsPareja && !wantsPet) return '';
+  const wantsTicketCount = /\btickets?\b/i.test(message.content);
+  if (!wantsStats && !wantsRoles && !wantsBirthday && !wantsAfk && !wantsPareja && !wantsPet && !wantsTicketCount) return '';
 
   const targets = [{ id: message.author.id, name: message.member?.displayName || message.author.username, member: message.member }];
   for (const [id, user] of message.mentions.users) {
@@ -545,6 +556,14 @@ async function buildRealDataForQuery(message) {
         parts.push(`mascota: ${pet ? `${pet.name} (${pet.species}, nivel ${db.petLevelInfoFromXp(pet.xp).level})` : 'no tiene'}`);
       } catch (err) {
         console.error('No se pudo traer la mascota para la IA:', err.message);
+      }
+    }
+    if (wantsTicketCount) {
+      try {
+        const count = await db.countUserTickets(message.guild.id, target.id);
+        parts.push(`tickets abiertos históricamente: ${count}`);
+      } catch (err) {
+        console.error('No se pudo traer el conteo de tickets para la IA:', err.message);
       }
     }
     if (parts.length) lines.push(`- ${target.name}: ${parts.join(' | ')}`);
@@ -772,6 +791,110 @@ async function buildStarboardTopReply(message, config) {
   const jumpLink = `https://discord.com/channels/${message.guild.id}/${top.originalChannelId}/${top.originalMessageId}`;
   const author = message.guild.members.cache.get(top.authorId)?.displayName || `<@${top.authorId}>`;
   return `El mensaje más destacado tiene ${emoji} **${top.starCount}** y es de ${author}: ${jumpLink}`;
+}
+
+// quien esta conectado AHORA a un canal de voz puntual — esto no depende del
+// cache general de miembros (VoiceState de discord.js siempre esta al dia),
+// asi que no necesita ensureFullMemberCache
+const VOICE_WORDS = '(quien(es)?|cuant[oa]s?|hay)';
+const VOICE_MEMBERS_TRIGGER = new RegExp(`\\bvoz\\b.*\\b${VOICE_WORDS}\\b|\\b${VOICE_WORDS}\\b.*\\bvoz\\b`, 'i');
+
+function findMentionedVoiceChannelByName(guild, content) {
+  const normalizedContent = normalizeForMatch(content);
+  const channels = [...guild.channels.cache.filter((c) => c.type === ChannelType.GuildVoice).values()];
+  return channels.filter((c) => c.name && normalizedContent.includes(normalizeForMatch(c.name))).sort((a, b) => b.name.length - a.name.length)[0] || null;
+}
+
+function buildVoiceChannelReply(channel) {
+  const memberNames = [...channel.members.values()].map((m) => m.displayName);
+  return memberNames.length
+    ? `**${channel.name}** — ${memberNames.length} conectado(s): ${memberNames.join(', ')}`
+    : `**${channel.name}** está vacío ahora mismo.`;
+}
+
+// quienes se unieron al server recientemente — necesita el cache completo
+// de miembros (mismo motivo que el resto de las consultas por "todos")
+const RECENT_JOINS_TRIGGER = /\bse\s+unier?on\b|\bmiembros?\s+nuevos?\b|\bnuevos?\s+miembros?\b/i;
+
+async function buildRecentJoinsReply(guild) {
+  await ensureFullMemberCache(guild);
+  const sevenDaysAgoMs = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const recent = [...guild.members.cache.values()]
+    .filter((m) => m.joinedAt && m.joinedAt.getTime() >= sevenDaysAgoMs && !m.user.bot)
+    .sort((a, b) => b.joinedAt.getTime() - a.joinedAt.getTime())
+    .slice(0, 30);
+  if (!recent.length) return 'Nadie se unió al server en los últimos 7 días.';
+  const lines = recent.map((m) => `${m.displayName} (<t:${Math.floor(m.joinedAt.getTime() / 1000)}:R>)`);
+  return `Miembros nuevos en los últimos 7 días (${recent.length}): ${lines.join(', ')}`;
+}
+
+// arma el "insumo" real del resumen automatico reusando las mismas
+// funciones deterministicas ya probadas (stats/tickets/sorteos/sugerencias)
+// — un objeto "message" sintetico les alcanza porque solo usan message.guild
+// (y message.channel.id, que solo importa para saber si SE ESTA preguntando
+// desde dentro de un ticket puntual, algo que no aplica aca)
+async function buildDigestRealData(guild, config) {
+  const fauxMessage = { guild, channel: { id: 'digest' } };
+  const [stats, tickets, giveaways, suggestions] = await Promise.all([
+    buildServerStatsReply(fauxMessage).catch(() => ''),
+    buildTicketsInfoReply(fauxMessage, config).catch(() => ''),
+    buildGiveawaysReply(fauxMessage).catch(() => ''),
+    buildSuggestionsReply(fauxMessage).catch(() => ''),
+  ]);
+  return [stats, tickets, giveaways, suggestions].filter(Boolean).join('\n\n');
+}
+
+async function sendAiDigest(guildId, config) {
+  const digest = config?.ai?.digest;
+  const guild = client.guilds.cache.get(guildId);
+  if (!guild || !digest?.channelId) return;
+
+  const channel = await guild.channels.fetch(digest.channelId).catch(() => null);
+  if (!channel || !channel.isTextBased()) return;
+
+  const realData = await buildDigestRealData(guild, config);
+
+  let content = realData;
+  if (aiHelper.isConfigured(config)) {
+    const narrated = await aiHelper.buildDailyDigest(client, config, realData, {
+      serverName: guild.name,
+      botName: config?.branding?.nickname || guild.members.me?.displayName || client.user.username,
+      tone: config?.ai?.tone,
+      customPersonality: config?.ai?.customPersonality,
+      frequency: digest.frequency,
+    });
+    trackAiUsage(guildId, Boolean(narrated));
+    if (narrated) content = narrated;
+  }
+
+  const embed = buildEmbed({
+    type: 'brand',
+    title: `📋 Resumen ${digest.frequency === 'weekly' ? 'semanal' : 'diario'}`,
+    description: content,
+    config,
+  });
+  await channel.send({ embeds: [embed] });
+
+  await db.updateGuildConfig(guildId, { ai: { ...config.ai, digest: { ...digest, lastSentAt: new Date().toISOString() } } });
+}
+
+// revisa, server por server, si ya paso el intervalo configurado (diario o
+// semanal) desde el ultimo resumen mandado — no depende de una hora fija,
+// solo de cuanto paso desde la ultima vez
+async function checkAiDigests() {
+  for (const [guildId, config] of configByGuild) {
+    const digest = config?.ai?.digest;
+    if (!digest?.enabled || !digest.channelId) continue;
+
+    const intervalMs = digest.frequency === 'weekly' ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+    const last = digest.lastSentAt ? new Date(digest.lastSentAt).getTime() : 0;
+    if (Date.now() - last < intervalMs) continue;
+
+    await sendAiDigest(guildId, config).catch((err) => {
+      console.error('No se pudo mandar el resumen automático:', err.message);
+      errorReporter.reportError(client, config, 'checkAiDigests', err);
+    });
+  }
 }
 
 async function buildChannelSummaryTranscript(message) {
@@ -1111,6 +1234,12 @@ client.once('ready', async () => {
     });
   }, BIRTHDAY_CHECK_MS);
   birthdayCommand.checkBirthdaysToday(client, configByGuild).catch((err) => console.error('Error revisando cumpleaños al iniciar:', err));
+  setInterval(() => {
+    checkAiDigests().catch((err) => {
+      console.error('Error revisando resúmenes automáticos:', err);
+      errorReporter.reportError(client, null, 'checkAiDigests', err);
+    });
+  }, AI_DIGEST_CHECK_MS);
 
   const webApp = createApp({ client });
   webApp.listen(process.env.PORT || 3000, () => {
@@ -1287,7 +1416,13 @@ client.on('messageCreate', async (message) => {
                 : '⚠️ No pude contar los miembros de ese rol ahora, probá de nuevo en un rato.';
               if (thinking) await thinking.stop(payload);
               else await message.reply(payload);
-            } else if (TICKETS_INFO_TRIGGER.test(cleanedContent)) {
+            } else if (
+              TICKETS_INFO_TRIGGER.test(cleanedContent) &&
+              !message.mentions.members?.find((m) => m.id !== client.user.id)
+            ) {
+              // si ademas mencionan a alguien ("cuantos tickets abrio @fulano"),
+              // no es una pregunta general del server sino sobre esa persona
+              // puntual — se deja pasar para que lo resuelva buildRealDataForQuery
               const ticketsReply = await buildTicketsInfoReply(message, config).catch((err) => {
                 console.error('No se pudo armar la info de tickets:', err.message);
                 return null;
@@ -1383,6 +1518,21 @@ client.on('messageCreate', async (message) => {
               const payload = starboardReply
                 ? buildAiReplyPayload(config, starboardReply)
                 : '⚠️ No pude traer la info de starboard ahora, probá de nuevo en un rato.';
+              if (thinking) await thinking.stop(payload);
+              else await message.reply(payload);
+            } else if (VOICE_MEMBERS_TRIGGER.test(cleanedContent) && findMentionedVoiceChannelByName(message.guild, cleanedContent)) {
+              const voiceChannel = findMentionedVoiceChannelByName(message.guild, cleanedContent);
+              const payload = buildAiReplyPayload(config, buildVoiceChannelReply(voiceChannel));
+              if (thinking) await thinking.stop(payload);
+              else await message.reply(payload);
+            } else if (RECENT_JOINS_TRIGGER.test(cleanedContent)) {
+              const joinsReply = await buildRecentJoinsReply(message.guild).catch((err) => {
+                console.error('No se pudo armar la lista de miembros nuevos:', err.message);
+                return null;
+              });
+              const payload = joinsReply
+                ? buildAiReplyPayload(config, joinsReply)
+                : '⚠️ No pude traer la lista de miembros nuevos ahora, probá de nuevo en un rato.';
               if (thinking) await thinking.stop(payload);
               else await message.reply(payload);
             } else if (/\btraduc/i.test(cleanedContent)) {
@@ -1521,7 +1671,21 @@ client.on('guildMemberAdd', async (member) => {
 
     const channel = await client.channels.fetch(welcome.channelId);
     if (channel && channel.isTextBased()) {
-      const text = formatTemplate(welcome.message, member);
+      let text = formatTemplate(welcome.message, member);
+      if (welcome.aiPersonalized && aiHelper.isConfigured(config)) {
+        const aiText = await aiHelper.buildWelcomeMessage(client, config, {
+          serverName: member.guild.name,
+          botName: config?.branding?.nickname || member.guild.members.me?.displayName || client.user.username,
+          memberName: `<@${member.id}>`,
+          memberCount: member.guild.memberCount,
+          tone: config?.ai?.tone,
+          customPersonality: config?.ai?.customPersonality,
+        });
+        trackAiUsage(member.guild.id, Boolean(aiText));
+        // si la IA falla, se sigue con el mensaje fijo de arriba en vez de
+        // dejar al nuevo miembro sin ningun saludo
+        if (aiText) text = aiText;
+      }
       if (welcome.useEmbed) {
         const embed = buildEmbed({ type: 'success', title: '👋 ¡Nuevo miembro!', description: text, thumbnail: member.user.displayAvatarURL(), config });
         await channel.send({ embeds: [embed] });
