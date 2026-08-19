@@ -329,6 +329,7 @@ function createApp({ client }) {
 
   app.post('/dashboard/bienvenida/welcome', requireAuth, requireActiveGuild, async (req, res) => {
     const config = await db.getGuildConfig(req.session.activeGuildId);
+    const imageUrl = (req.body.imageUrl || '').trim();
     await db.updateGuildConfig(req.session.activeGuildId, {
       welcome: {
         enabled: req.body.enabled === 'on',
@@ -337,6 +338,10 @@ function createApp({ client }) {
         useEmbed: req.body.useEmbed === 'on',
         roleId: req.body.roleId || null,
         aiPersonalized: req.body.aiPersonalized === 'on',
+        embedTitle: req.body.embedTitle || config.welcome.embedTitle,
+        // solo se guarda si es una URL http(s) valida, para no dejar
+        // guardado un valor que despues rompa el embed al mandarlo
+        imageUrl: /^https?:\/\//i.test(imageUrl) ? imageUrl : null,
       },
     });
     res.redirect('/dashboard/bienvenida?saved=1');

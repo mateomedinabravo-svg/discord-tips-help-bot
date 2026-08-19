@@ -1749,7 +1749,14 @@ client.on('guildMemberAdd', async (member) => {
         if (aiText) text = aiText;
       }
       if (welcome.useEmbed) {
-        const embed = buildEmbed({ type: 'success', title: '👋 ¡Nuevo miembro!', description: text, thumbnail: member.user.displayAvatarURL(), config });
+        const embed = buildEmbed({
+          type: 'success',
+          title: welcome.embedTitle || '👋 ¡Nuevo miembro!',
+          description: text,
+          thumbnail: member.user.displayAvatarURL(),
+          image: welcome.imageUrl || undefined,
+          config,
+        });
         await channel.send({ embeds: [embed] });
       } else {
         await channel.send(text);

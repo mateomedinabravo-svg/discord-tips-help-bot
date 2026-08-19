@@ -32,6 +32,11 @@ function defaultConfig(guildId) {
       // arriba, la IA redacta una bienvenida distinta para cada persona. Si
       // la IA falla o no esta configurada, usa el mensaje fijo como respaldo
       aiPersonalized: false,
+      embedTitle: '👋 ¡Nuevo miembro!',
+      // banner grande del embed (URL de una imagen ya subida a otro lado,
+      // ej. Discord CDN o Imgur) — el dashboard no tiene almacenamiento
+      // persistente para guardar archivos subidos
+      imageUrl: null,
     },
     goodbye: {
       enabled: false,

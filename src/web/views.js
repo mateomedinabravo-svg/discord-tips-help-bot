@@ -726,9 +726,19 @@ function welcomePage({ user, config, channels, roles, guildName, flash }) {
   const welcomeMismatch = config.welcome.enabled && !config.welcome.channelId;
   const goodbyeMismatch = config.goodbye.enabled && !config.goodbye.channelId;
 
+  const PLACEHOLDER_TOKENS = [
+    { token: '{user}', label: '{user} — menciona al usuario' },
+    { token: '{username}', label: '{username} — nombre de usuario' },
+    { token: '{server}', label: '{server} — nombre del server' },
+    { token: '{membercount}', label: '{membercount} — número de miembro' },
+  ];
+  const placeholderButtons = (targetId) =>
+    PLACEHOLDER_TOKENS.map(
+      (p) => `<button type="button" class="btn placeholder-btn" data-target="${targetId}" data-token="${escapeHtml(p.token)}" style="background:#4a4d53; padding:4px 10px; font-size:12px; margin:0 6px 6px 0;">${escapeHtml(p.label)}</button>`,
+    ).join('');
+
   const body = `
   <h1>Bienvenida y despedida</h1>
-  <p class="muted">Variables disponibles: <code>{user}</code> (menciona al usuario), <code>{username}</code>, <code>{server}</code>, <code>{membercount}</code>.</p>
 
   <form class="card" method="post" action="/dashboard/bienvenida/welcome">
     <h2>Mensaje de bienvenida</h2>
@@ -738,9 +748,15 @@ function welcomePage({ user, config, channels, roles, guildName, flash }) {
     <label>Canal</label>
     <select name="channelId"><option value="">-- elegir --</option>${channelOptions(config.welcome.channelId)}</select>
     <label>Mensaje</label>
-    <textarea name="message">${escapeHtml(config.welcome.message)}</textarea>
+    <div>${placeholderButtons('w-message')}</div>
+    <textarea name="message" id="w-message">${escapeHtml(config.welcome.message)}</textarea>
     <div class="checkbox-row"><input type="checkbox" name="useEmbed" id="w-embed" ${config.welcome.useEmbed ? 'checked' : ''}>
       <label for="w-embed" style="margin:0;">Mandar como embed (con foto de perfil del usuario)</label></div>
+    <label>Título del embed</label>
+    <input type="text" name="embedTitle" value="${escapeHtml(config.welcome.embedTitle || '')}" placeholder="👋 ¡Nuevo miembro!">
+    <label>Imagen/banner del embed (opcional)</label>
+    <input type="text" name="imageUrl" value="${escapeHtml(config.welcome.imageUrl || '')}" placeholder="https://...">
+    <p class="muted" style="margin-top:-8px;">Pegá el link de una imagen ya subida a algún lado (Discord, Imgur, etc.). Solo se usa si "Mandar como embed" está activado.</p>
     <div class="checkbox-row"><input type="checkbox" name="aiPersonalized" id="w-ai" ${config.welcome.aiPersonalized ? 'checked' : ''}>
       <label for="w-ai" style="margin:0;">Usar la IA para redactar una bienvenida distinta cada vez</label></div>
     <p class="muted" style="margin-top:-8px;">Necesita la IA activada y configurada (página de IA). Si falla o no está configurada, se usa el mensaje fijo de arriba como respaldo.</p>
@@ -757,11 +773,26 @@ function welcomePage({ user, config, channels, roles, guildName, flash }) {
     <label>Canal</label>
     <select name="channelId"><option value="">-- elegir --</option>${channelOptions(config.goodbye.channelId)}</select>
     <label>Mensaje</label>
-    <textarea name="message">${escapeHtml(config.goodbye.message)}</textarea>
+    <div>${placeholderButtons('g-message')}</div>
+    <textarea name="message" id="g-message">${escapeHtml(config.goodbye.message)}</textarea>
     <div class="checkbox-row"><input type="checkbox" name="useEmbed" id="g-embed" ${config.goodbye.useEmbed ? 'checked' : ''}>
       <label for="g-embed" style="margin:0;">Mandar como embed (con foto de perfil del usuario)</label></div>
     <button type="submit">Guardar despedida</button>
-  </form>`;
+  </form>
+  <script>
+    document.querySelectorAll('.placeholder-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const target = document.getElementById(btn.dataset.target);
+        if (!target) return;
+        const start = target.selectionStart ?? target.value.length;
+        const end = target.selectionEnd ?? target.value.length;
+        target.value = target.value.slice(0, start) + btn.dataset.token + target.value.slice(end);
+        target.focus();
+        const cursor = start + btn.dataset.token.length;
+        target.setSelectionRange(cursor, cursor);
+      });
+    });
+  </script>`;
   return layout({ title: 'Bienvenida / Despedida', user, body, flash, guildName });
 }
 
