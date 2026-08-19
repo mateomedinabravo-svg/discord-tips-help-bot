@@ -49,13 +49,12 @@ function isConfigured(config) {
   return Boolean(resolveApiKey(config));
 }
 
-async function askAI(apiKey, systemPrompt, userPrompt, { maxTokens = 200, temperature = 0.4 } = {}) {
+async function askAIOnce(apiKey, systemPrompt, userPrompt, { maxTokens = 200, temperature = 0.4 } = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-  let res;
   try {
-    res = await fetch(GROQ_URL, {
+    const res = await fetch(GROQ_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -72,16 +71,37 @@ async function askAI(apiKey, systemPrompt, userPrompt, { maxTokens = 200, temper
       }),
       signal: controller.signal,
     });
+
+    if (!res.ok) {
+      const err = new Error(`Groq API respondió ${res.status}`);
+      err.status = res.status;
+      throw err;
+    }
+
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content?.trim() || null;
   } finally {
     clearTimeout(timeout);
   }
+}
 
-  if (!res.ok) {
-    throw new Error(`Groq API respondió ${res.status}`);
+const RETRY_DELAY_MS = 600;
+
+// reintenta UNA vez si el primer intento falla por algo que puede ser
+// transitorio (timeout, corte de red, 429 de rate limit, 5xx del lado de
+// Groq) — antes cualquier fallo pasajero hacia que el bot contestara
+// "no pude pensar una respuesta" directamente. No reintenta si el error es
+// claramente permanente (401/403 = clave invalida, 400 = pedido mal armado),
+// porque ahi reintentar solo demora mas la respuesta sin cambiar el resultado
+async function askAI(apiKey, systemPrompt, userPrompt, options = {}) {
+  try {
+    return await askAIOnce(apiKey, systemPrompt, userPrompt, options);
+  } catch (err) {
+    const isPermanentError = typeof err.status === 'number' && err.status < 500 && err.status !== 429;
+    if (isPermanentError) throw err;
+    await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+    return askAIOnce(apiKey, systemPrompt, userPrompt, options);
   }
-
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content?.trim() || null;
 }
 
 // arma el bloque de "conocimiento del server" que comparten los prompts:

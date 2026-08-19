@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Partials, ChannelType } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, ChannelType, PermissionFlagsBits } = require('discord.js');
 const { ActivityTracker } = require('./activityTracker');
 const { buildEmbed } = require('./embedStyle');
 const { buildResponder, NEEDS_FALLBACK } = require('./helpResponder');
@@ -805,6 +805,22 @@ function findMentionedVoiceChannelByName(guild, content) {
   return channels.filter((c) => c.name && normalizedContent.includes(normalizeForMatch(c.name))).sort((a, b) => b.name.length - a.name.length)[0] || null;
 }
 
+// mismo patron que findMentionedVoiceChannelByName pero para canales de
+// texto — deja que la IA "lea" un canal puntual con solo nombrarlo (ej.
+// "resumime el canal de renders-eventos"), no solo el canal actual
+function findMentionedTextChannelByName(guild, content) {
+  const normalizedContent = normalizeForMatch(content);
+  const channels = [...guild.channels.cache.filter((c) => c.type === ChannelType.GuildText).values()];
+  return channels.filter((c) => c.name && normalizedContent.includes(normalizeForMatch(c.name))).sort((a, b) => b.name.length - a.name.length)[0] || null;
+}
+
+// sin esto, alguien podria hacer que el bot lea/resuma un canal privado al
+// que no tiene acceso con solo nombrarlo — el chequeo usa los permisos
+// reales de quien pregunta, no los del bot
+function memberCanViewChannel(channel, member) {
+  return channel.permissionsFor(member)?.has(PermissionFlagsBits.ViewChannel) ?? false;
+}
+
 function buildVoiceChannelReply(channel) {
   const memberNames = [...channel.members.values()].map((m) => m.displayName);
   return memberNames.length
@@ -897,14 +913,36 @@ async function checkAiDigests() {
   }
 }
 
-async function buildChannelSummaryTranscript(message) {
-  const recent = await message.channel.messages.fetch({ limit: 25 });
+async function buildChannelSummaryTranscript(message, targetChannel) {
+  const channel = targetChannel || message.channel;
+  const recent = await channel.messages.fetch({ limit: 25 });
   return [...recent.values()]
     .filter((m) => m.id !== message.id && !m.author.bot)
     .reverse()
     .map((m) => `${m.member?.displayName || m.author.username}: ${m.content}`.replace(/\s+/g, ' ').slice(0, 200))
     .join('\n');
 }
+
+// cuenta REAL de quien mando mas mensajes en un canal puntual (ultimos 100
+// reales, sin bots) — es lo mas cerca que el bot puede llegar a contestar
+// "quien es el mejor/mas activo compartiendo en tal canal" sin inventar un
+// juicio de calidad: solo cuenta actividad real (cantidad de mensajes),
+// nunca opina sobre que tan bueno es el contenido
+async function buildTopPostersReply(channel) {
+  const recent = await channel.messages.fetch({ limit: 100 });
+  const counts = new Map();
+  for (const m of recent.values()) {
+    if (m.author.bot) continue;
+    const name = m.member?.displayName || m.author.username;
+    counts.set(name, (counts.get(name) || 0) + 1);
+  }
+  const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+  if (!ranked.length) return `No encontré mensajes recientes de nadie en <#${channel.id}> para contar.`;
+  const listText = ranked.map(([name, count], i) => `${i + 1}. ${name} (${count} mensaje${count === 1 ? '' : 's'})`).join('\n');
+  return `Según los últimos ${recent.size} mensajes reales de <#${channel.id}>, quiénes más postearon:\n${listText}\n\n(Esto es solo actividad — cantidad de mensajes — no una evaluación de calidad.)`;
+}
+
+const TOP_POSTERS_TRIGGER = /qui[eé]n(es)?\s+(m[aá]s\s+(postea|comparte|sube|publica)|son\s+los?\s+mejores?)/i;
 
 // ==== acciones de moderacion por chat con la IA ====
 //
@@ -1381,15 +1419,39 @@ client.on('messageCreate', async (message) => {
                 },
                 config,
               );
+            } else if (TOP_POSTERS_TRIGGER.test(cleanedContent) && findMentionedTextChannelByName(message.guild, cleanedContent)) {
+              // "quien es el mejor en renders" no tiene una respuesta real posible
+              // (es una opinion, no un dato) — pero si nombran un canal real, esto
+              // contesta con lo mas cercano y honesto: quien mas posteo ahi de
+              // verdad, en vez de que la IA invente un nombre
+              const targetChannel = findMentionedTextChannelByName(message.guild, cleanedContent);
+              const payload = !memberCanViewChannel(targetChannel, message.member)
+                ? '⚠️ No puedo leer ese canal.'
+                : await buildTopPostersReply(targetChannel).catch((err) => {
+                    console.error('No se pudo armar el ranking de actividad:', err.message);
+                    return '⚠️ No pude revisar ese canal ahora, probá de nuevo en un rato.';
+                  });
+              if (thinking) await thinking.stop(payload);
+              else await message.reply(payload);
             } else if (/\bresum/i.test(cleanedContent)) {
-              const transcript = await buildChannelSummaryTranscript(message).catch((err) => {
-                console.error('No se pudo traer mensajes para el resumen:', err.message);
-                return '';
-              });
-              const aiContext = await buildAiContext(message, config);
-              const summary = await aiHelper.summarizeChannel(client, config, transcript, aiContext);
-              trackAiUsage(guildId, Boolean(summary));
-              const payload = summary ? buildAiReplyPayload(config, summary) : '🤖 No pude armar el resumen ahora, probá de nuevo en un rato.';
+              // si nombran un canal real distinto del actual, resume ESE canal
+              // (chequeando que quien pregunta lo pueda ver) — si no, sigue
+              // resumiendo el canal actual como antes
+              const namedChannel = findMentionedTextChannelByName(message.guild, cleanedContent);
+              const targetChannel = namedChannel && namedChannel.id !== message.channel.id ? namedChannel : null;
+              let payload;
+              if (targetChannel && !memberCanViewChannel(targetChannel, message.member)) {
+                payload = '⚠️ No puedo leer ese canal.';
+              } else {
+                const transcript = await buildChannelSummaryTranscript(message, targetChannel).catch((err) => {
+                  console.error('No se pudo traer mensajes para el resumen:', err.message);
+                  return '';
+                });
+                const aiContext = await buildAiContext(message, config);
+                const summary = await aiHelper.summarizeChannel(client, config, transcript, aiContext);
+                trackAiUsage(guildId, Boolean(summary));
+                payload = summary ? buildAiReplyPayload(config, summary) : '🤖 No pude armar el resumen ahora, probá de nuevo en un rato.';
+              }
               if (thinking) await thinking.stop(payload);
               else await message.reply(payload);
             } else if (/\bperfil\b/i.test(cleanedContent)) {
