@@ -1571,6 +1571,22 @@ function createApp({ client }) {
     res.redirect('/dashboard/ia?saved=1');
   });
 
+  app.post('/dashboard/ia/feedback-renders', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    const channelIds = Array.isArray(req.body.channelIds) ? req.body.channelIds : req.body.channelIds ? [req.body.channelIds] : [];
+    await db.updateGuildConfig(req.session.activeGuildId, {
+      ai: {
+        ...config.ai,
+        renderFeedback: {
+          enabled: req.body.enabled === 'on',
+          channelIds,
+          emoji: (req.body.emoji || '🔍').trim() || '🔍',
+        },
+      },
+    });
+    res.redirect('/dashboard/ia?saved=1');
+  });
+
   app.post('/dashboard/ia', requireAuth, requireActiveGuild, async (req, res) => {
     const config = await db.getGuildConfig(req.session.activeGuildId);
     // las claves de Groq son ASCII imprimible; se limpia cualquier caracter pegado

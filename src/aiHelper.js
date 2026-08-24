@@ -2,6 +2,12 @@ const errorReporter = require('./errorReporter');
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL = 'openai/gpt-oss-20b';
+// modelo con vision de Groq, para el feedback de renders (el modelo de arriba
+// es solo texto). No hay forma de confirmar desde acá si la cuenta de Groq
+// del server tiene acceso a este modelo — si no, la llamada falla con un
+// error claro (401/403/404) que se maneja explicitamente en vez de fallar en
+// silencio o inventar una critica sin haber "visto" nada
+const VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
 // los prompts ahora llevan mas contexto (conocimiento del server, conversacion
 // reciente), lo que hace que Groq tarde un poco mas en respuesta que antes;
 // 8s se quedaba corto y cortaba respuestas a mitad de camino via abort()
@@ -49,9 +55,15 @@ function isConfigured(config) {
   return Boolean(resolveApiKey(config));
 }
 
-async function askAIOnce(apiKey, systemPrompt, userPrompt, { maxTokens = 200, temperature = 0.4 } = {}) {
+async function askAIOnce(apiKey, systemPrompt, userPrompt, { maxTokens = 200, temperature = 0.4, imageUrl = null, model = MODEL } = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  // si hay imagen, el mensaje de usuario va en formato multimodal (texto +
+  // image_url), igual que la API de OpenAI — sin imagen, sigue siendo un
+  // string plano como siempre (mismo formato que ya esperan el resto de las
+  // funciones de este archivo)
+  const userContent = imageUrl ? [{ type: 'text', text: userPrompt }, { type: 'image_url', image_url: { url: imageUrl } }] : userPrompt;
 
   try {
     const res = await fetch(GROQ_URL, {
@@ -61,10 +73,10 @@ async function askAIOnce(apiKey, systemPrompt, userPrompt, { maxTokens = 200, te
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: MODEL,
+        model,
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
+          { role: 'user', content: userContent },
         ],
         max_tokens: maxTokens,
         temperature,
@@ -253,6 +265,44 @@ Reglas:
   }
 }
 
+// feedback tecnico real sobre una imagen de render/animacion de Minecraft,
+// usando un modelo CON VISION de Groq (distinto del modelo de texto que usa
+// el resto de este archivo). No hay garantia de que la cuenta de Groq del
+// server tenga acceso a ese modelo — si la llamada falla por eso (400/403/404,
+// tipico de "modelo no disponible para tu cuenta"), se devuelve
+// reason:'no-vision-access' para que el llamador avise eso puntualmente en
+// vez de fallar en silencio o, peor, inventar una critica sin haber "visto"
+// la imagen de verdad
+async function critiqueRenderImage(client, config, imageUrl, context = {}) {
+  const apiKey = resolveApiKey(config);
+  if (!apiKey) return { ok: false, reason: 'not-configured' };
+
+  const { botName, tone, customPersonality } = context;
+  const systemPrompt = `Sos "${botName || 'el bot'}", dando feedback técnico sobre un render o animación de Minecraft (hecho con herramientas como Blender, con texturizado/iluminación/composición). Te acaban de mandar una imagen real para que la evalúes. Respondés en español neutro. ${personalityInstruction(tone, customPersonality)}
+
+Reglas:
+- Mirá la imagen real y dá feedback técnico CONCRETO sobre lo que efectivamente ves ahí (composición, iluminación, color, texturas, perspectiva) — nada genérico ni inventado, basado en la imagen real que recibiste.
+- Sé constructivo: mencioná algo que funciona bien y algo puntual para mejorar.
+- Corto: máximo 4-5 líneas.
+- Estás recibiendo la imagen junto con este mensaje, así que nunca digas que no podés ver imágenes.`;
+
+  try {
+    const text = await askAI(apiKey, systemPrompt, 'Dame feedback técnico sobre este render.', {
+      maxTokens: 350,
+      imageUrl,
+      model: VISION_MODEL,
+    });
+    return text ? { ok: true, text } : { ok: false, reason: 'empty' };
+  } catch (err) {
+    const noVisionAccess = err.status === 400 || err.status === 403 || err.status === 404;
+    if (!noVisionAccess) {
+      console.error('No se pudo generar el feedback del render:', err.message);
+      await errorReporter.reportError(client, config, 'aiHelper.critiqueRenderImage', err);
+    }
+    return { ok: false, reason: noVisionAccess ? 'no-vision-access' : 'error' };
+  }
+}
+
 // le sugiere al staff una respuesta para el usuario de un ticket, basandose
 // en la conversacion real (transcript armado por index.js). Solo sugiere
 // texto — nunca cierra el ticket ni manda nada por su cuenta
@@ -421,6 +471,7 @@ module.exports = {
   answerHelpQuestion,
   chatReply,
   summarizeChannel,
+  critiqueRenderImage,
   explainCommand,
   translateText,
   suggestTicketReply,

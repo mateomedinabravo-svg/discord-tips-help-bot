@@ -209,6 +209,15 @@ function defaultConfig(guildId) {
         frequency: 'daily', // 'daily' o 'weekly'
         lastSentAt: null,
       },
+      // feedback tecnico de renders: alguien reacciona con este emoji a un
+      // mensaje con imagen en uno de estos canales, y la IA (con un modelo
+      // con vision, si la cuenta de Groq tiene acceso) da feedback real
+      // sobre la imagen puntual
+      renderFeedback: {
+        enabled: false,
+        channelIds: [],
+        emoji: '🔍',
+      },
     },
     serverGuide: {
       enabled: false,

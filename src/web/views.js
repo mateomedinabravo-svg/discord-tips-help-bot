@@ -1671,6 +1671,9 @@ function aiPage({ user, config, channels, roles, aiConfigured, usageStats, guild
   const digestChannelOptions = channels
     .map((c) => `<option value="${c.id}" ${c.id === config.ai.digest?.channelId ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`)
     .join('');
+  const renderFeedbackChannelOptions = channels
+    .map((c) => `<option value="${c.id}" ${(config.ai.renderFeedback?.channelIds || []).includes(c.id) ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`)
+    .join('');
 
   const toneOptions = [
     ['amigable', 'Amigable'],
@@ -1788,6 +1791,18 @@ function aiPage({ user, config, channels, roles, aiConfigured, usageStats, guild
       <option value="daily" ${config.ai.digest?.frequency !== 'weekly' ? 'selected' : ''}>Diario</option>
       <option value="weekly" ${config.ai.digest?.frequency === 'weekly' ? 'selected' : ''}>Semanal</option>
     </select>
+    <button type="submit">Guardar</button>
+  </form>
+
+  <form class="card" method="post" action="/dashboard/ia/feedback-renders">
+    <h2>Feedback de renders</h2>
+    <p class="muted">Si alguien reacciona con el emoji elegido a un mensaje con imagen en uno de estos canales, la IA da feedback técnico real sobre esa imagen puntual (composición, iluminación, etc). Necesita que la cuenta de Groq tenga acceso a un modelo con visión — si no, avisa en vez de inventar una crítica sin haber "visto" la imagen.</p>
+    <div class="checkbox-row"><input type="checkbox" name="enabled" id="rf-enabled" ${config.ai.renderFeedback?.enabled ? 'checked' : ''}>
+      <label for="rf-enabled" style="margin:0;">Activado</label></div>
+    <label>Canales donde funciona</label>
+    <select name="channelIds" multiple size="6">${renderFeedbackChannelOptions}</select>
+    <label>Emoji para pedir feedback</label>
+    <input type="text" name="emoji" maxlength="10" value="${escapeHtml(config.ai.renderFeedback?.emoji || '🔍')}">
     <button type="submit">Guardar</button>
   </form>`;
   return layout({ title: 'IA', user, body, flash, guildName });

@@ -12,6 +12,7 @@ const moderationCommands = require('./moderationCommands');
 const reactionRoles = require('./reactionRoles');
 const selectRoles = require('./selectRoles');
 const starboard = require('./starboard');
+const renderFeedback = require('./renderFeedback');
 const logging = require('./logging');
 const housesCommand = require('./housesCommand');
 const customCommands = require('./customCommands');
@@ -1708,6 +1709,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
     await reactionRoles.handleReactionChange(reaction, user, 'add');
     await miniEvents.handleMiniEventReaction(reaction, user);
     if (config) await starboard.handleStarboardReaction(reaction, config);
+    if (config) await renderFeedback.handleRenderFeedbackReaction(reaction, user, config);
   } catch (err) {
     console.error('Error en messageReactionAdd:', err);
     await errorReporter.reportError(client, config, 'messageReactionAdd', err);
