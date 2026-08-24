@@ -1071,6 +1071,30 @@ function createApp({ client }) {
     res.redirect('/dashboard/contador?saved=1');
   });
 
+  app.get('/dashboard/skills', requireAuth, requireActiveGuild, async (req, res) => {
+    const config = await db.getGuildConfig(req.session.activeGuildId);
+    res.send(
+      views.skillsPage({
+        user: req.session.user,
+        config,
+        roles: getAssignableRoles(req),
+        guildName: guildName(req),
+        flash: req.query.saved ? 'Guardado.' : null,
+      }),
+    );
+  });
+
+  app.post('/dashboard/skills', requireAuth, requireActiveGuild, async (req, res) => {
+    const roleIds = Array.isArray(req.body.roleIds) ? req.body.roleIds : req.body.roleIds ? [req.body.roleIds] : [];
+    await db.updateGuildConfig(req.session.activeGuildId, {
+      skills: {
+        enabled: req.body.enabled === 'on',
+        roleIds,
+      },
+    });
+    res.redirect('/dashboard/skills?saved=1');
+  });
+
   app.get('/dashboard/invitaciones', requireAuth, requireActiveGuild, async (req, res) => {
     const config = await db.getGuildConfig(req.session.activeGuildId);
     const guild = getGuild(req);

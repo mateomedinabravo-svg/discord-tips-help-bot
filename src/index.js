@@ -34,6 +34,8 @@ const inviteCommand = require('./inviteCommand');
 const inviteTracker = require('./inviteTracker');
 const sayCommand = require('./sayCommand');
 const serverInfoCommand = require('./serverInfoCommand');
+const portfolioCommand = require('./portfolioCommand');
+const skillsCommand = require('./skillsCommand');
 const voiceXp = require('./voiceXp');
 const errorReporter = require('./errorReporter');
 const { isDirectedAtAnotherUser } = require('./messageDirection');
@@ -1898,6 +1900,12 @@ async function handleInteraction(interaction) {
         break;
       case 'infoserver':
         await serverInfoCommand.handleInfoServerCommand(interaction, config);
+        break;
+      case 'portfolio':
+        await portfolioCommand.handlePortfolioCommand(interaction, config);
+        break;
+      case 'skills':
+        await skillsCommand.handleSkillsCommand(interaction, config);
         break;
       case 'decir':
         await sayCommand.handleDecirCommand(interaction);

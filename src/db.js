@@ -93,6 +93,13 @@ function defaultConfig(guildId) {
       acceptMessage: '🎉 ¡Tu solicitud de House fue aceptada! El staff se va a poner en contacto para darte tu canal.',
       rejectMessage: '😕 Tu solicitud de House no fue aceptada esta vez. Podés volver a intentarlo más adelante.',
     },
+    // roles reales del server que cuentan como "skill" para /skills — un
+    // miembro se auto-etiqueta con estos, y otros pueden buscar quien tiene
+    // cual skill. Ningun dato inventado: son roles reales de Discord
+    skills: {
+      enabled: false,
+      roleIds: [],
+    },
     economy: {
       enabled: false,
       currencyName: 'monedas',
@@ -338,6 +345,7 @@ async function getGuildConfig(guildId) {
   config.customCommands = config.customCommands || [];
   config.textCommands = { ...defaults.textCommands, ...(config.textCommands || {}) };
   config.tipsExcludedChannelIds = config.tipsExcludedChannelIds || [];
+  config.skills = { ...defaults.skills, ...(config.skills || {}) };
   config.ticketDefaultStaffRoleIds = config.ticketDefaultStaffRoleIds || [];
   config.economy = { ...defaults.economy, ...(config.economy || {}) };
   config.casino = { ...defaults.casino, ...(config.casino || {}) };
@@ -921,6 +929,13 @@ async function getTopStarredPost(guildId) {
   return top || null;
 }
 
+// para el portfolio de artista: los posts mas destacados de UN autor puntual
+// (en vez del top del server entero)
+async function getTopStarredPostsByAuthor(guildId, authorId, limit = 3) {
+  const database = await connect();
+  return database.collection('starboardPosts').find({ guildId, authorId }).sort({ starCount: -1 }).limit(limit).toArray();
+}
+
 async function createStarboardPost({ guildId, originalMessageId, originalChannelId, starboardMessageId, authorId, starCount }) {
   const database = await connect();
   await database.collection('starboardPosts').insertOne({
@@ -1219,6 +1234,7 @@ module.exports = {
   updatePet,
   getStarboardPost,
   getTopStarredPost,
+  getTopStarredPostsByAuthor,
   createStarboardPost,
   updateStarboardPostCount,
   createGiveaway,

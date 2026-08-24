@@ -25,6 +25,8 @@ const marriageCommands = require('./marriageCommands');
 const petCommands = require('./petCommands');
 const inviteCommand = require('./inviteCommand');
 const serverInfoCommand = require('./serverInfoCommand');
+const portfolioCommand = require('./portfolioCommand');
+const skillsCommand = require('./skillsCommand');
 const birthdayCommand = require('./birthdayCommand');
 const giveawayCommand = require('./giveawayCommand');
 const memeCommand = require('./memeCommand');
@@ -97,6 +99,7 @@ const FLAT_COMMANDS = {
 
   meme: { module: 'meme', category: CAT.COMUNIDAD },
   infoserver: { module: 'infoserver', category: CAT.COMUNIDAD },
+  portfolio: { module: 'portfolio', usage: '!portfolio [@usuario]', category: CAT.COMUNIDAD },
   trivia: { module: 'trivia', category: CAT.COMUNIDAD },
   afk: { module: 'afk', restStringOptions: ['motivo'], category: CAT.COMUNIDAD },
   casa: {
@@ -182,6 +185,18 @@ const GROUPED_COMMANDS = {
     usage: '!cumpleanos ver|configurar <dia> <mes>',
     category: CAT.COMUNIDAD,
     subcommands: { ver: {}, configurar: { usage: '!cumpleanos configurar <dia (1-31)> <mes (1-12)>' } },
+  },
+  skills: {
+    module: 'skills',
+    defaultSubcommand: null,
+    usage: '!skills agregar|quitar|ver|buscar <skill>',
+    category: CAT.COMUNIDAD,
+    subcommands: {
+      agregar: { restStringOptions: ['skill'], usage: '!skills agregar <skill>' },
+      quitar: { restStringOptions: ['skill'], usage: '!skills quitar <skill>' },
+      ver: { usage: '!skills ver [@usuario]' },
+      buscar: { restStringOptions: ['skill'], usage: '!skills buscar <skill>' },
+    },
   },
   sorteo: {
     module: 'sorteo',
@@ -397,6 +412,10 @@ async function dispatch(resolved, interaction, config, segments, prefix) {
       return inviteCommand.handleInviteCommand(interaction, config);
     case 'infoserver':
       return serverInfoCommand.handleInfoServerCommand(interaction, config);
+    case 'portfolio':
+      return portfolioCommand.handlePortfolioCommand(interaction, config);
+    case 'skills':
+      return skillsCommand.handleSkillsCommand(interaction, config);
     case 'cumpleanos':
       return birthdayCommand.handleBirthdayCommand(interaction);
     case 'sorteo':

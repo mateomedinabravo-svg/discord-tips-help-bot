@@ -36,6 +36,7 @@ const NAV_GROUPS = [
       { href: '/dashboard/sugerencias', label: 'Sugerencias', icon: '📝', enabledPath: 'suggestions.enabled' },
       { href: '/dashboard/cumpleanos', label: 'Cumpleaños', icon: '🎂', enabledPath: 'birthdays.enabled' },
       { href: '/dashboard/invitaciones', label: 'Invite Tracker', icon: '🔗', enabledPath: 'inviteTracker.enabled' },
+      { href: '/dashboard/skills', label: 'Skills', icon: '🛠️', enabledPath: 'skills.enabled' },
     ],
   },
   {
@@ -2204,6 +2205,28 @@ function memberCounterPage({ user, config, voiceChannels, guildName, flash }) {
   return layout({ title: 'Contador de miembros', user, body, flash, guildName });
 }
 
+function skillsPage({ user, config, roles, guildName, flash }) {
+  const roleOptions = (roles || [])
+    .map((r) => `<option value="${r.id}" ${(config.skills.roleIds || []).includes(r.id) ? 'selected' : ''}>${escapeHtml(r.name)}</option>`)
+    .join('');
+
+  const body = `
+  <h1>Skills</h1>
+  <p class="muted">Los miembros se auto-etiquetan con /skills agregar y otros pueden buscar quién sabe hacer qué con /skills buscar. Elegí qué roles reales del server cuentan como una "skill" — el resto de los roles queda afuera de este sistema.</p>
+
+  <form class="card" method="post" action="/dashboard/skills">
+    <div class="checkbox-row"><input type="checkbox" name="enabled" id="sk-enabled" ${config.skills.enabled ? 'checked' : ''}>
+      <label for="sk-enabled" style="margin:0;">Activado</label></div>
+
+    <label>Roles que cuentan como skill</label>
+    <select name="roleIds" multiple size="8">${roleOptions}</select>
+    ${!roles || !roles.length ? '<p class="muted">Este server no tiene roles asignables todavía.</p>' : ''}
+
+    <button type="submit">Guardar</button>
+  </form>`;
+  return layout({ title: 'Skills', user, body, flash, guildName });
+}
+
 function birthdaysPage({ user, config, channels, guildName, flash }) {
   const channelOptions = channels
     .map((c) => `<option value="${c.id}" ${c.id === config.birthdays.channelId ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`)
@@ -2264,6 +2287,7 @@ module.exports = {
   appearancePage,
   suggestionsPage,
   memberCounterPage,
+  skillsPage,
   birthdaysPage,
   inviteTrackerPage,
   selectRolesPage,
