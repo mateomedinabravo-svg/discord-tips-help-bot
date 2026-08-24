@@ -1000,6 +1000,46 @@ async function endGiveaway(messageId, winnerIds) {
   await database.collection('giveaways').updateOne({ messageId }, { $set: { ended: true, winnerIds } });
 }
 
+// --- Concursos de render (votacion por reaccion real, no sorteo al azar) ---
+
+async function createContest({ guildId, channelId, announcementMessageId, prize, voteEmoji, winnerCount, hostId, startedAt, endsAt }) {
+  const database = await connect();
+  await database.collection('contests').insertOne({
+    guildId,
+    channelId,
+    announcementMessageId,
+    prize,
+    voteEmoji,
+    winnerCount,
+    hostId,
+    startedAt,
+    endsAt,
+    ended: false,
+    winnerIds: [],
+    createdAt: new Date(),
+  });
+}
+
+async function getContest(announcementMessageId) {
+  const database = await connect();
+  return database.collection('contests').findOne({ announcementMessageId });
+}
+
+async function getExpiredContests() {
+  const database = await connect();
+  return database.collection('contests').find({ ended: false, endsAt: { $lte: new Date() } }).toArray();
+}
+
+async function listActiveContests(guildId) {
+  const database = await connect();
+  return database.collection('contests').find({ guildId, ended: false }).sort({ endsAt: 1 }).toArray();
+}
+
+async function endContest(announcementMessageId, winnerIds) {
+  const database = await connect();
+  await database.collection('contests').updateOne({ announcementMessageId }, { $set: { ended: true, winnerIds } });
+}
+
 async function createPoll({ guildId, channelId, messageId, question, options, hostId }) {
   const database = await connect();
   await database.collection('polls').insertOne({
@@ -1243,6 +1283,11 @@ module.exports = {
   getExpiredGiveaways,
   listActiveGiveaways,
   endGiveaway,
+  createContest,
+  getContest,
+  getExpiredContests,
+  listActiveContests,
+  endContest,
   createPoll,
   getPoll,
   listRecentPolls,

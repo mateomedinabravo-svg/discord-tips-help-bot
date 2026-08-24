@@ -27,6 +27,7 @@ const inviteCommand = require('./inviteCommand');
 const serverInfoCommand = require('./serverInfoCommand');
 const portfolioCommand = require('./portfolioCommand');
 const skillsCommand = require('./skillsCommand');
+const contestCommand = require('./contestCommand');
 const birthdayCommand = require('./birthdayCommand');
 const giveawayCommand = require('./giveawayCommand');
 const memeCommand = require('./memeCommand');
@@ -207,6 +208,21 @@ const GROUPED_COMMANDS = {
     subcommands: {
       terminar: { usage: '!sorteo terminar <mensaje_id>' },
       crear: { mode: 'pipes', minSegments: 2, usage: '!sorteo crear <premio> | <duracion, ej 2h> [| <ganadores>] [| #canal]' },
+    },
+  },
+  concurso: {
+    module: 'concurso',
+    defaultSubcommand: null,
+    permission: PermissionFlagsBits.ManageGuild,
+    usage: '!concurso terminar <mensaje_id>  o  !concurso crear <premio> | <duracion>',
+    category: CAT.STAFF,
+    subcommands: {
+      terminar: { usage: '!concurso terminar <mensaje_id>' },
+      crear: {
+        mode: 'pipes',
+        minSegments: 2,
+        usage: '!concurso crear <premio> | <duracion, ej 2h> [| <emoji_voto>] [| <ganadores>] [| #canal]',
+      },
     },
   },
 };
@@ -420,6 +436,8 @@ async function dispatch(resolved, interaction, config, segments, prefix) {
       return birthdayCommand.handleBirthdayCommand(interaction);
     case 'sorteo':
       return giveawayCommand.handleGiveawayCommand(interaction, config);
+    case 'concurso':
+      return contestCommand.handleContestCommand(interaction, config);
     case 'meme':
       return memeCommand.handleMemeCommand(interaction, config);
     case 'trivia':

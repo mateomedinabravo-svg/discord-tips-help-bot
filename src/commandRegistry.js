@@ -21,6 +21,7 @@ const aiCommands = require('./aiCommands');
 const serverInfoCommand = require('./serverInfoCommand');
 const portfolioCommand = require('./portfolioCommand');
 const skillsCommand = require('./skillsCommand');
+const contestCommand = require('./contestCommand');
 
 const STATIC_DEFINITIONS = [
   announceCommand.definition,
@@ -54,6 +55,7 @@ const STATIC_DEFINITIONS = [
   serverInfoCommand.definition,
   portfolioCommand.definition,
   skillsCommand.definition,
+  contestCommand.definition,
 ].map((def) => def.toJSON());
 
 async function registerGuildCommands(guild, config) {

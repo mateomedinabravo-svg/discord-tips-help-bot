@@ -36,6 +36,7 @@ const sayCommand = require('./sayCommand');
 const serverInfoCommand = require('./serverInfoCommand');
 const portfolioCommand = require('./portfolioCommand');
 const skillsCommand = require('./skillsCommand');
+const contestCommand = require('./contestCommand');
 const voiceXp = require('./voiceXp');
 const errorReporter = require('./errorReporter');
 const { isDirectedAtAnotherUser } = require('./messageDirection');
@@ -1274,6 +1275,12 @@ client.once('ready', async () => {
     });
   }, GIVEAWAY_CHECK_MS);
   setInterval(() => {
+    contestCommand.checkExpiredContests(client).catch((err) => {
+      console.error('Error revisando concursos vencidos:', err);
+      errorReporter.reportError(client, null, 'contestCommand.checkExpiredContests', err);
+    });
+  }, GIVEAWAY_CHECK_MS);
+  setInterval(() => {
     sayCommand.checkScheduledAnnouncements(client).catch((err) => {
       console.error('Error revisando anuncios programados:', err);
       errorReporter.reportError(client, null, 'sayCommand.checkScheduledAnnouncements', err);
@@ -1885,6 +1892,9 @@ async function handleInteraction(interaction) {
         break;
       case 'sorteo':
         await giveawayCommand.handleGiveawayCommand(interaction, config);
+        break;
+      case 'concurso':
+        await contestCommand.handleContestCommand(interaction, config);
         break;
       case 'encuesta':
         await pollCommand.handlePollCommand(interaction, config);
