@@ -1,7 +1,9 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { buildEmbed } = require('./embedStyle');
 
-const MEME_API_URL = 'https://meme-api.com/gimme';
+// r/MemesEnEspanol en vez del pool general (que es predominantemente en
+// ingles) — asi los memes que manda el bot son en español de verdad
+const MEME_API_URL = 'https://meme-api.com/gimme/memesenespanol';
 const MAX_ATTEMPTS = 3;
 
 const definition = new SlashCommandBuilder().setName('meme').setDescription('Manda un meme random');

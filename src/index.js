@@ -1658,6 +1658,10 @@ client.on('messageCreate', async (message) => {
             } else {
               const aiContext = await buildAiContext(message, config);
               aiContext.realData = await buildRealDataForQuery(message);
+              // si mandaron una imagen junto con la mencion, se intenta
+              // responder viendola de verdad (chatReply se degrada solo a
+              // texto si la cuenta no tiene acceso a un modelo con vision)
+              aiContext.imageUrl = renderFeedback.findImageAttachment(message)?.url || null;
               const chatReply = await aiHelper.chatReply(client, config, cleanedContent, aiContext);
               trackAiUsage(guildId, Boolean(chatReply));
               // si la IA falla (timeout, rate limit, etc.) igual contesta algo
