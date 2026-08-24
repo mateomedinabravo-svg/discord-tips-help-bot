@@ -15,7 +15,7 @@ const NAV_GROUPS = [
   {
     label: 'General',
     icon: '🏠',
-    color: '#5865f2',
+    color: '#8b5cf6',
     links: [
       { href: '/dashboard/general', label: 'General', icon: '⚙️' },
       { href: '/dashboard/estadisticas', label: 'Estadísticas', icon: '📊' },
@@ -26,7 +26,7 @@ const NAV_GROUPS = [
   {
     label: 'Comunidad',
     icon: '💬',
-    color: '#00b0f4',
+    color: '#22d3ee',
     links: [
       { href: '/dashboard/bienvenida', label: 'Bienvenida/Despedida', icon: '👋', enabledPath: 'welcome.enabled' },
       { href: '/dashboard/mensajes', label: 'Tips y ayuda', icon: '💡' },
@@ -41,7 +41,7 @@ const NAV_GROUPS = [
   {
     label: 'Moderación',
     icon: '🛡️',
-    color: '#ed4245',
+    color: '#f2596b',
     links: [
       { href: '/dashboard/automoderacion', label: 'Automoderación', icon: '🚫', enabledPath: 'automod.enabled' },
       { href: '/dashboard/logs', label: 'Logs', icon: '📜', enabledPath: 'logging.enabled' },
@@ -51,7 +51,7 @@ const NAV_GROUPS = [
   {
     label: 'Tickets',
     icon: '🎫',
-    color: '#f0b232',
+    color: '#f2b84b',
     links: [
       { href: '/dashboard/tickets', label: 'Tickets', icon: '🎫' },
       { href: '/dashboard/tickets/config', label: 'Configurar', icon: '🔧' },
@@ -60,7 +60,7 @@ const NAV_GROUPS = [
   {
     label: 'Progresión',
     icon: '📈',
-    color: '#9b59b6',
+    color: '#c084fc',
     links: [
       { href: '/dashboard/niveles', label: 'Niveles', icon: '🏆', enabledPath: 'leveling.enabled' },
       { href: '/dashboard/roles-reaccion', label: 'Roles por reacción', icon: '🎭' },
@@ -70,7 +70,7 @@ const NAV_GROUPS = [
   {
     label: 'Economía y juegos',
     icon: '🎮',
-    color: '#3ba55d',
+    color: '#2dd4a7',
     links: [
       { href: '/dashboard/economia', label: 'Economía', icon: '💰', enabledPath: 'economy.enabled' },
       { href: '/dashboard/casino', label: 'Casino', icon: '🎰', enabledPath: 'casino.enabled' },
@@ -82,7 +82,7 @@ const NAV_GROUPS = [
   {
     label: 'A medida',
     icon: '🎨',
-    color: '#eb459e',
+    color: '#ec7fd0',
     links: [
       { href: '/dashboard/comandos', label: 'Comandos', icon: '⌨️', enabledPath: 'textCommands.enabled' },
       { href: '/dashboard/ia', label: 'IA', icon: '🤖', enabledPath: 'ai.enabled' },
@@ -264,41 +264,60 @@ function layout({ title, user, body, flash, guildName }) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escapeHtml(title)} · Panel del bot</title>
+<title>${escapeHtml(title)} · PlanetBot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
     color-scheme: dark;
-    --bg: #1a1b1e;
-    --bg-raised: #2b2d31;
-    --bg-raised-hover: #313338;
-    --bg-sunken: #17181a;
-    --bg-header: #111214;
-    --border: #35373c;
-    --border-soft: #2a2c30;
-    --text: #dbdee1;
-    --text-muted: #949ba4;
-    --brand: #5865f2;
-    --brand-glow: rgba(88, 101, 242, 0.35);
-    --brand-hover: #4752c4;
-    --success: #3ba55d;
-    --danger: #ed4245;
+    --bg: #0b0c17;
+    --bg-raised: #151729;
+    --bg-raised-hover: #1c1f36;
+    --bg-sunken: #07080f;
+    --bg-header: #0a0b16;
+    --border: #272b46;
+    --border-soft: #1d2038;
+    --text: #e6e8f7;
+    --text-muted: #8b90b3;
+    --brand: #8b5cf6;
+    --brand-2: #22d3ee;
+    --brand-gradient: linear-gradient(135deg, var(--brand), var(--brand-2));
+    --brand-glow: rgba(139, 92, 246, 0.38);
+    --brand-hover: #7c4deb;
+    --success: #2dd4a7;
+    --danger: #f2596b;
+    --warning: #f2b84b;
+    --font-display: "Space Grotesk", "Segoe UI", sans-serif;
+    --font-body: "Inter", -apple-system, "Segoe UI", Roboto, sans-serif;
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; background: radial-gradient(1200px 600px at 50% -10%, #23252b 0%, var(--bg) 55%) fixed;
-    color: var(--text); font-family: -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased;
+    margin: 0;
+    background:
+      radial-gradient(1100px 550px at 12% -8%, rgba(139, 92, 246, 0.18) 0%, transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, rgba(34, 211, 238, 0.13) 0%, transparent 55%),
+      var(--bg) fixed;
+    color: var(--text); font-family: var(--font-body); -webkit-font-smoothing: antialiased;
     opacity: 0; transition: opacity 160ms ease;
   }
   body.page-ready { opacity: 1; }
   body.page-exit { opacity: 0; transition: opacity 130ms ease; }
   a { color: inherit; }
+  h1, h2, h3 { font-family: var(--font-display); }
   header {
     display: flex; align-items: center; justify-content: space-between; padding: 14px 24px;
-    background: rgba(17, 18, 20, 0.85); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border);
+    background: rgba(10, 11, 22, 0.85); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border);
     position: sticky; top: 0; z-index: 10;
   }
-  header a.brand { color: #fff; font-weight: 700; text-decoration: none; font-size: 18px; display: flex; align-items: center; gap: 8px; transition: opacity 0.15s; }
-  header a.brand:hover { opacity: 0.8; }
+  header a.brand {
+    font-family: var(--font-display); font-weight: 700; text-decoration: none; font-size: 18px;
+    display: flex; align-items: center; gap: 8px; transition: opacity 0.15s;
+    background: var(--brand-gradient); background-size: 200% auto; -webkit-background-clip: text; background-clip: text;
+    color: transparent; animation: shimmer 7s ease-in-out infinite;
+  }
+  header a.brand:hover { opacity: 0.85; }
+  @keyframes shimmer { 0%, 100% { background-position: 0% center; } 50% { background-position: 100% center; } }
   header .user { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text-muted); }
   #sound-toggle {
     background: none; border: 1px solid var(--border); color: var(--text-muted); margin: 0; padding: 5px 9px;
@@ -344,19 +363,22 @@ function layout({ title, user, body, flash, guildName }) {
     background: var(--bg-raised); border: 1px solid var(--border); border-radius: 14px; padding: 18px;
     transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
   }
-  .module-card:hover { border-color: var(--border-soft); transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3); }
+  .module-card:hover {
+    border-color: var(--accent, var(--border-soft)); transform: translateY(-3px);
+    box-shadow: 0 10px 24px -6px var(--accent, rgba(0, 0, 0, 0.3));
+  }
   .module-card:active { transform: translateY(-1px) scale(0.98); }
   .module-icon {
     font-size: 22px; line-height: 1; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
     border-radius: 12px;
   }
-  .module-name { font-weight: 600; font-size: 14.5px; color: #fff; }
+  .module-name { font-family: var(--font-display); font-weight: 600; font-size: 14.5px; color: #fff; }
   .module-badge {
     position: absolute; top: 12px; right: 12px; font-size: 10.5px; font-weight: 700; text-transform: uppercase;
     letter-spacing: 0.03em; padding: 3px 8px; border-radius: 20px;
   }
-  .module-badge.on { background: rgba(59, 165, 93, 0.18); color: #7dd996; }
-  .module-badge.off { background: rgba(148, 155, 164, 0.15); color: var(--text-muted); }
+  .module-badge.on { background: rgba(45, 212, 167, 0.18); color: #8ff2d8; }
+  .module-badge.off { background: rgba(139, 144, 179, 0.15); color: var(--text-muted); }
   .app-layout { display: flex; align-items: flex-start; }
   .server-list { display: flex; flex-direction: column; gap: 10px; }
   .server-row {
@@ -366,7 +388,7 @@ function layout({ title, user, body, flash, guildName }) {
   .server-row:hover { border-color: #45474e; transform: translateY(-1px); }
   .server-row .name { font-weight: 600; }
   .server-row a.btn, a.btn, button {
-    background: var(--brand); color: #fff; text-decoration: none; padding: 9px 18px;
+    background: var(--brand-gradient); color: #fff; text-decoration: none; padding: 9px 18px;
     border-radius: 8px; font-size: 13px; font-weight: 600; display: inline-block; border: none;
     cursor: pointer; transition: background 0.15s, transform 0.08s, box-shadow 0.15s;
   }
@@ -432,20 +454,24 @@ function layout({ title, user, body, flash, guildName }) {
   button:hover { background: var(--brand-hover); box-shadow: 0 2px 10px var(--brand-glow); transform: translateY(-1px); }
   button:active { transform: translateY(0) scale(0.97); }
   button.btn-loading { opacity: 0.75; cursor: wait; transform: none; }
-  button[style*="ed4245"]:hover, button[style*="#ed4245"]:hover { box-shadow: 0 2px 10px rgba(237, 66, 69, 0.35); }
+  button[style*="#f2596b"]:hover { box-shadow: 0 2px 10px rgba(242, 89, 107, 0.35); }
   .flash {
-    background: #2f5d3a; color: #d7ffe0; padding: 10px 14px; border-radius: 8px; margin-bottom: 20px; font-size: 14px;
+    background: rgba(45, 212, 167, 0.14); color: #a6f5df; padding: 10px 14px; border-radius: 8px; margin-bottom: 20px; font-size: 14px;
+    border: 1px solid rgba(45, 212, 167, 0.3);
     animation: slideDown 220ms ease both; transition: opacity 300ms ease, transform 300ms ease, margin 300ms ease, padding 300ms ease;
   }
   .flash-out { opacity: 0; transform: translateY(-6px); margin-bottom: 0; padding-top: 0; padding-bottom: 0; max-height: 0; overflow: hidden; }
-  .warning-banner { background: #4a3b1f; color: #f2d9a0; padding: 10px 14px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; }
+  .warning-banner {
+    background: rgba(242, 184, 75, 0.14); color: #ffe3ac; padding: 10px 14px; border-radius: 8px; margin-bottom: 20px; font-size: 14px;
+    border: 1px solid rgba(242, 184, 75, 0.3);
+  }
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
   th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); }
   tbody tr { transition: background 0.15s; }
   tbody tr:hover { background: rgba(255, 255, 255, 0.02); }
   .pill { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 12px; }
-  .pill.open { background: #3a4a2f; color: #b9f2a0; }
-  .pill.closed { background: #4a3a3a; color: #f2a0a0; }
+  .pill.open { background: rgba(45, 212, 167, 0.16); color: #a6f5df; }
+  .pill.closed { background: rgba(242, 89, 107, 0.16); color: #ffb9c2; }
   .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
   .stat-tile {
     background: var(--bg-sunken); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px;
@@ -460,10 +486,10 @@ function layout({ title, user, body, flash, guildName }) {
     animation: fadeInUp 300ms ease both;
   }
   .login-card a {
-    display: inline-block; margin-top: 20px; background: var(--brand); color: #fff; padding: 12px 24px;
-    border-radius: 8px; text-decoration: none; font-weight: 600; transition: background 0.15s, transform 0.1s;
+    display: inline-block; margin-top: 20px; background: var(--brand-gradient); color: #fff; padding: 12px 24px;
+    border-radius: 8px; text-decoration: none; font-weight: 600; transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
   }
-  .login-card a:hover { background: var(--brand-hover); transform: translateY(-1px); }
+  .login-card a:hover { background: var(--brand-hover); transform: translateY(-1px); box-shadow: 0 4px 16px var(--brand-glow); }
   @media (max-width: 820px) {
     .app-layout { flex-direction: column; }
     .sidebar { width: 100%; height: auto; position: static; border-right: none; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
@@ -478,7 +504,7 @@ function layout({ title, user, body, flash, guildName }) {
 ${
   user
     ? `<header>
-  <a class="brand" href="/dashboard">🤖 Panel del bot</a>
+  <a class="brand" href="/dashboard">🪐 PlanetBot</a>
   <div class="user">
     <button id="sound-toggle" type="button">🔊</button>
     <div class="user-menu-wrap">
@@ -537,30 +563,48 @@ function loginPage({ authorizeUrl, error }) {
   return `<!doctype html>
 <html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ingresar · Panel del bot</title>
+<title>Ingresar · PlanetBot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root { color-scheme: dark; --brand: #5865f2; --brand-hover: #4752c4; --brand-glow: rgba(88, 101, 242, 0.35); }
+  :root {
+    color-scheme: dark;
+    --bg: #0b0c17; --bg-raised: #151729; --border: #272b46;
+    --brand: #8b5cf6; --brand-2: #22d3ee; --brand-gradient: linear-gradient(135deg, var(--brand), var(--brand-2));
+    --brand-hover: #7c4deb; --brand-glow: rgba(139, 92, 246, 0.38);
+  }
   * { box-sizing: border-box; }
   body {
-    margin:0; background: radial-gradient(1200px 600px at 50% -10%, #23252b 0%, #1a1b1e 55%) fixed;
-    color:#dbdee1; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased;
+    margin:0;
+    background:
+      radial-gradient(1100px 550px at 15% -10%, rgba(139, 92, 246, 0.22) 0%, transparent 60%),
+      radial-gradient(900px 500px at 100% 10%, rgba(34, 211, 238, 0.16) 0%, transparent 55%),
+      var(--bg) fixed;
+    color:#e6e8f7; font-family: "Inter", -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased;
     opacity: 0; transition: opacity 160ms ease;
   }
   body.page-ready { opacity: 1; }
   .login-wrap { display:flex; align-items:center; justify-content:center; height:100vh; }
   .login-card {
-    background:#2b2d31; padding:44px 40px; border-radius:16px; text-align:center; max-width: 360px;
-    border: 1px solid #35373c; animation: fadeInUp 320ms ease both;
+    background: var(--bg-raised); padding:44px 40px; border-radius:16px; text-align:center; max-width: 380px;
+    border: 1px solid var(--border); animation: fadeInUp 320ms ease both;
   }
   @keyframes fadeInUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-  .login-card h1 { margin-bottom: 4px; }
+  @keyframes shimmer { 0%, 100% { background-position: 0% center; } 50% { background-position: 100% center; } }
+  .login-card h1 {
+    margin-bottom: 4px; font-family: "Space Grotesk", sans-serif; font-size: 26px;
+    background: var(--brand-gradient); background-size: 200% auto; -webkit-background-clip: text; background-clip: text;
+    color: transparent; animation: shimmer 7s ease-in-out infinite;
+  }
+  .login-card p { color: #8b90b3; font-size: 14.5px; }
   .login-card a {
-    display:inline-block; margin-top:22px; background: var(--brand); color:#fff; padding:12px 26px;
+    display:inline-block; margin-top:22px; background: var(--brand-gradient); color:#fff; padding:12px 26px;
     border-radius:8px; text-decoration:none; font-weight:600; transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
   }
   .login-card a:hover { background: var(--brand-hover); transform: translateY(-1px); box-shadow: 0 4px 16px var(--brand-glow); }
   .login-card a:active { transform: translateY(0) scale(0.97); }
-  .error { color:#f2a0a0; font-size: 14px; margin-top: 14px; animation: fadeInUp 220ms ease both; }
+  .error { color:#ffb9c2; font-size: 14px; margin-top: 14px; animation: fadeInUp 220ms ease both; }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
   }
@@ -568,8 +612,8 @@ function loginPage({ authorizeUrl, error }) {
 <body>
 <div class="login-wrap">
   <div class="login-card">
-    <h1>🤖 Panel del bot</h1>
-    <p>Iniciá sesión con Discord para administrar el server.</p>
+    <h1>🪐 PlanetBot</h1>
+    <p>Iniciá sesión con Discord para administrar tu comunidad.</p>
     <a href="${authorizeUrl}">Iniciar sesión con Discord</a>
     ${error ? `<p class="error">${escapeHtml(error)}</p>` : ''}
   </div>
@@ -695,7 +739,7 @@ function dashboardHomePage({ user, config, guildName }) {
       const badge = m.enabledPath
         ? `<span class="module-badge ${enabled ? 'on' : 'off'}">${enabled ? 'Activado' : 'Desactivado'}</span>`
         : '';
-      return `<a class="module-card" href="${m.href}">
+      return `<a class="module-card" href="${m.href}" style="--accent:${m.color};">
         ${badge}
         <span class="module-icon" style="background:${m.color}26; color:${m.color};">${m.icon || '🔹'}</span>
         <span class="module-name">${escapeHtml(m.label)}</span>
@@ -745,7 +789,7 @@ function welcomePage({ user, config, channels, roles, guildName, flash }) {
   ];
   const placeholderButtons = (targetId) =>
     PLACEHOLDER_TOKENS.map(
-      (p) => `<button type="button" class="btn placeholder-btn" data-target="${targetId}" data-token="${escapeHtml(p.token)}" style="background:#4a4d53; padding:4px 10px; font-size:12px; margin:0 6px 6px 0;">${escapeHtml(p.label)}</button>`,
+      (p) => `<button type="button" class="btn placeholder-btn" data-target="${targetId}" data-token="${escapeHtml(p.token)}" style="background:#363a5c; padding:4px 10px; font-size:12px; margin:0 6px 6px 0;">${escapeHtml(p.label)}</button>`,
     ).join('');
   // los mismos tokens/samples, como JSON para que el script del preview los
   // use del lado del cliente (nunca pasa por el server, es solo para mostrar
@@ -925,7 +969,7 @@ function messagesPage({ user, config, editingTopic, guildName, flash }) {
           <a class="btn" href="/dashboard/mensajes?editar=${encodeURIComponent(t.name)}">Editar</a>
           <form method="post" action="/dashboard/mensajes/ayuda/tema/eliminar" style="display:inline; margin:0;" data-confirm="¿Eliminar el tema \"${escapeHtml(t.name)}\"?">
             <input type="hidden" name="name" value="${escapeHtml(t.name)}">
-            <button type="submit" style="margin:0; background:#ed4245;">Eliminar</button>
+            <button type="submit" style="margin:0; background:#f2596b;">Eliminar</button>
           </form>
         </span>
       </div>`,
@@ -971,7 +1015,7 @@ function messagesPage({ user, config, editingTopic, guildName, flash }) {
     <label>Respuesta</label>
     <textarea name="response" required>${escapeHtml(topic.response)}</textarea>
     <button type="submit">${editingTopic ? 'Guardar cambios' : 'Crear tema'}</button>
-    ${editingTopic ? '<a class="btn" href="/dashboard/mensajes" style="margin-left:10px; background:#4a4d53;">Cancelar edición</a>' : ''}
+    ${editingTopic ? '<a class="btn" href="/dashboard/mensajes" style="margin-left:10px; background:#363a5c;">Cancelar edición</a>' : ''}
   </form>`;
   return layout({ title: 'Tips y ayuda', user, body, flash, guildName });
 }
@@ -988,7 +1032,7 @@ function announcePage({ user, channels, guildName, flash }) {
     <label>Mensaje</label>
     <textarea name="mensaje" required></textarea>
     <label>Color (hex, opcional)</label>
-    <input type="text" name="color" placeholder="#5865f2">
+    <input type="text" name="color" placeholder="#8b5cf6">
     <label>Imagen (URL, opcional)</label>
     <input type="url" name="imagen">
     <button type="submit">Enviar anuncio</button>
@@ -1077,8 +1121,8 @@ function statsPage({ user, stats, channelNames, leaderboard, economyLeaderboard,
         });
       }
 
-      barChart('chart-channels', ${safeChartJson(topChannels.map(([id]) => `#${channelNames[id] || id}`))}, ${safeChartJson(topChannels.map(([, count]) => count))}, '#5865f2', true);
-      barChart('chart-xp', ${safeChartJson((leaderboard || []).map((e) => e.displayName || e.userId))}, ${safeChartJson((leaderboard || []).map((e) => e.xp))}, '#3ba55d', false);
+      barChart('chart-channels', ${safeChartJson(topChannels.map(([id]) => `#${channelNames[id] || id}`))}, ${safeChartJson(topChannels.map(([, count]) => count))}, '#8b5cf6', true);
+      barChart('chart-xp', ${safeChartJson((leaderboard || []).map((e) => e.displayName || e.userId))}, ${safeChartJson((leaderboard || []).map((e) => e.xp))}, '#2dd4a7', false);
       barChart('chart-economy', ${safeChartJson((economyLeaderboard || []).map((e) => e.displayName || e.userId))}, ${safeChartJson((economyLeaderboard || []).map((e) => e.balance))}, '#f0b232', false);
     })();
   </script>`
@@ -1211,7 +1255,7 @@ function reactionRolesPage({ user, sets, channels, roles, guildName, flash }) {
         <span class="name">#${escapeHtml(channels.find((c) => c.id === s.channelId)?.name || s.channelId)} — ${s.pairs.length} rol(es)</span>
         <form method="post" action="/dashboard/roles-reaccion/eliminar" style="margin:0;">
           <input type="hidden" name="messageId" value="${escapeHtml(s.messageId)}">
-          <button type="submit" style="margin:0; background:#ed4245;">Eliminar</button>
+          <button type="submit" style="margin:0; background:#f2596b;">Eliminar</button>
         </form>
       </div>`,
     )
@@ -1271,7 +1315,7 @@ function selectRolesPage({ user, sets, editingSet, channels, roles, guildName, f
           <a class="btn" href="/dashboard/roles-menu?editar=${encodeURIComponent(s.messageId)}">Editar</a>
           <form method="post" action="/dashboard/roles-menu/eliminar" style="margin:0;" data-confirm="¿Eliminar el menú \"${escapeHtml(s.title || 'Sin título')}\"? Se borra tambien el mensaje publicado en Discord.">
             <input type="hidden" name="messageId" value="${escapeHtml(s.messageId)}">
-            <button type="submit" style="margin:0; background:#ed4245;">Eliminar</button>
+            <button type="submit" style="margin:0; background:#f2596b;">Eliminar</button>
           </form>
         </span>
       </div>`,
@@ -1302,7 +1346,7 @@ function selectRolesPage({ user, sets, editingSet, channels, roles, guildName, f
     <label>Opciones (hasta ${MAX_OPTIONS} — es el máximo que permite Discord en un solo menú; dejá vacío lo que no uses)</label>
     ${optionRows}
     <button type="submit">${editingSet ? 'Guardar cambios' : 'Crear y publicar'}</button>
-    ${editingSet ? '<a class="btn" href="/dashboard/roles-menu" style="margin-left:10px; background:#4a4d53;">Cancelar edición</a>' : ''}
+    ${editingSet ? '<a class="btn" href="/dashboard/roles-menu" style="margin-left:10px; background:#363a5c;">Cancelar edición</a>' : ''}
   </form>
   <script>
     document.querySelectorAll('.role-autofill-select').forEach((select) => {
@@ -1357,7 +1401,7 @@ function customCommandsPage({ user, config, editingCommand, guildName, flash }) 
           <a class="btn" href="/dashboard/comandos?editar=${encodeURIComponent(cmd.name)}">Editar</a>
           <form method="post" action="/dashboard/comandos/eliminar" style="display:inline; margin:0;" data-confirm="¿Eliminar el comando /${escapeHtml(cmd.name)}? Se borra también de Discord.">
             <input type="hidden" name="name" value="${escapeHtml(cmd.name)}">
-            <button type="submit" style="margin:0; background:#ed4245;">Eliminar</button>
+            <button type="submit" style="margin:0; background:#f2596b;">Eliminar</button>
           </form>
         </span>
       </div>`,
@@ -1400,7 +1444,7 @@ function customCommandsPage({ user, config, editingCommand, guildName, flash }) 
     <label>Cooldown para usuarios normales (segundos, ignorado si es solo-admin)</label>
     <input type="number" name="cooldownSeconds" min="0" value="${cmd.cooldownSeconds}">
     <button type="submit">${editingCommand ? 'Guardar cambios' : 'Crear'}</button>
-    ${editingCommand ? '<a class="btn" href="/dashboard/comandos" style="margin-left:10px; background:#4a4d53;">Cancelar edición</a>' : ''}
+    ${editingCommand ? '<a class="btn" href="/dashboard/comandos" style="margin-left:10px; background:#363a5c;">Cancelar edición</a>' : ''}
   </form>`;
   return layout({ title: 'Comandos', user, body, flash, guildName });
 }
@@ -1729,7 +1773,7 @@ function aiPage({ user, config, channels, roles, aiConfigured, usageStats, guild
             <span class="name">${escapeHtml(tag.label)} → ${role ? escapeHtml(role.name) : '(rol eliminado)'}</span>
             <form method="post" action="/dashboard/ia/staff-roles/eliminar" style="margin:0;" data-confirm="¿Quitar la etiqueta \"${escapeHtml(tag.label)}\"?">
               <input type="hidden" name="roleId" value="${escapeHtml(tag.roleId)}">
-              <button type="submit" style="margin:0; background:#ed4245;">Eliminar</button>
+              <button type="submit" style="margin:0; background:#f2596b;">Eliminar</button>
             </form>
           </div>`;
         })
@@ -1776,7 +1820,7 @@ function serverGuidePage({ user, config, channels, guildName, flash, editingSect
           <a class="btn" href="/dashboard/guia?edit=${encodeURIComponent(s.id)}" style="background:#4752c4;">Editar</a>
           <form method="post" action="/dashboard/guia/seccion/eliminar" style="margin:0;">
             <input type="hidden" name="id" value="${escapeHtml(s.id)}">
-            <button type="submit" style="margin:0; background:#ed4245;">Eliminar</button>
+            <button type="submit" style="margin:0; background:#f2596b;">Eliminar</button>
           </form>
         </div>
       </div>`,
@@ -1858,7 +1902,7 @@ function ticketConfigPage({ user, config, editingPanel, editingCategory, channel
           <a class="btn" href="/dashboard/tickets/config?editarCategoria=${encodeURIComponent(cat.id)}">Editar</a>
           <form method="post" action="/dashboard/tickets/config/categoria/eliminar" style="margin:0;" data-confirm="¿Eliminar la categoría \"${escapeHtml(cat.label)}\"? Los paneles que la usan van a dejar de mostrarla.">
             <input type="hidden" name="id" value="${escapeHtml(cat.id)}">
-            <button type="submit" style="margin:0; background:#ed4245;">Eliminar</button>
+            <button type="submit" style="margin:0; background:#f2596b;">Eliminar</button>
           </form>
         </span>
       </div>`,
@@ -1884,7 +1928,7 @@ function ticketConfigPage({ user, config, editingPanel, editingCategory, channel
           </form>
           <form method="post" action="/dashboard/tickets/config/panel/eliminar" style="margin:0;" data-confirm="¿Eliminar el panel \"${escapeHtml(panel.title)}\"?${panel.messageId ? ' El mensaje publicado en Discord queda huerfano (no se borra solo).' : ''}">
             <input type="hidden" name="id" value="${escapeHtml(panel.id)}">
-            <button type="submit" style="margin:0; background:#ed4245;">Eliminar</button>
+            <button type="submit" style="margin:0; background:#f2596b;">Eliminar</button>
           </form>
         </div>
       </div>`;
@@ -1912,7 +1956,7 @@ function ticketConfigPage({ user, config, editingPanel, editingCategory, channel
     <label>Roles de staff con acceso (opcional, podés elegir varios)</label>
     <select name="staffRoleIds" multiple size="5">${roleOptions(editingCategory ? editingCategory.staffRoleIds || [] : [])}</select>
     <button type="submit">${editingCategory ? 'Guardar cambios' : 'Crear categoría'}</button>
-    ${editingCategory ? '<a class="btn" href="/dashboard/tickets/config" style="margin-left:10px; background:#4a4d53;">Cancelar edición</a>' : ''}
+    ${editingCategory ? '<a class="btn" href="/dashboard/tickets/config" style="margin-left:10px; background:#363a5c;">Cancelar edición</a>' : ''}
   </form>
 
   <div class="card">
