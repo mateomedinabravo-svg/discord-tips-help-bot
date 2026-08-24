@@ -21,6 +21,9 @@ function defaultConfig(guildId) {
     language: 'es',
     tipsIntervalMinutes: 20,
     tips: defaultTips,
+    // canales donde el tip automatico NUNCA se manda, aunque sean el canal
+    // mas activo en ese momento (ej. canales de staff, de bots, de tickets)
+    tipsExcludedChannelIds: [],
     helpResponses: defaultHelpData,
     welcome: {
       enabled: false,
@@ -333,6 +336,7 @@ async function getGuildConfig(guildId) {
   config.customCommands = config.customCommands || [];
   config.textCommands = { ...defaults.textCommands, ...(config.textCommands || {}) };
   config.protectedRoleIds = config.protectedRoleIds || [];
+  config.tipsExcludedChannelIds = config.tipsExcludedChannelIds || [];
   config.economy = { ...defaults.economy, ...(config.economy || {}) };
   config.casino = { ...defaults.casino, ...(config.casino || {}) };
   config.pets = { ...defaults.pets, ...(config.pets || {}) };

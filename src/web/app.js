@@ -301,14 +301,26 @@ function createApp({ client }) {
   app.get('/dashboard/general', requireAuth, requireActiveGuild, async (req, res) => {
     const config = await db.getGuildConfig(req.session.activeGuildId);
     res.send(
-      views.generalPage({ user: req.session.user, config, guildName: guildName(req), flash: req.query.saved ? 'Guardado.' : null }),
+      views.generalPage({
+        user: req.session.user,
+        config,
+        channels: getTextChannels(req),
+        guildName: guildName(req),
+        flash: req.query.saved ? 'Guardado.' : null,
+      }),
     );
   });
 
   app.post('/dashboard/general', requireAuth, requireActiveGuild, async (req, res) => {
+    const tipsExcludedChannelIds = Array.isArray(req.body.tipsExcludedChannelIds)
+      ? req.body.tipsExcludedChannelIds
+      : req.body.tipsExcludedChannelIds
+        ? [req.body.tipsExcludedChannelIds]
+        : [];
     await db.updateGuildConfig(req.session.activeGuildId, {
       language: req.body.language === 'en' ? 'en' : 'es',
       tipsIntervalMinutes: Math.max(1, Number(req.body.tipsIntervalMinutes) || 20),
+      tipsExcludedChannelIds,
     });
     res.redirect('/dashboard/general?saved=1');
   });

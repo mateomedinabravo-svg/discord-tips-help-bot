@@ -216,11 +216,18 @@ function stopMiniEventLoop(guildId) {
 
 async function sendTipToMostActiveChannel(guildId) {
   const tracker = getTracker(guildId);
-  const channelId = tracker.getMostActiveChannelId();
+  const rankedChannelIds = tracker.getRankedChannelIds();
   tracker.reset();
 
   const config = configByGuild.get(guildId);
-  if (!channelId || !config || !config.tips.length) return;
+  if (!rankedChannelIds.length || !config || !config.tips.length) return;
+
+  // el canal mas activo puede estar excluido (ej. staff, tickets, bots) — se
+  // busca el siguiente mas activo que no lo este, en vez de mandarlo igual
+  // ahi o de caer a un canal random sin actividad real
+  const excluded = new Set(config.tipsExcludedChannelIds || []);
+  const channelId = rankedChannelIds.find((id) => !excluded.has(id));
+  if (!channelId) return;
 
   try {
     const channel = await client.channels.fetch(channelId);

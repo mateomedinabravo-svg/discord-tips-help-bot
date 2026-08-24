@@ -754,7 +754,12 @@ function dashboardHomePage({ user, config, guildName }) {
   return layout({ title: 'Panel', user, body, guildName });
 }
 
-function generalPage({ user, config, guildName, flash }) {
+function generalPage({ user, config, channels, guildName, flash }) {
+  const excludedIds = new Set(config.tipsExcludedChannelIds || []);
+  const channelOptions = (channels || [])
+    .map((c) => `<option value="${c.id}" ${excludedIds.has(c.id) ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`)
+    .join('');
+
   const body = `
   <h1>Configuración general</h1>
   <p class="muted">Idioma e intervalo del tip automático.</p>
@@ -766,6 +771,9 @@ function generalPage({ user, config, guildName, flash }) {
     </select>
     <label>Intervalo del tip automático (minutos)</label>
     <input type="number" name="tipsIntervalMinutes" min="1" value="${escapeHtml(config.tipsIntervalMinutes)}">
+    <label>Canales excluidos del tip automático</label>
+    <select name="tipsExcludedChannelIds" multiple size="8">${channelOptions}</select>
+    <p class="muted" style="margin-top:6px;">El bot manda el tip al canal más activo del momento, salvo que sea uno de estos — ahí busca el siguiente más activo. Mantené Ctrl (o Cmd) apretado para elegir varios.</p>
     <button type="submit">Guardar</button>
   </form>`;
   return layout({ title: 'General', user, body, flash, guildName });

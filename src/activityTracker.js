@@ -19,6 +19,12 @@ class ActivityTracker {
     return bestId;
   }
 
+  // todos los canales con actividad, del mas al menos activo — permite elegir
+  // el mas activo que NO este excluido, en vez de solo el numero 1
+  getRankedChannelIds() {
+    return [...this.counts.entries()].sort((a, b) => b[1] - a[1]).map(([channelId]) => channelId);
+  }
+
   reset() {
     this.counts.clear();
   }
