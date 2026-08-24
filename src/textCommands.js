@@ -24,6 +24,7 @@ const ticketCommand = require('./ticketCommand');
 const marriageCommands = require('./marriageCommands');
 const petCommands = require('./petCommands');
 const inviteCommand = require('./inviteCommand');
+const serverInfoCommand = require('./serverInfoCommand');
 const birthdayCommand = require('./birthdayCommand');
 const giveawayCommand = require('./giveawayCommand');
 const memeCommand = require('./memeCommand');
@@ -95,6 +96,7 @@ const FLAT_COMMANDS = {
   pareja: { module: 'pareja', category: CAT.MATRIMONIO },
 
   meme: { module: 'meme', category: CAT.COMUNIDAD },
+  infoserver: { module: 'infoserver', category: CAT.COMUNIDAD },
   trivia: { module: 'trivia', category: CAT.COMUNIDAD },
   afk: { module: 'afk', restStringOptions: ['motivo'], category: CAT.COMUNIDAD },
   casa: {
@@ -393,6 +395,8 @@ async function dispatch(resolved, interaction, config, segments, prefix) {
       return petCommands.handlePetCommand(interaction, config);
     case 'invitaciones':
       return inviteCommand.handleInviteCommand(interaction, config);
+    case 'infoserver':
+      return serverInfoCommand.handleInfoServerCommand(interaction, config);
     case 'cumpleanos':
       return birthdayCommand.handleBirthdayCommand(interaction);
     case 'sorteo':

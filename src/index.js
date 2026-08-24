@@ -33,6 +33,7 @@ const birthdayCommand = require('./birthdayCommand');
 const inviteCommand = require('./inviteCommand');
 const inviteTracker = require('./inviteTracker');
 const sayCommand = require('./sayCommand');
+const serverInfoCommand = require('./serverInfoCommand');
 const voiceXp = require('./voiceXp');
 const errorReporter = require('./errorReporter');
 const { isDirectedAtAnotherUser } = require('./messageDirection');
@@ -1887,6 +1888,9 @@ async function handleInteraction(interaction) {
         break;
       case 'invitaciones':
         await inviteCommand.handleInviteCommand(interaction, config);
+        break;
+      case 'infoserver':
+        await serverInfoCommand.handleInfoServerCommand(interaction, config);
         break;
       case 'decir':
         await sayCommand.handleDecirCommand(interaction);

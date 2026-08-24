@@ -128,6 +128,18 @@ ${topicsSummary || '(sin temas cargados)'}
 ${guideSummary ? `\nGuía del server:\n${guideSummary}` : ''}`;
 }
 
+// habilita que la IA ayude con preguntas tecnicas de herramientas de render y
+// edicion usadas para renders/animaciones de Minecraft (el tema central de
+// este server) usando su propio conocimiento general de esas herramientas —
+// no depende de datos del server, es conocimiento publico sobre software
+// real, asi que no entra en conflicto con la regla de "nunca inventes datos"
+// (esa regla es para datos DEL SERVER, no para como usar Blender). Solo se
+// usa en chatReply (charla libre), no en answerHelpQuestion, que se mantiene
+// limitado a los temas configurados en el dashboard
+function buildRenderExpertiseBlock() {
+  return `\nAdemás de lo de arriba, sabés ayudar con preguntas técnicas sobre herramientas de render y edición usadas para hacer renders y animaciones de Minecraft: Blender (iluminación, materiales, addons como Mineways/JMC2Obj/Chunky para importar mundos, render con Cycles/Eevee), ibisPaint, Affinity Photo/Designer, Photoshop, Photopea (la versión gratuita que corre en el navegador), y herramientas similares de edición 2D/3D. Si te preguntan algo técnico sobre alguna de estas, respondé con consejos reales y concretos (pasos, nombres de herramientas/menús que existen de verdad), no inventes botones ni funciones que no existen. Esto es distinto de opinar quién es "el mejor" de este server con estas herramientas — eso seguís sin poder responderlo (no tenés forma de juzgar el trabajo de nadie); acá se trata de ayudar con CÓMO se usa el programa, no de evaluar a nadie.`;
+}
+
 // arma el bloque de contexto reciente del canal (ultimos mensajes), para que
 // la IA pueda seguir el hilo de una conversacion en vez de responder cada
 // mensaje como si fuera la primera vez que le hablan
@@ -192,6 +204,7 @@ async function chatReply(client, config, message, context = {}) {
   const systemPrompt = `Sos un bot de Discord charlando en el server "${serverName || 'este server'}". Respondés en español neutro (evitá modismos muy regionales de un solo país, para que se entienda en cualquier país hispanohablante). ${personalityInstruction(tone, customPersonality)} Te acaban de mencionar directamente en un mensaje.
 
 ${buildKnowledgeBlock(config, { botName, userName, roleNames, channelNames, isCreator, staffDirectory, serverFacts })}
+${buildRenderExpertiseBlock()}
 ${buildRecentContextBlock(recentMessages)}
 ${buildRealDataBlock(realData)}
 ${buildForbiddenTopicsRule(forbiddenTopics, isCreator)}
