@@ -45,7 +45,6 @@ const NAV_GROUPS = [
     links: [
       { href: '/dashboard/automoderacion', label: 'Automoderación', icon: '🚫', enabledPath: 'automod.enabled' },
       { href: '/dashboard/logs', label: 'Logs', icon: '📜', enabledPath: 'logging.enabled' },
-      { href: '/dashboard/moderacion', label: 'Roles protegidos', icon: '🛡️' },
     ],
   },
   {
@@ -1505,28 +1504,6 @@ function housesPage({ user, config, channels, guildName, flash }) {
   return layout({ title: 'Houses', user, body, flash, guildName });
 }
 
-function moderationSettingsPage({ user, config, roles, guildName, flash }) {
-  const protectedIds = config.protectedRoleIds || [];
-  const roleCheckboxes = roles
-    .map(
-      (r) => `<div class="checkbox-row">
-        <input type="checkbox" name="protectedRoleIds" value="${r.id}" id="role-${r.id}" ${protectedIds.includes(r.id) ? 'checked' : ''}>
-        <label for="role-${r.id}" style="margin:0;">${escapeHtml(r.name)}</label>
-      </div>`,
-    )
-    .join('');
-
-  const body = `
-  <h1>Moderación</h1>
-  <form class="card" method="post" action="/dashboard/moderacion">
-    <h2>Roles protegidos</h2>
-    <p class="muted">/ban, /kick y /mute van a rechazar la acción si el usuario tiene alguno de estos roles.</p>
-    ${roleCheckboxes || '<p class="muted">Este server no tiene roles asignables.</p>'}
-    <button type="submit">Guardar</button>
-  </form>`;
-  return layout({ title: 'Moderación', user, body, flash, guildName });
-}
-
 function economyPage({ user, config, guildName, flash }) {
   const shopItemsText = (config.economy.shopItems || [])
     .map((item) => `${item.name}|${item.price}|${item.description || ''}`)
@@ -1952,6 +1929,13 @@ function ticketConfigPage({ user, config, editingPanel, editingCategory, channel
     <div class="server-list">${categoryRows || '<p class="muted">Todavía no hay categorías.</p>'}</div>
   </div>
 
+  <form class="card" method="post" action="/dashboard/tickets/config/staff-default">
+    <h2>Quién ve todos los tickets</h2>
+    <p class="muted">Estos roles ven CUALQUIER ticket sin importar la categoría, además de los roles específicos que elijas por categoría abajo.</p>
+    <select name="ticketDefaultStaffRoleIds" multiple size="5">${roleOptions(config.ticketDefaultStaffRoleIds || [])}</select>
+    <button type="submit">Guardar</button>
+  </form>
+
   <form class="card" method="post" action="/dashboard/tickets/config/categoria">
     <h2>${editingCategory ? `Editando: ${escapeHtml(editingCategory.label)}` : 'Nueva categoría'}</h2>
     ${editingCategory ? `<input type="hidden" name="originalId" value="${escapeHtml(editingCategory.id)}">` : ''}
@@ -2265,7 +2249,6 @@ module.exports = {
   logsPage,
   customCommandsPage,
   housesPage,
-  moderationSettingsPage,
   economyPage,
   casinoSettingsPage,
   petsSettingsPage,

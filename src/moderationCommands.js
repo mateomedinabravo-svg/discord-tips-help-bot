@@ -39,12 +39,6 @@ const warningsDefinition = new SlashCommandBuilder()
   .addUserOption((opt) => opt.setName('usuario').setDescription('Usuario a consultar').setRequired(true))
   .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers);
 
-function isProtected(config, member) {
-  const protectedRoleIds = config?.protectedRoleIds || [];
-  if (!protectedRoleIds.length || !member) return false;
-  return member.roles.cache.some((role) => protectedRoleIds.includes(role.id));
-}
-
 // discord solo compara la jerarquia del ROL DEL BOT contra el objetivo, nunca
 // la del moderador que ejecuta el comando; sin este chequeo, un staff de rango
 // bajo con permiso de Ban/Kick/ModerateMembers podria moderar a un superior
@@ -83,10 +77,6 @@ async function handleBanCommand(interaction, config) {
   const reason = interaction.options.getString('razon') || 'Sin especificar';
 
   const existingMember = await interaction.guild.members.fetch(user.id).catch(() => null);
-  if (isProtected(config, existingMember)) {
-    await interaction.reply({ content: '🛡️ Ese usuario tiene un rol protegido, no se puede banear.', ephemeral: true });
-    return;
-  }
   if (!canModerate(interaction, existingMember)) {
     await interaction.reply({ content: '❌ No podés moderar a alguien con un rol igual o superior al tuyo.', ephemeral: true });
     return;
@@ -107,10 +97,6 @@ async function handleKickCommand(interaction, config) {
 
   try {
     const member = await interaction.guild.members.fetch(user.id);
-    if (isProtected(config, member)) {
-      await interaction.reply({ content: '🛡️ Ese usuario tiene un rol protegido, no se puede expulsar.', ephemeral: true });
-      return;
-    }
     if (!canModerate(interaction, member)) {
       await interaction.reply({ content: '❌ No podés moderar a alguien con un rol igual o superior al tuyo.', ephemeral: true });
       return;
@@ -130,10 +116,6 @@ async function handleMuteCommand(interaction, config) {
 
   try {
     const member = await interaction.guild.members.fetch(user.id);
-    if (isProtected(config, member)) {
-      await interaction.reply({ content: '🛡️ Ese usuario tiene un rol protegido, no se puede silenciar.', ephemeral: true });
-      return;
-    }
     if (!canModerate(interaction, member)) {
       await interaction.reply({ content: '❌ No podés moderar a alguien con un rol igual o superior al tuyo.', ephemeral: true });
       return;

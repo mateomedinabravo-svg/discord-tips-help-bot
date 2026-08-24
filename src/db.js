@@ -93,7 +93,6 @@ function defaultConfig(guildId) {
       acceptMessage: '🎉 ¡Tu solicitud de House fue aceptada! El staff se va a poner en contacto para darte tu canal.',
       rejectMessage: '😕 Tu solicitud de House no fue aceptada esta vez. Podés volver a intentarlo más adelante.',
     },
-    protectedRoleIds: [],
     economy: {
       enabled: false,
       currencyName: 'monedas',
@@ -127,6 +126,9 @@ function defaultConfig(guildId) {
     // con su propio embed y su propio subconjunto de categorias (categoryIds
     // vacio = todas las categorias de ticketCategories)
     ticketPanels: [],
+    // roles que ven TODOS los tickets sin importar la categoria (se suman a
+    // los staffRoleIds especificos de cada categoria, no los reemplazan)
+    ticketDefaultStaffRoleIds: [],
     ticketTranscripts: {
       enabled: false,
       channelId: null,
@@ -335,8 +337,8 @@ async function getGuildConfig(guildId) {
   config.houses = { ...defaults.houses, ...(config.houses || {}) };
   config.customCommands = config.customCommands || [];
   config.textCommands = { ...defaults.textCommands, ...(config.textCommands || {}) };
-  config.protectedRoleIds = config.protectedRoleIds || [];
   config.tipsExcludedChannelIds = config.tipsExcludedChannelIds || [];
+  config.ticketDefaultStaffRoleIds = config.ticketDefaultStaffRoleIds || [];
   config.economy = { ...defaults.economy, ...(config.economy || {}) };
   config.casino = { ...defaults.casino, ...(config.casino || {}) };
   config.pets = { ...defaults.pets, ...(config.pets || {}) };

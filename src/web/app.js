@@ -615,6 +615,16 @@ function createApp({ client }) {
     res.redirect('/dashboard/tickets/config?saved=1');
   });
 
+  app.post('/dashboard/tickets/config/staff-default', requireAuth, requireActiveGuild, async (req, res) => {
+    const ticketDefaultStaffRoleIds = Array.isArray(req.body.ticketDefaultStaffRoleIds)
+      ? req.body.ticketDefaultStaffRoleIds
+      : req.body.ticketDefaultStaffRoleIds
+        ? [req.body.ticketDefaultStaffRoleIds]
+        : [];
+    await db.updateGuildConfig(req.session.activeGuildId, { ticketDefaultStaffRoleIds });
+    res.redirect('/dashboard/tickets/config?saved=1');
+  });
+
   app.post('/dashboard/tickets/config/panel', requireAuth, requireActiveGuild, async (req, res) => {
     if (!req.body.channelId) {
       return res.redirect(`/dashboard/tickets/config?error=${encodeURIComponent('Elegí un canal para el panel.')}`);
@@ -1296,25 +1306,6 @@ function createApp({ client }) {
       console.error('No se pudo publicar el mensaje de House:', err);
       res.redirect(`/dashboard/houses?error=${encodeURIComponent('No se pudo publicar: ' + err.message)}`);
     }
-  });
-
-  app.get('/dashboard/moderacion', requireAuth, requireActiveGuild, async (req, res) => {
-    const config = await db.getGuildConfig(req.session.activeGuildId);
-    res.send(
-      views.moderationSettingsPage({
-        user: req.session.user,
-        config,
-        roles: getAssignableRoles(req),
-        guildName: guildName(req),
-        flash: req.query.saved ? 'Guardado.' : null,
-      }),
-    );
-  });
-
-  app.post('/dashboard/moderacion', requireAuth, requireActiveGuild, async (req, res) => {
-    const protectedRoleIds = [].concat(req.body.protectedRoleIds || []);
-    await db.updateGuildConfig(req.session.activeGuildId, { protectedRoleIds });
-    res.redirect('/dashboard/moderacion?saved=1');
   });
 
   app.get('/dashboard/economia', requireAuth, requireActiveGuild, async (req, res) => {

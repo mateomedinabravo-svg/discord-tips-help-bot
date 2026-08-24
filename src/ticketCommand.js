@@ -160,7 +160,10 @@ async function createTicketChannel(interaction, config, categoryId, panel) {
   await interaction.deferReply({ ephemeral: true });
 
   const parent = await resolveTicketParentCategory(guild, panel);
-  const staffRoleIds = category.staffRoleIds && category.staffRoleIds.length ? category.staffRoleIds : staffRoles(guild).map((r) => r.id);
+  const categoryStaffRoleIds = category.staffRoleIds && category.staffRoleIds.length ? category.staffRoleIds : staffRoles(guild).map((r) => r.id);
+  // los roles de staff "default" (config.ticketDefaultStaffRoleIds) ven TODOS
+  // los tickets sin importar la categoria, ademas de los especificos de arriba
+  const staffRoleIds = [...new Set([...categoryStaffRoleIds, ...(config.ticketDefaultStaffRoleIds || [])])];
 
   const permissionOverwrites = [
     { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
