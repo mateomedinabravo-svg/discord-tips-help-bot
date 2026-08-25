@@ -1,59 +1,124 @@
-# Discord Tips Bot
+# PlanetBot
 
-Bot de Discord multi-servidor con dashboard web propio. Cualquiera con permiso de **Gestionar servidor** puede invitar el bot a su server y administrar todo desde el dashboard, sin tocar código — igual que MEE6, Dyno o Nekotina.
+Bot de Discord multi-servidor con dashboard web propio, hecho para **Planet of Creators** (comunidad de renders/animaciones de Minecraft) pero utilizable en cualquier server. Cualquiera con permiso de **Gestionar servidor** puede invitar el bot y administrar todo desde el dashboard, sin tocar código — igual que MEE6, Dyno o Nekotina.
 
-## Funciones
+- **Dashboard en vivo**: https://discord-tips-help-bot.onrender.com/dashboard
+- Todos los comandos funcionan como **`/comando`** (slash) y, si el server activa el prefijo en el dashboard (página *A medida → Comandos*), también como **`!comando`** con el mismo texto.
 
-### Comunidad
-- **Tips automáticos**: cada tanto (intervalo configurable) manda un tip al canal donde más se habló.
-- **Respuestas de ayuda**: sistema local (gratis, sin API paga) que combina palabras clave con tolerancia a errores de tipeo + un clasificador bayesiano para reconocer paráfrasis. Nunca responde si el mensaje es una respuesta o mención dirigida a otro usuario. Editable con un formulario visual desde el dashboard (temas, palabras clave, ejemplos, respuestas).
+## Índice
+
+- [Funciones por categoría](#funciones-por-categoría)
+- [Comandos](#comandos)
+- [Dashboard](#dashboard)
+- [Arquitectura](#arquitectura)
+- [Puesta en marcha](#puesta-en-marcha)
+- [Desplegar en Render](#desplegar-en-render-gratis)
+- [Notas y limitaciones](#notas-y-limitaciones)
+
+## Funciones por categoría
+
+### 🏠 General
+- **Tips automáticos**: cada tanto (intervalo configurable) manda un tip al canal donde más se habló recientemente. Se pueden **excluir canales puntuales** (staff, tickets, bots) desde el dashboard — si el más activo está excluido, busca el siguiente.
+- **Estadísticas**: mensajes, tickets, ranking de niveles y de economía.
+- **Contador de miembros**: un canal de voz que muestra el total de miembros en su nombre.
+- **Estado / Debug**: info técnica del bot (`/debug`, solo staff), protegible con contraseña extra en el dashboard.
+
+### 💬 Comunidad
+- **Bienvenida / Despedida**: mensaje (texto o embed) con variables reales — `{user}`, `{username}`, `{server}`, `{membercount}`, `{joindate}` (fecha real de ingreso) — insertables con botones. Título, banner/imagen y **vista previa en vivo** del embed configurables desde el dashboard. Opción de que la IA redacte una bienvenida distinta cada vez.
+- **Respuestas de ayuda**: sistema local (gratis, sin API paga) que combina palabras clave con tolerancia a errores de tipeo + un clasificador bayesiano para reconocer paráfrasis. Nunca responde si el mensaje es una respuesta o mención dirigida a otro usuario. Editable con un formulario visual desde el dashboard.
 - **`/anuncio`**: manda un embed a cualquier canal (solo staff).
 - **Houses**: sistema de solicitud con formulario (Modal de Discord), botón "Solicitar aquí" publicable en un canal, revisión con botones Aceptar/Rechazar, y MD automático al usuario con el resultado.
 - **Starboard**: mensajes que juntan suficientes reacciones de un emoji (⭐ por defecto) se republican en un canal de destacados, con conteo que se actualiza en vivo.
+- **Sugerencias**: buzón con votación (👍/👎) y aprobación opcional por rol.
+- **Cumpleaños**: cada quien carga el suyo (`/cumpleanos configurar`), el bot avisa el día en un canal elegido.
+- **Invite Tracker**: cuenta invitaciones reales por usuario, ranking (`/invitaciones ver|ranking`).
+- **Skills** 🛠️: los miembros se auto-etiquetan con roles reales marcados como "skill" (`/skills agregar|quitar|ver|buscar`) — un buscador de colaboradores real, sin datos inventados.
 
-### Moderación
-- `/ban`, `/kick`, `/mute` (timeout), `/warn`, `/warnings`.
-- **Roles protegidos**: estos comandos rechazan la acción si el objetivo tiene un rol marcado como protegido.
-- **Automoderación**: palabras prohibidas, bloqueo de invitaciones a otros servers, límite de spam de menciones.
+### 🛡️ Moderación
+- `/ban`, `/kick`, `/mute` (timeout), `/warn`, `/warnings` — respetan la jerarquía real de roles (nunca dejan moderar a alguien de rango igual o superior al tuyo).
+- **Automoderación**: palabras prohibidas, bloqueo de invitaciones a otros servers, límite de spam de menciones, con una segunda opinión opcional de la IA en el canal de logs.
 - **Logs**: canal configurable para mensajes borrados/editados, entradas/salidas de miembros y acciones de moderación.
-- **Moderación con IA** (opcional, gratis con Groq): detecta mensajes tóxicos/acoso que el filtro de palabras no capta.
 
-### Tickets (sistema completo estilo Ticket Tool/Ticket King)
-- Panel con menú desplegable de categorías (cada una con su propio rol de staff, emoji y descripción), publicable en cualquier canal.
-- Numeración secuencial de tickets, botón "Reclamar" para que un staff se asigne el ticket.
-- Transcripción `.txt` generada al cerrar y mandada a un canal de logs.
-- Encuesta de satisfacción opcional (1 a 5 estrellas) por MD al cerrar.
+### 🎫 Tickets (sistema completo estilo Ticket Tool/Ticket King)
+- Uno o varios paneles independientes, cada uno en su propio canal, con menú desplegable o botones de categorías (cada una con su propio rol de staff, emoji y descripción).
+- **Rol de staff global** (ve todos los tickets sin importar la categoría) + roles específicos por categoría — se combinan sin duplicar.
+- Numeración secuencial, botón "Reclamar", transcripción `.txt` al cerrar, encuesta de satisfacción opcional (1 a 5 estrellas) por MD.
 
-### Progresión
-- **Niveles/XP**: XP por mensaje con cooldown, roles automáticos por nivel, `/nivel`, `/ranking`.
-- **Roles por reacción**: mensajes con emoji → rol, publicables desde el dashboard.
+### 📈 Progresión
+- **Niveles/XP**: XP por mensaje (y opcionalmente por tiempo en voz) con cooldown, roles automáticos por nivel, `/nivel`, `/ranking`.
+- **Roles por reacción** y **roles por menú desplegable**, publicables desde el dashboard.
 
-### Economía y juegos (estilo Nekotina)
-- **`/economia`**: `balance`, `daily`, `work`, `pay`, `shop`, `comprar`, `inventario`, `perfil`. Moneda, tienda y montos configurables desde el dashboard.
-- **`/casino`**: `apostar` (cara/cruz), `slots`, `ruleta`, `blackjack` (interactivo con botones), `dados`, `ppt`. Límites de apuesta configurables.
-- **Matrimonios**: `/casar` (con botón de aceptar/rechazar), `/divorciar`, `/pareja`.
+### 🎮 Economía y juegos (estilo Nekotina)
+- **`/economia`**: `balance`, `daily`, `work`, `pay`, `shop`, `comprar`, `inventario`, `perfil`. Moneda, tienda y montos configurables.
+- **`/casino`**: `apostar` (cara/cruz), `slots`, `ruleta`, `blackjack` (interactivo con botones), `dados`, `ppt`.
+- **Matrimonios**: `/casar` (con botón aceptar/rechazar), `/divorciar`, `/pareja`.
 - **Mascotas**: `/mascota adoptar/ver/alimentar/jugar`, con nivel, hambre y felicidad.
-- **`/trivia`**: pregunta con 4 opciones, el primero en acertar gana monedas. Banco de preguntas configurable.
-- **`/meme`**: trae un meme random de Reddit (vía meme-api.com, gratis).
+- **`/trivia`**: pregunta con 4 opciones, el primero en acertar gana monedas.
+- **`/meme`**: trae un meme random **en español** de r/MemesEnEspanol (vía meme-api.com, gratis).
+- **`/concurso`** 🏆: a diferencia de un sorteo (ganador al azar), elige ganador por **votos reales**: la gente postea su entrada con imagen en el canal, otros votan reaccionando, y al cerrar el bot cuenta los votos de verdad y anuncia.
 - **Eventos automáticos**: el bot larga sorpresas cada tanto — el primero en reaccionar gana monedas.
 
-### A medida
-- **Comandos personalizados**: `/nombre` configurables desde el dashboard (solo-admin o para todos, con cooldown anti-spam).
-- **IA (opcional, gratis con Groq)**: fallback inteligente para preguntas de ayuda que el sistema normal no entiende, usando solo los temas configurados del server como contexto (no inventa datos). Clave de Groq configurable desde el dashboard mismo, con instrucciones incluidas.
+### 🎨 A medida
+- **Comandos personalizados**: `/nombre` configurables desde el dashboard.
+- **IA (opcional, gratis con Groq)**:
+  - Charla al mencionarla y fallback inteligente de ayuda, usando datos reales del server (roles, canales, nivel, balance, tickets, etc.) — nunca inventa datos ni opina sobre "quién es el mejor".
+  - Conocimiento de herramientas de render/edición (Blender, ibisPaint, Affinity, Photoshop, Photopea) aplicado a renders y animaciones de Minecraft.
+  - **Puede "ver" imágenes reales**: si le mandás una imagen mencionándola, o si reaccionás con un emoji elegido a un mensaje con imagen en un canal configurado, pide feedback/responde usando un modelo con visión de Groq — y si la cuenta no tiene acceso a ese modelo, avisa claro en vez de inventar que la vio.
+  - Resumen automático (diario/semanal) con datos reales del server.
+  - Moderación por chat (banear/expulsar/silenciar/advertir mencionando a alguien) solo para IDs autorizados — la IA nunca decide ni ejecuta, solo interpreta el pedido; un sistema aparte valida permisos y jerarquía.
+- **Guía del servidor**: FAQ navegable por botones, editable desde el dashboard.
+- **Apariencia**: color de marca, footer e ícono de los embeds del bot.
+
+## Comandos
+
+Todos también funcionan con el prefijo `!` si el server lo activa (página *A medida → Comandos*; `!help` lista todo agrupado por categoría con el prefijo real configurado).
+
+| Comando | Qué hace |
+|---|---|
+| `/ticket` | Abre un canal privado de soporte |
+| `/nivel`, `/ranking` | Tu nivel/XP, top 10 del server |
+| `/ban`, `/kick`, `/mute`, `/warn`, `/warnings` | Moderación (permiso requerido) |
+| `/casa` | Solicitar tu House |
+| `/economia` | balance / daily / work / pay / shop / comprar / inventario / perfil |
+| `/casino` | apostar / slots / ruleta / blackjack / dados / ppt |
+| `/casar`, `/divorciar`, `/pareja` | Matrimonios |
+| `/mascota` | adoptar / ver / alimentar / jugar |
+| `/trivia` | Pregunta con premio en monedas |
+| `/meme` | Meme random en español |
+| `/debug` | Estado técnico del bot (staff) |
+| `/sorteo` | crear / terminar — ganador al azar |
+| `/concurso` | crear / terminar — ganador por votos reales |
+| `/encuesta` | Encuesta de hasta 5 opciones |
+| `/afk` | Marcarte como ausente |
+| `/cumpleanos` | configurar / ver |
+| `/invitaciones` | ver / ranking |
+| `/decir`, `/programar` | El bot manda un mensaje ahora o programado (staff) |
+| `/preguntar` | Preguntarle algo a la IA en privado |
+| `/explicar` | La IA te explica cómo usar un comando |
+| `/infoserver` | Info real del server (ID, owner, boosts, canales, emojis, etc.) |
+| `/portfolio` | Portfolio de un miembro: posts destacados del starboard, roles, nivel |
+| `/skills` | agregar / quitar / ver / buscar habilidades reales |
+| `/anuncio` | Embed a cualquier canal (staff) |
 
 ## Dashboard
 
-Login con Discord OAuth2. Tras loguearse, se ve la lista de servers donde el usuario tiene permiso de Gestionar servidor: los que ya tienen el bot (botón **Gestionar**) y los que no (botón **Invitar bot**, con permisos correctos ya incluidos). La navegación está agrupada por categoría: General, Comunidad, Moderación, Tickets, Progresión, Economía y juegos, A medida.
+Login con Discord OAuth2. Tras loguearse, se ve la lista de servers donde el usuario tiene permiso de **Gestionar servidor**: los que ya tienen el bot (botón **Gestionar**) y los que no (botón **Invitar bot**, con permisos correctos ya incluidos). La navegación está agrupada en: General, Comunidad, Moderación, Tickets, Progresión, Economía y juegos, A medida.
+
+Identidad visual propia ("aurora": paleta violeta/cian, tipografía Space Grotesk + Inter) en vez de un clon de los colores de Discord.
 
 ## Arquitectura
 
 - **`src/index.js`**: cliente de Discord, maneja todos los eventos (mensajes, reacciones, comandos, botones) y mantiene config/estado en memoria por servidor (multi-guild).
-- **`src/db.js`**: capa de acceso a MongoDB — configuración por servidor, estadísticas, tickets, niveles, economía, etc.
-- **`src/web/`**: dashboard (Express + sesiones guardadas en MongoDB).
+- **`src/db.js`**: capa de acceso a MongoDB — configuración por servidor, estadísticas, tickets, niveles, economía, starboard, concursos, etc.
+- **`src/aiHelper.js`**: toda la integración con Groq (texto y visión), con reintento automático ante fallas transitorias.
+- **`src/web/`**: dashboard (Express + sesiones guardadas en MongoDB). `app.js` tiene las rutas, `views.js` arma el HTML.
 - **`src/commandRegistry.js`**: junta los comandos fijos + los personalizados de cada servidor y los registra en Discord.
-- Cada función vive en su propio módulo (`ticketCommand.js`, `economyCommands.js`, `casinoCommands.js`, etc.) con sus handlers y, cuando aplica, su config por defecto en `db.js`.
+- **`src/textCommands.js`**: capa de compatibilidad que expone (casi) todos los comandos slash también como `!comando`, reusando los mismos handlers.
+- Cada función vive en su propio módulo (`ticketCommand.js`, `economyCommands.js`, `contestCommand.js`, `skillsCommand.js`, etc.) con sus handlers y, cuando aplica, su config por defecto en `db.js`.
 
-## 1. Crear la aplicación en Discord
+## Puesta en marcha
+
+### 1. Crear la aplicación en Discord
 
 1. Andá a https://discord.com/developers/applications y creá una nueva aplicación.
 2. En **Bot**, copiá el **Token**.
@@ -63,15 +128,15 @@ Login con Discord OAuth2. Tras loguearse, se ve la lista de servers donde el usu
 
 No hace falta invitar el bot manualmente a ningún server puntual — eso se hace desde el dashboard.
 
-## 2. Configurar el proyecto
+### 2. Configurar el proyecto
 
 ```bash
 npm install
 ```
 
-Copiá `.env.example` a `.env` y completá las variables (ver comentarios en el archivo): token del bot, credenciales OAuth, `SESSION_SECRET`, connection string de MongoDB. `GROQ_API_KEY` es opcional (también se puede cargar por servidor desde el dashboard, pestaña IA).
+Copiá `.env.example` a `.env` y completá las variables (ver comentarios en el archivo): token del bot, credenciales OAuth, `SESSION_SECRET`, connection string de MongoDB. `GROQ_API_KEY` es opcional (también se puede cargar por servidor desde el dashboard, página IA). `CREATOR_USER_ID` es opcional (tu ID de Discord, te da acceso especial a la IA en cualquier server donde uses el bot).
 
-## 3. Base de datos (MongoDB Atlas)
+### 3. Base de datos (MongoDB Atlas)
 
 Toda la configuración de cada servidor vive en MongoDB — así el dashboard puede editarla y sobrevive a los redeploys. Cluster gratis en https://www.mongodb.com/cloud/atlas, connection string en `MONGODB_URI`.
 
@@ -79,7 +144,7 @@ Si tu red no resuelve bien el DNS de `mongodb+srv://` (común en algunos routers
 
 La primera vez que el bot entra a un server nuevo, se crea configuración por defecto a partir de `data/tips.json` y `data/helpResponses.json` como semilla inicial.
 
-## 4. Correr el bot y usar el dashboard
+### 4. Correr el bot y usar el dashboard
 
 ```bash
 npm start
@@ -87,15 +152,17 @@ npm start
 
 1. Andá a `/login` en la URL de tu dashboard e iniciá sesión con Discord.
 2. Elegí tu server en la lista (o invitá el bot si todavía no está).
-3. Configurá lo que quieras desde las distintas pestañas.
+3. Configurá lo que quieras desde las distintas páginas.
 
-## 5. Desplegar (Render, gratis)
+## Desplegar en Render (gratis)
 
 Repo en GitHub → Web Service en Render → variables de entorno (todas las de `.env`, incluida `DASHBOARD_URL` apuntando a la URL real que te da Render) → UptimeRobot pegándole cada 5 min para que no se duerma (el plan gratis de Render duerme el servicio a los 15 min sin tráfico).
 
-Si cambiás la URL de Render, actualizá `DASHBOARD_URL` en las variables de entorno y el redirect en el Developer Portal (paso 1.5).
+Si cambiás la URL de Render, actualizá `DASHBOARD_URL` en las variables de entorno y el redirect en el Developer Portal (paso 1.5). Los comandos slash nuevos aparecen solos la primera vez que el bot arranca después del deploy (se re-registran por servidor en cada `ready`).
 
-## Notas
+## Notas y limitaciones
 
-- **Música**: evaluado y descartado por ahora — necesita más recursos (CPU/ancho de banda) de los que da el plan gratis de Render, y las librerías para sacar audio de YouTube se rompen seguido.
-- **IA**: usa Groq (gratis, sin tarjeta) en vez de OpenAI/Claude para mantener el proyecto sin costo. Se puede activar por separado para ayuda y para moderación, y queda completamente desactivada si no hay clave configurada — no rompe nada del resto del bot.
+- **IA**: usa Groq (gratis, sin tarjeta) en vez de OpenAI/Claude para mantener el proyecto sin costo. Se puede activar por separado para ayuda, charla, moderación y feedback de imágenes, y queda completamente desactivada si no hay clave configurada — no rompe nada del resto del bot.
+- **Visión de la IA**: el feedback de imágenes usa un modelo con visión de Groq (`meta-llama/llama-4-scout-17b-16e-instruct`) distinto del modelo de texto normal. No hay garantía de que cualquier cuenta de Groq tenga acceso a ese modelo — si no lo tiene, el bot avisa explícitamente en vez de inventar una respuesta sobre una imagen que en realidad no vio.
+- **Música**: evaluada y descartada por ahora — necesita más recursos (CPU/ancho de banda) de los que da el plan gratis de Render, y las librerías para sacar audio de YouTube se rompen seguido.
+- **Nunca se inventan datos**: cualquier número, nombre o estadística que menciona el bot (por chat, por comando o por IA) sale de Discord o de la base de datos en el momento — nunca es un valor inventado o hardcodeado.
